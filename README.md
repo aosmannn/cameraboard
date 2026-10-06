@@ -18,7 +18,7 @@ Built for photos from a Sony Cyber-shot DSC-V1, and it works with any camera.
 - **Photos without GPS.** The DSC-V1 has no GPS, so photos not on the map yet wait in a tray, grouped by day. Put a whole day at the place of the nearest photo in time, search a city (works offline), or click the map.
 - **Retro look.** Early digicam, warm film or black and white, plus an optional date stamp in the corner.
 - **Poster.** Download a printable PNG of a story or all your photos, string included.
-- **Accounts and friends (optional).** Sign in with your email and a 6-digit code. Your photos are saved to your account and come back on any device. Find friends by email, follow them, and their shared stories appear on your map in blue string. Likes are real and shared. Nothing is shared until you turn on "Share with friends" for a photo or a whole story.
+- **Accounts and friends (optional).** Sign in with your email and a 6-digit code. Your photos are saved to your account and come back on any device. Pick a name, and optionally a username. You are invisible to search until you turn on "Let people find me by username". Everyone gets a private invite link and QR code that works even when search is off, and friends can also be found by email. Follow people to see the stories they chose to share on your map in blue string. Likes are real and shared. You can block and report people.
 - **Backup.** Export to a file and import it again.
 
 ## How it works
@@ -78,15 +78,20 @@ One-time setup in the Supabase dashboard:
 
 1. **Database:** SQL Editor → New query → paste all of `supabase/schema.sql` → Run. It creates the tables, the private `photos` storage bucket, and the row level security rules. It is safe to run again.
 2. **Email sign-in:** Authentication → Sign In / Providers → Email → on. Leave "Confirm email" on.
-3. **Make the email show a code:** Authentication → Email Templates → Magic Link. Put `{{ .Token }}` in the message, for example `Your Wayframe code is {{ .Token }}`. The link in the email works too.
+3. **Make the emails show a code, not a link:** Authentication → Email Templates. Edit **both** "Confirm signup" (new people get this one) and "Magic Link" (returning people). Put `{{ .Token }}` in the body and remove the link. See `supabase/email-template.html`.
 4. **Redirect address:** Authentication → URL Configuration → set Site URL to your live site, and add `https://YOUR-SITE/app.html` (and `http://localhost:5173/app.html`) under Redirect URLs.
 5. **More than a few emails an hour:** Supabase's built-in email sender is limited. For real use, add a free sender such as Resend under Project Settings → Authentication → SMTP.
 
 How privacy works:
 
 - Every table has row level security. You see your own photos, plus photos that people you follow marked as shared.
+- Nobody can be found by username unless they turned that on, and they need a username first. Searches are limited to 30 a minute.
+- Other people's profile rows can't be read directly. Names and usernames come through database functions that only reveal a username to people who chose to be discoverable.
+- Invite links use a random code, so they work without a username. Make a new link and the old one stops working.
+- Profiles show a name and a username, with no follower counts or bios. Mutual friends only show when the other person is discoverable.
+- Blocking removes the follow in both directions and hides you from each other. Reports are stored for you to read in the Supabase dashboard.
+- Finding friends by email sends one-way hashes to a database function that only returns people who have an account. The addresses aren't saved.
 - Image files live in a private bucket and are shown through links that expire after an hour.
-- Finding friends sends one-way hashes of email addresses to a database function that only returns people who have an account. The addresses aren't saved.
 
 ## Map data
 
@@ -103,6 +108,7 @@ Not included: streets and buildings. That level of detail needs OpenStreetMap-si
 
 ## Roadmap
 
+- [ ] A feed of friends' photos
 - [ ] Comments on friends' photos
 - [ ] Approve followers before they see your shared photos
 

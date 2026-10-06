@@ -37,7 +37,6 @@ let connecting: string | null = null;      // story that clicks on photos add to
 let query = '';
 // signed-in state: your account, the people you follow, and the photos they shared with you
 let signedIn = false;
-let myName = '';
 let friends: cloud.Person[] = [];
 let friendCards: Card[] = [];
 let showFriends = lsGet('wf-friends') !== '0';
@@ -86,7 +85,7 @@ function visible(c: Card) {
 }
 const visiblePlaced = () => cards.filter(c => placed(c) && visible(c));
 const isFriendCard = (c: Card) => friendCards.includes(c);
-const nameOf = (id: string) => friends.find(f => f.id === id)?.display_name || 'A friend';
+const nameOf = (id: string) => { const f = friends.find(x => x.id === id); return f ? cloud.labelOf(f) : 'A friend'; };
 /** Everything on the map: your photos, plus friends' shared photos when shown. */
 const mapCards = () => [...visiblePlaced(), ...(signedIn && showFriends ? friendCards.filter(c => placed(c) && visible(c)) : [])];
 /** Friends' photos never share a pin with yours. */
@@ -779,19 +778,25 @@ $<HTMLInputElement>('importFile').onchange = async e => {
   } catch { alert('That file is not a Wayframe export.'); }
 };
 
-// ---------- account: email sign-in, friends from contacts ----------
+// ---------- account: email sign-in, profile, following ----------
 const acctBtn = $('acctBtn');
 let pendingEmail = '';
+let me: cloud.MyProfile | null = null;
+let followers: cloud.Person[] = [];
+let blocked = new Set<string>();
+const followingIds = () => new Set(friends.map(f => f.id));
+const initial = (p: { display_name: string; username: string | null }) => (cloud.labelOf(p).replace(/^@/, '')[0] || '?').toUpperCase();
+
 function renderAcct() {
   acctBtn.hidden = !cloud.cloudEnabled;
-  acctBtn.textContent = signedIn ? (myName.trim()[0] || '☺').toUpperCase() : 'Sign in';
+  acctBtn.textContent = signedIn ? (me ? initial(me) : '☺') : 'Sign in';
   acctBtn.classList.toggle('avatar', signedIn);
-  acctBtn.setAttribute('aria-label', signedIn ? 'Your account' : 'Sign in');
+  acctBtn.setAttribute('aria-label', signedIn ? 'Your profile' : 'Sign in');
   $('signIn').hidden = signedIn; $('account').hidden = !signedIn;
-  const email = cloud.me()?.email;
-  $('acctEmail').textContent = email ? 'Signed in as ' + email : '';
+  $('acctEmail').textContent = cloud.me()?.email ? 'Signed in as ' + cloud.me()!.email : '';
 }
-acctBtn.onclick = () => { $('acctModal').hidden = false; if (signedIn) renderPeople(); else $('phoneIn').focus(); };
+function openAcct() { $('acctModal').hidden = false; if (signedIn) { renderPeople(); renderInvite(); } else $('phoneIn').focus(); }
+acctBtn.onclick = openAcct;
 $('acctClose').onclick = () => { $('acctModal').hidden = true; };
 const authMsg = (t: string) => { $('authMsg').textContent = t; };
 $('phoneForm').onsubmit = async e => {
@@ -801,75 +806,209 @@ $('phoneForm').onsubmit = async e => {
   try {
     await cloud.sendCode(pendingEmail);
     $('phoneForm').hidden = true; $('codeForm').hidden = false; $('codeIn').focus();
-    authMsg(`We emailed a code to ${cloud.cleanEmail(pendingEmail)}. You can also tap the link in that email.`);
+    authMsg(`We emailed a 6-digit code to ${cloud.cleanEmail(pendingEmail)}. Type it here.`);
   } catch (err) { authMsg('Couldn’t send the code: ' + (err as Error).message); }
 };
 $('codeForm').onsubmit = async e => {
   e.preventDefault();
   authMsg('Checking…');
   try { await cloud.verifyCode(pendingEmail, $<HTMLInputElement>('codeIn').value); authMsg(''); }
-  catch (err) { authMsg('That code didn’t work: ' + (err as Error).message); }
+  catch (err) { authMsg('That code didn’t work. It may have expired, so ask for a new one. (' + (err as Error).message + ')'); }
 };
 $('codeBack').onclick = () => { $('codeForm').hidden = true; $('phoneForm').hidden = false; authMsg(''); };
-$('nameSave').onclick = async () => {
-  try { await cloud.setMyName($<HTMLInputElement>('nameIn').value); myName = $<HTMLInputElement>('nameIn').value.trim(); renderAcct(); syncNote('Name saved.'); }
-  catch (err) { syncNote('Couldn’t save your name: ' + (err as Error).message); }
-};
 $('signOutBtn').onclick = async () => { await cloud.signOut(); $('acctModal').hidden = true; };
 const showFriendsBox = $<HTMLInputElement>('showFriends');
 showFriendsBox.checked = showFriends;
 showFriendsBox.onchange = () => { showFriends = showFriendsBox.checked; lsSet('wf-friends', showFriends ? '1' : '0'); render(); };
 
-function person(p: cloud.Person, action: HTMLElement) {
+// ---- your profile: name, optional username, and whether you can be found ----
+const userIn = $<HTMLInputElement>('userIn');
+const discBox = $<HTMLInputElement>('discBox');
+function discHint() {
+  const has = cloud.USERNAME_RE.test(userIn.value);
+  discBox.disabled = !has; if (!has) discBox.checked = false;
+  $('discHint').textContent = !has ? 'Pick a username first. Until you turn this on, nobody can find you by searching.'
+    : discBox.checked ? `On. People can search for @${userIn.value} and follow you.` : 'Off. Nobody can find you by searching. You can still be added with your invite link or by email.';
+}
+userIn.oninput = () => { userIn.value = userIn.value.toLowerCase().replace(/[^a-z0-9_]/g, ''); discHint(); };
+discBox.onchange = discHint;
+function fillProfileForm() {
+  userIn.value = me?.username ?? ''; $<HTMLInputElement>('nameIn').value = me?.display_name ?? ''; discBox.checked = !!me?.discoverable; discHint();
+}
+$('profSave').onclick = async () => {
+  try {
+    await cloud.saveProfile({ display_name: $<HTMLInputElement>('nameIn').value, username: userIn.value, discoverable: discBox.checked });
+    me = await cloud.myProfile(); fillProfileForm(); renderAcct(); syncNote('Saved.'); openPending();
+  } catch (err) { syncNote((err as Error).message); }
+};
+$('viewMine').onclick = () => { if (me) openProfile({ id: me.id }); };
+
+// ---- invite link and QR code ----
+async function renderInvite() {
+  if (!me) return;
+  const link = cloud.inviteLink(me.invite_code);
+  $<HTMLInputElement>('inviteUrl').value = link;
+  try {
+    const QR = await import('qrcode');
+    await QR.toCanvas($<HTMLCanvasElement>('qr'), link, { width: 132, margin: 1, color: { dark: '#231f19', light: '#ffffff' } });
+  } catch { /* the link still works without the picture */ }
+}
+$('inviteBtn').onclick = async () => {
+  const link = $<HTMLInputElement>('inviteUrl').value;
+  try { await navigator.clipboard.writeText(link); $('inviteBtn').textContent = 'Link copied'; }
+  catch { $<HTMLInputElement>('inviteUrl').select(); $('inviteBtn').textContent = 'Press copy'; }
+  setTimeout(() => { $('inviteBtn').textContent = 'Copy link'; }, 2500);
+};
+$('inviteNew').onclick = async () => {
+  if (!me) return;
+  const code = crypto.randomUUID().replace(/-/g, '').slice(0, 10);
+  try { await cloud.setInviteCode(code); me = await cloud.myProfile(); renderInvite(); syncNote('New link made. The old one no longer works.'); }
+  catch (err) { syncNote('Couldn’t make a new link: ' + (err as Error).message); }
+};
+
+// ---- people lists ----
+function personRow(p: cloud.Person, action?: HTMLElement) {
   const row = el('div', 'person');
-  row.append(el('span', 'ava', (p.display_name.trim()[0] || '?').toUpperCase()), el('span', 'p-name', p.display_name || 'No name yet'), action);
+  const open = el('button', 'p-open');
+  open.append(el('span', 'ava', initial(p)));
+  const t = el('span', 'p-text'); t.append(el('b', '', cloud.labelOf(p)));
+  if (p.username) t.append(el('small', '', '@' + p.username));
+  open.append(t); open.onclick = () => openProfile({ id: p.id });
+  row.append(open); if (action) row.append(action);
   return row;
 }
+function followButton(p: cloud.Person): HTMLButtonElement {
+  const b = el('button', 'btn small');
+  const paint = () => { const on = followingIds().has(p.id); b.textContent = on ? 'Following' : followers.some(f => f.id === p.id) ? 'Follow back' : 'Follow'; b.className = 'btn small' + (on ? '' : ' primary'); };
+  paint();
+  b.onclick = async () => {
+    b.disabled = true;
+    try { if (followingIds().has(p.id)) await cloud.unfollow(p.id); else await cloud.follow(p.id); await refreshFriends(); }
+    catch (err) { syncNote('Couldn’t update that: ' + (err as Error).message); }
+    b.disabled = false; paint();
+  };
+  return b;
+}
 function renderPeople() {
-  const list = $('friendList'); list.innerHTML = '';
-  if (!friends.length) list.append(el('p', 'hint', 'You aren’t following anyone yet. Find friends below.'));
-  for (const f of friends) {
-    const b = el('button', 'linkbtn', 'Unfollow');
-    b.onclick = async () => { await cloud.unfollow(f.id); await refreshFriends(); };
-    list.append(person(f, b));
+  $('nFollowing').textContent = String(friends.length); $('nFollowers').textContent = String(followers.length);
+  const fill = (id: string, list: cloud.Person[], empty: string) => {
+    const box = $(id); box.innerHTML = '';
+    if (!list.length) box.append(el('p', 'hint', empty));
+    for (const p of list) box.append(personRow(p, followButton(p)));
+  };
+  fill('paneFollowing', friends, 'You aren’t following anyone yet. Use Find, or share your invite link.');
+  fill('paneFollowers', followers, 'No followers yet. Share your invite link.');
+  $('blockedFold').hidden = !blocked.size;
+}
+async function renderBlocked() {
+  const box = $('blockedList'); box.innerHTML = '';
+  for (const id of blocked) {
+    const b = el('button', 'btn small', 'Unblock');
+    b.onclick = async () => { await cloud.unblockUser(id); blocked.delete(id); renderBlocked(); renderPeople(); };
+    const row = el('div', 'person'); row.append(el('span', 'ava', '–'), el('span', 'p-name', 'Blocked person'), b); box.append(row);
   }
 }
+$('blockedFold').addEventListener('toggle', renderBlocked);
+document.querySelectorAll<HTMLButtonElement>('.tab').forEach(t => t.onclick = () => {
+  document.querySelectorAll('.tab').forEach(x => x.classList.toggle('on', x === t));
+  for (const k of ['following', 'followers', 'find']) $('pane' + k[0].toUpperCase() + k.slice(1)).hidden = t.dataset.tab !== k;
+  if (t.dataset.tab === 'find') $('peopleQ').focus();
+});
+let searchT: number;
+async function runSearch() {
+  const q = $<HTMLInputElement>('peopleQ').value, out = $('matchList'); out.innerHTML = '';
+  if (cloud.cleanUsername(q).length < 2) return;
+  try {
+    const found = await cloud.searchPeople(q);
+    if (!found.length) { out.append(el('p', 'hint', 'No one found. People only show up here if they chose to be found. Ask them for their invite link.')); return; }
+    for (const p of found) out.append(personRow(p, followButton(p)));
+  } catch (err) { out.append(el('p', 'hint', (err as Error).message)); }
+}
+$('peopleQ').oninput = () => { clearTimeout(searchT); searchT = window.setTimeout(runSearch, 350); };
+$('peopleQ').onkeydown = e => { if (e.key === 'Enter') { clearTimeout(searchT); runSearch(); } };
 $('findBtn').onclick = async () => {
-  const lines = $<HTMLTextAreaElement>('numbersIn').value.split(/[\s,;]+/);
-  const out = $('matchList'); out.innerHTML = '';
+  const lines = $<HTMLTextAreaElement>('numbersIn').value.split(/[\s,;]+/), out = $('emailList'); out.innerHTML = '';
   try {
     const found = await cloud.matchContacts(lines);
-    if (!found.length) { out.append(el('p', 'hint', 'None of those addresses use Wayframe yet. Send them the invite link.')); return; }
-    for (const p of found) {
-      const already = friends.some(f => f.id === p.id);
-      const b = el('button', 'btn small' + (already ? '' : ' primary'), already ? 'Following' : 'Follow');
-      b.onclick = async () => { await cloud.follow(p.id); b.textContent = 'Following'; b.className = 'btn small'; await refreshFriends(); };
-      out.append(person(p, b));
-    }
+    if (!found.length) { out.append(el('p', 'hint', 'None of those addresses use Wayframe yet. Send them your invite link.')); return; }
+    for (const p of found) out.append(personRow(p, followButton(p)));
   } catch (err) { out.append(el('p', 'hint', 'Couldn’t check those addresses: ' + (err as Error).message)); }
 };
-// The Contact Picker only exists in Chrome on Android; elsewhere people paste numbers.
-const contactsApi = (navigator as any).contacts;
-$('pickContacts').hidden = !(contactsApi && 'select' in contactsApi);
-$('pickContacts').onclick = async () => {
-  try {
-    const picked: { email?: string[] }[] = await contactsApi.select(['email'], { multiple: true });
-    const nums = picked.flatMap(p => p.email ?? []);
-    const ta = $<HTMLTextAreaElement>('numbersIn');
-    ta.value = [ta.value.trim(), ...nums].filter(Boolean).join('\n');
-    $('findBtn').click();
-  } catch { /* closed the picker */ }
+
+// ---- a person's profile ----
+$('profClose').onclick = () => { $('profileModal').hidden = true; };
+let profileOf: cloud.Profile | null = null;
+async function openProfile(who: { id?: string; handle?: string; code?: string }) {
+  if (!signedIn) { openAcct(); return; }
+  let p: cloud.Profile | null = null;
+  try { p = await cloud.publicProfile(who); } catch (err) { syncNote('Couldn’t open that profile: ' + (err as Error).message); return; }
+  if (!p) { $('acctModal').hidden = false; syncNote('That person or link wasn’t found.'); return; }
+  const prof = p, mine = prof.id === me?.id;
+  profileOf = prof;
+  $('acctModal').hidden = true; $('profileModal').hidden = false;
+  $('pfAva').textContent = initial(prof);
+  $('pfName').textContent = cloud.labelOf(prof); $('pfHandle').textContent = prof.username ? '@' + prof.username : '';
+  $('pfFollowsYou').hidden = !followers.some(f => f.id === prof.id);
+  $('pfSafety').hidden = mine; $('reportBox').hidden = true; $('safetyMsg').textContent = '';
+  const mut = $('pfMutual'); mut.hidden = true;
+  if (!mine) cloud.mutualFollows(prof.id).then(list => {
+    if (profileOf !== prof || !list.length) return;
+    mut.hidden = false; mut.textContent = 'You both follow ' + list.slice(0, 3).map(cloud.labelOf).join(', ') + (list.length > 3 ? ` and ${list.length - 3} more` : '');
+  }).catch(() => { /* optional */ });
+  const fb = $('pfFollow'); fb.hidden = mine;
+  const paint = () => { const on = followingIds().has(prof.id); fb.textContent = on ? 'Following' : followers.some(f => f.id === prof.id) ? 'Follow back' : 'Follow'; fb.className = 'btn ' + (on ? '' : 'primary'); };
+  paint();
+  fb.onclick = async () => {
+    try {
+      if (followingIds().has(prof.id)) await cloud.unfollow(prof.id); else await cloud.follow(prof.id);
+      await refreshFriends(); paint(); drawProfileStories(prof, mine);
+    } catch (err) { $('pfStories').textContent = 'Couldn’t update that: ' + (err as Error).message; }
+  };
+  drawProfileStories(prof, mine);
+}
+function drawProfileStories(prof: cloud.Profile, mine: boolean) {
+  const box = $('pfStories'); box.innerHTML = '';
+  if (!mine && !followingIds().has(prof.id)) { box.append(el('p', 'hint', `Follow ${cloud.labelOf(prof)} to see the stories they choose to share.`)); return; }
+  const list = mine
+    ? stories().filter(s => s.cards.some(c => c.shared)).map(s => ({ ...s, owner: prof.id, cards: s.cards.filter(c => c.shared) }))
+    : friendStories().filter(s => s.owner === prof.id);
+  if (!list.length) { box.append(el('p', 'hint', mine ? 'You haven’t shared a story yet. Turn on “Share with friends” on a story.' : 'Nothing shared yet.')); return; }
+  for (const s of list) {
+    const item = el('article', 'story friend');
+    item.append(el('span', 'st-name', s.name), el('span', 'st-sub', `${s.cards.length} ${s.cards.length === 1 ? 'stop' : 'stops'}`));
+    const route = routeText(s.cards); if (route) item.append(el('p', 'st-route', route));
+    const thumbs = el('div', 'st-thumbs');
+    s.cards.slice(0, 7).forEach(c => { const im = new Image(); im.src = c.img!; im.alt = ''; im.className = 'look-' + c.look; thumbs.append(im); });
+    const play = el('button', 'btn small friend-play', 'Play on the map');
+    play.onclick = () => { $('profileModal').hidden = true; playList(s.cards, (mine ? 'own:' : 'f:' + prof.id + ':') + s.name, s.name); };
+    const actions = el('div', 'st-actions'); actions.append(play);
+    item.append(thumbs, actions); box.append(item);
+  }
+}
+$('dOwner').onclick = () => { if (cur && isFriendCard(cur)) openProfile({ id: cur.owner }); };
+
+// ---- safety ----
+$('pfBlock').onclick = async () => {
+  const p = profileOf; if (!p) return;
+  const b = $('pfBlock');
+  if (!b.dataset.sure) { b.dataset.sure = '1'; b.textContent = 'Block ' + cloud.labelOf(p) + '? They won’t see you and you won’t see them.'; setTimeout(() => { delete b.dataset.sure; b.textContent = 'Block'; }, 4000); return; }
+  delete b.dataset.sure; b.textContent = 'Block';
+  try { await cloud.blockUser(p.id); blocked.add(p.id); $('profileModal').hidden = true; await refreshFriends(); syncNote('Blocked. You can undo this under Blocked people.'); }
+  catch (err) { $('safetyMsg').textContent = (err as Error).message; }
 };
-$('inviteBtn').onclick = async () => {
-  const link = location.origin;
-  try { await navigator.clipboard.writeText(link); $('inviteBtn').textContent = 'Link copied'; }
-  catch { $('inviteBtn').textContent = link; }
-  setTimeout(() => { $('inviteBtn').textContent = 'Copy invite link'; }, 2500);
+$('pfReport').onclick = () => { $('reportBox').hidden = false; $('reportWhy').focus(); };
+$('reportCancel').onclick = () => { $('reportBox').hidden = true; };
+$('reportSend').onclick = async () => {
+  const p = profileOf; if (!p) return;
+  try { await cloud.reportUser(p.id, $<HTMLTextAreaElement>('reportWhy').value); $('reportBox').hidden = true; $<HTMLTextAreaElement>('reportWhy').value = ''; $('safetyMsg').textContent = 'Thanks. We’ll take a look. You can also block them.'; }
+  catch (err) { $('safetyMsg').textContent = (err as Error).message; }
 };
 
 async function refreshFriends() {
   try {
-    friends = await cloud.following();
+    const all = await cloud.connections();
+    friends = all.filter(c => c.i_follow); followers = all.filter(c => c.follows_me);
+    blocked = new Set(await cloud.blockedIds());
     friendCards = await cloud.friendPhotos(friends.map(f => f.id));
     const info = await cloud.likeInfo([...cards.filter(c => c.imgPath).map(c => c.id), ...friendCards.map(c => c.id)]);
     likeCache.clear(); info.forEach((v, k) => likeCache.set(k, v));
@@ -877,27 +1016,48 @@ async function refreshFriends() {
   render(); renderPeople();
   if (cur) drawLike();
 }
+/** An invite link like /app.html?add=CODE opens that person's profile once you're signed in. */
+let pendingAdd = new URLSearchParams(location.search).get('add');
 async function onAuth(s: boolean) {
   signedIn = s;
   if (!s) {
-    myName = ''; friends = []; friendCards = []; likeCache.clear();
+    me = null; friends = []; followers = []; friendCards = []; blocked = new Set(); likeCache.clear();
     $('phoneForm').hidden = false; $('codeForm').hidden = true;
     renderAcct(); render(); return;
   }
+  $('acctModal').hidden = true;
   renderAcct();
-  myName = await cloud.myName().catch(() => '');
-  $<HTMLInputElement>('nameIn').value = myName;
-  renderAcct();
-  if (!myName) { $('acctModal').hidden = false; $('nameIn').focus(); syncNote('Add your name so friends know it’s you.'); }
+  me = await cloud.myProfile().catch(() => null);
+  fillProfileForm(); renderAcct(); renderInvite();
+  if (!me?.display_name) { openAcct(); $('nameIn').focus(); syncNote('Add your name so friends recognise you. A username is optional.'); }
   try {
     const mine = await cloud.pullMine(new Set(cards.map(c => c.id)));
     if (mine.length) { cards.push(...mine); await saveCards(cards); }
     await cloud.push(cards); await saveCards(cards);
-    syncNote(mine.length ? `Brought in ${mine.length} photos from your account.` : 'Your photos are saved to your account.');
+    if (me?.display_name) syncNote(mine.length ? `Brought in ${mine.length} photos from your account.` : 'Your photos are saved to your account.');
   } catch (err) { syncNote('Couldn’t sync your photos: ' + (err as Error).message); }
   await refreshFriends();
+  openPending();
+}
+function openPending() {
+  if (!pendingAdd || !me?.display_name) return;
+  const code = pendingAdd; pendingAdd = null; history.replaceState(null, '', location.pathname);
+  openProfile({ code });
 }
 setInterval(() => { if (signedIn) refreshFriends(); }, 45 * 60 * 1000);   // signed image links last an hour
+
+/** Supabase sends people back with #error=... when an emailed link is expired or already used. */
+(() => {
+  const hash = new URLSearchParams(location.hash.slice(1));
+  if (!hash.get('error')) return;
+  history.replaceState(null, '', location.pathname + location.search);
+  setTimeout(() => {
+    $('acctModal').hidden = false; $('phoneIn').focus();
+    authMsg(hash.get('error_code') === 'otp_expired'
+      ? 'That email link expired or was already used. Enter your email again and type the 6-digit code instead.'
+      : 'Sign-in didn’t work. Try again.');
+  }, 300);
+})();
 
 // ---------- start ----------
 (async () => {
