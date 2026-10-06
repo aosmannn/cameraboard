@@ -13,13 +13,25 @@ export const blankCard = (i: number): Card => ({
 /** Fills in fields that older saved boards don't have. */
 export const normalize = (c: Partial<Card>, i: number): Card => ({ ...blankCard(i), ...c });
 
-const fmtExposure = (t?: number) => !t ? '' : t >= 1 ? t + ' s' : '1/' + Math.round(1 / t) + ' s';
+/** EXIF stores exposure, aperture and focal length as fractions, e.g. [1, 250] for 1/250 s. */
+const num = (v: unknown): number | undefined => {
+  if (typeof v === 'number') return v;
+  if (v && typeof v === 'object' && 'length' in v && (v as ArrayLike<number>).length === 2) {
+    const a = v as ArrayLike<number>; return a[1] ? a[0] / a[1] : undefined;
+  }
+  return undefined;
+};
+const fmtExposure = (v: unknown) => {
+  const t = num(v);
+  return !t ? '' : t >= 1 ? +t.toFixed(1) + ' s' : '1/' + Math.round(1 / t) + ' s';
+};
+const round = (n: number | undefined, d = 1) => n === undefined ? '' : String(+n.toFixed(d));
 
-async function readExif(file: File) {
+async function readExif(file: File): Promise<Record<string, any>> {
   try {
-    return await exifr.parse(file, { gps: true, pick: ['Make', 'Model', 'DateTimeOriginal', 'ExposureTime',
-      'FNumber', 'ISO', 'FocalLength', 'latitude', 'longitude'] }) || {};
-  } catch { return {}; }
+    // Don't use the `pick` option: it throws in this build, which silently dropped every photo's camera details.
+    return await exifr.parse(file, { ifd0: true, exif: true, gps: true }) || {};
+  } catch (err) { console.warn('Could not read photo details', err); return {}; }
 }
 
 function downscale(file: File, max = 1800): Promise<{ data: string; w: number; h: number }> {
@@ -47,8 +59,11 @@ const toLocalInput = (d: Date) => {
 export async function fillCard(c: Card, f: File): Promise<void> {
   const [ex, img] = await Promise.all([readExif(f), downscale(f)]);
   c.img = img.data;
-  c.meta = { camera: [ex.Make, ex.Model].filter(Boolean).join(' '), exposure: fmtExposure(ex.ExposureTime),
-    aperture: ex.FNumber ? 'f/' + ex.FNumber : '', iso: ex.ISO || '', focal: ex.FocalLength ? ex.FocalLength + ' mm' : '',
+  const make = String(ex.Make ?? '').trim(), model = String(ex.Model ?? '').trim();
+  // many cameras repeat the maker in the model ("Canon Canon IXUS"), so only add the maker when it's missing
+  const camera = model.toLowerCase().startsWith(make.toLowerCase()) ? model : [make, model].filter(Boolean).join(' ');
+  c.meta = { camera, exposure: fmtExposure(ex.ExposureTime),
+    aperture: num(ex.FNumber) ? 'f/' + round(num(ex.FNumber)) : '', iso: ex.ISO || '', focal: num(ex.FocalLength) ? round(num(ex.FocalLength)) + ' mm' : '',
     size: `${img.w} × ${img.h}`, file: f.name };
   c.date = toLocalInput(new Date(ex.DateTimeOriginal || f.lastModified));
   if (ex.latitude != null) { c.lat = ex.latitude; c.lng = ex.longitude; c.place = c.place || 'From photo GPS'; }

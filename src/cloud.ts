@@ -66,7 +66,16 @@ export async function setInviteCode(code: string) {
   const { error } = await sb!.from('profiles').update({ invite_code: code }).eq('id', me()!.id);
   if (error) throw new Error(error.message);
 }
-export const inviteLink = (code: string) => `${location.origin}/app.html?add=${code}`;
+/** Invite links point at the public site, never at a protected preview address. */
+const SITE = (import.meta.env.VITE_PUBLIC_URL as string | undefined)?.replace(/\/$/, '') || '';
+export const inviteLink = (code: string) => `${SITE || location.origin}/app.html?add=${code}`;
+/** The name behind an invite link. Works without signing in. */
+export async function invitePreview(code: string): Promise<string | null> {
+  if (!sb) return null;
+  const { data } = await sb.rpc('invite_preview', { code });
+  const row = (data ?? [])[0] as { display_name: string } | undefined;
+  return row ? (row.display_name || 'A friend') : null;
+}
 
 // ---------- your photos ----------
 interface Row {
