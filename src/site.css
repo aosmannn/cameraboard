@@ -48,8 +48,10 @@ img { max-width: 100%; }
 /* ---- header and footer ---- */
 .nav { position: sticky; top: 0; z-index: 40; display: flex; align-items: center; gap: 22px; padding: 14px var(--gutter); background: color-mix(in srgb, var(--bg) 88%, transparent); backdrop-filter: blur(10px); border-bottom: 1px solid transparent; }
 .nav.scrolled { border-bottom-color: var(--line); }
-.logo { font: 32px/1 var(--display); text-decoration: none; margin-right: auto; }
-.logo.small { font-size: 24px; margin: 0; }
+.logo { display: inline-flex; align-items: center; gap: 9px; font: 32px/1 var(--display); text-decoration: none; margin-right: auto; }
+.logo.small { font-size: 24px; margin: 0 0 6px; }
+.logo-mark { display: block; flex: none; transition: transform .25s; }
+.logo:hover .logo-mark { transform: rotate(-6deg) scale(1.06); }
 .nav nav { display: flex; gap: 6px; }
 .nav nav a { text-decoration: none; color: var(--mute); font-size: 15px; padding: 6px 12px; border-radius: 999px; }
 .nav nav a:hover { color: var(--ink); background: var(--panel-2); }
