@@ -25,7 +25,7 @@ export async function initAuth(onChange: (signedIn: boolean) => void) {
 }
 
 export const cleanEmail = (raw: string) => raw.trim().toLowerCase();
-/** Emails the person a 6-digit code (and a link that does the same thing). */
+/** Emails the person a sign-in code (and a link that does the same thing). */
 export async function sendCode(email: string) {
   const { error } = await sb!.auth.signInWithOtp({
     email: cleanEmail(email), options: { emailRedirectTo: location.origin + '/app.html' }

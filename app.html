@@ -192,7 +192,7 @@
     <button class="x2 m-close" id="acctClose" aria-label="Close">✕</button>
     <section id="signIn">
       <h2>Sign in</h2>
-      <p class="sub">Enter your email and we’ll send a 6-digit code. No password needed.</p>
+      <p class="sub">Enter your email and we’ll email you a sign-in code. No password needed.</p>
       <form id="phoneForm">
         <label class="lab" for="phoneIn">Email</label>
         <input id="phoneIn" class="plain" type="email" placeholder="you@example.com" autocomplete="email" required>
@@ -200,7 +200,7 @@
       </form>
       <form id="codeForm" hidden>
         <label class="lab" for="codeIn">Code from your email</label>
-        <input id="codeIn" class="plain code" inputmode="numeric" autocomplete="one-time-code" maxlength="6" required>
+        <input id="codeIn" class="plain code" inputmode="numeric" autocomplete="one-time-code" maxlength="10" required>
         <button class="btn primary wide">Sign in</button>
         <button type="button" id="codeBack" class="linkbtn">Use a different email</button>
       </form>
