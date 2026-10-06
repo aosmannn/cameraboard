@@ -52,9 +52,15 @@
 </aside>
 <button id="storiesShow" class="stories-show" hidden>Stories</button>
 
+<div id="guestBar" class="banner invite-banner" hidden>
+  <span id="guestText"></span>
+  <button id="guestSignIn" class="btn small primary">Sign in to follow</button>
+  <button id="guestClose" class="btn small" aria-label="Stop viewing">✕</button>
+</div>
 <div id="inviteBanner" class="banner invite-banner" hidden>
   <span id="inviteText"></span>
-  <button id="inviteSignIn" class="btn small primary">Sign in to follow</button>
+  <button id="inviteView" class="btn small primary" hidden>View public stories</button>
+  <button id="inviteSignIn" class="btn small">Sign in to follow</button>
   <button id="inviteDismiss" class="btn small" aria-label="Dismiss">✕</button>
 </div>
 <div id="countryChip" class="banner country-chip" hidden>
@@ -125,7 +131,16 @@
       <button id="replaceBtn" class="btn small ghost edit-only">Replace</button>
       <button id="deleteBtn" class="btn small ghost danger edit-only">Remove</button>
     </div>
-    <label id="shareRow" class="share edit-only" hidden><input id="shareBox" type="checkbox"> <span><b>Share with friends</b><small>Friends who follow you see this photo and its story.</small></span></label>
+    <div id="shareRow" class="share edit-only" hidden>
+      <label class="lab" for="visSel">Who can see this</label>
+      <select id="visSel" class="plain" aria-describedby="visHint">
+        <option value="private">Private: only me</option>
+        <option value="friends">Friends: people who follow me</option>
+        <option value="public">Public: anyone with my link</option>
+      </select>
+      <p id="visHint" class="hint"></p>
+      <button id="copyPublic" class="btn small" hidden>Copy my public link</button>
+    </div>
 
     <label class="lab" for="fStory">What happened here</label>
     <textarea id="fStory" rows="4" placeholder="Who was there, what you did, why this shot."></textarea>

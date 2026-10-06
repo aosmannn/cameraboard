@@ -7,11 +7,14 @@ export const blankCard = (i: number): Card => ({
   id: crypto.randomUUID(), rot: +(Math.random() * 6 - 3).toFixed(1), pin: PINS[i % PINS.length],
   img: null, title: '', story: '', date: '', likes: 0, liked: false, meta: {}, lat: null, lng: null, place: '',
   trip: '', seq: 0, pinColor: '', pinIcon: '', cover: false, look: 'none', stamp: false,
-  shared: false, owner: '', imgPath: ''
+  visibility: 'private', owner: '', imgPath: ''
 });
 
 /** Fills in fields that older saved boards don't have. */
-export const normalize = (c: Partial<Card>, i: number): Card => ({ ...blankCard(i), ...c });
+export const normalize = (c: Partial<Card> & { shared?: boolean }, i: number): Card => {
+  const { shared, ...rest } = c;   // older boards used a yes/no "shared"; that now means friends only
+  return { ...blankCard(i), ...rest, visibility: rest.visibility ?? (shared ? 'friends' : 'private') };
+};
 
 /** EXIF stores exposure, aperture and focal length as fractions, e.g. [1, 250] for 1/250 s. */
 const num = (v: unknown): number | undefined => {

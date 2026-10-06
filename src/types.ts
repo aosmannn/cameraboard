@@ -24,9 +24,11 @@ export interface Card {
   cover: boolean;       // the photo shown on the pin when several share a place
   look: Look;           // retro photo filter
   stamp: boolean;       // old-digicam date stamp in the corner
-  shared: boolean;      // friends can see it once you're signed in
+  visibility: Visibility; // who can see it: only you, people who follow you, or anyone with your link
   owner: string;        // account id; '' for photos made before signing in
   imgPath: string;      // where the image lives in cloud storage, '' until uploaded
 }
 
 export type Look = 'none' | 'digicam' | 'film' | 'bw';
+
+export type Visibility = 'private' | 'friends' | 'public';

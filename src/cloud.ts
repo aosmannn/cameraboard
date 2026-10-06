@@ -81,17 +81,17 @@ export async function invitePreview(code: string): Promise<string | null> {
 interface Row {
   id: string; owner: string; title: string; story: string; taken_at: string; lat: number | null; lng: number | null;
   place: string; trip: string; seq: number; look: string; stamp: boolean; pin_color: string; cover: boolean;
-  rot: number; meta: any; image_path: string | null; shared: boolean; updated_at: string;
+  rot: number; meta: any; image_path: string | null; visibility?: Card['visibility']; updated_at?: string;
 }
 const toRow = (c: Card) => ({
   id: c.id, title: c.title, story: c.story, taken_at: c.date, lat: c.lat, lng: c.lng, place: c.place, trip: c.trip,
   seq: c.seq, look: c.look, stamp: c.stamp, pin_color: c.pinColor, cover: c.cover, rot: c.rot, meta: c.meta ?? {},
-  image_path: c.imgPath || null, shared: c.shared
+  image_path: c.imgPath || null, visibility: c.visibility
 });
 const fromRow = (r: Row, img: string): Card => normalize({
   id: r.id, owner: r.owner, title: r.title, story: r.story, date: r.taken_at, lat: r.lat, lng: r.lng, place: r.place,
   trip: r.trip, seq: r.seq, look: r.look as Card['look'], stamp: r.stamp, pinColor: r.pin_color, cover: r.cover, rot: r.rot,
-  meta: r.meta ?? {}, imgPath: r.image_path ?? '', shared: r.shared, img
+  meta: r.meta ?? {}, imgPath: r.image_path ?? '', visibility: r.visibility ?? 'public', img
 }, 0);
 
 const blobToDataUrl = (b: Blob) => new Promise<string>((res, rej) => {
@@ -207,7 +207,7 @@ export async function unfollow(id: string) { await sb!.from('follows').delete().
 /** Photos friends shared with you. Images come as short-lived signed links. */
 export async function friendPhotos(ids: string[]): Promise<Card[]> {
   if (!ids.length) return [];
-  const { data, error } = await sb!.from('photos').select('*').in('owner', ids).eq('shared', true);
+  const { data, error } = await sb!.from('photos').select('*').in('owner', ids).in('visibility', ['friends', 'public']);
   if (error) throw error;
   const rows = (data as Row[]).filter(r => r.image_path);
   if (!rows.length) return [];
@@ -231,4 +231,21 @@ export async function likeInfo(ids: string[]): Promise<Map<string, { n: number; 
 export async function setLike(id: string, on: boolean) {
   if (on) await sb!.from('likes').insert({ photo_id: id });
   else await sb!.from('likes').delete().eq('photo_id', id).eq('user_id', me()!.id);
+}
+
+/** A person's public photos, reached with their invite link, @username or id. Works without signing in. */
+export async function publicPhotos(who: { code?: string; handle?: string; id?: string }): Promise<{ cards: Card[]; owners: Map<string, string> }> {
+  const out = { cards: [] as Card[], owners: new Map<string, string>() };
+  if (!sb) return out;
+  const { data, error } = await sb.rpc('public_photos', { code: who.code ?? null, handle: who.handle ? cleanUsername(who.handle) : null, uid: who.id ?? null });
+  if (error) throw new Error(error.message);
+  const rows = (data ?? []) as (Row & { owner_name: string })[];
+  if (!rows.length) return out;
+  const { data: signed } = await sb.storage.from(BUCKET).createSignedUrls(rows.map(r => r.image_path!), 3600);
+  const url = new Map((signed ?? []).map(s => [s.path, s.signedUrl]));
+  for (const r of rows) {
+    const u = url.get(r.image_path!); if (!u) continue;
+    out.cards.push(fromRow({ ...r, visibility: 'public' }, u)); out.owners.set(r.owner, r.owner_name || 'A friend');
+  }
+  return out;
 }
