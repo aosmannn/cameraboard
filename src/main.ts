@@ -42,6 +42,9 @@ let friendCards: Card[] = [];
 let showFriends = lsGet('wf-friends') !== '0';
 const likeCache = new Map<string, { n: number; mine: boolean }>();
 const FRIEND_YARN = '#2f5fb3';
+let hl: { owner: string; trip: string } | null = null;   // a friend's story picked from the feed
+let panelTab: 'stories' | 'feed' = 'stories';
+let feedShown = 20;
 
 let pushT: number;
 /** Saves in the browser, and to your account a moment later when signed in. */
@@ -180,7 +183,7 @@ function renderMap() {
     g.sort(byDate);
     const rep = g.find(c => c.cover) ?? g[0];
     const box = polaroid(rep, g.length);
-    const inStory = !activeStory || g.some(c => !isFriendCard(c) && c.trip === activeStory);
+    const inStory = hl ? g.some(c => c.owner === hl!.owner && c.trip === hl!.trip) : (!activeStory || g.some(c => !isFriendCard(c) && c.trip === activeStory));
     if (!inStory) box.classList.add('dim');
     if (focus && placed(focus) && keyOf(focus) === k) box.classList.add('sel');
     const m = L.marker([rep.lat!, rep.lng!], {
@@ -240,10 +243,11 @@ function renderStrings() {
   const cut = (key: string, list: Card[]) => pl.on && pl.key === key ? list.slice(0, pl.i + 1) : list;
   for (const s of stories()) {
     drawYarn(cut('own:' + s.name, s.cards.filter(c => placed(c) && visible(c))), YARN,
-      (!!activeStory && activeStory !== s.name) || (pl.on && pl.key !== 'own:' + s.name));
+      !!hl || (!!activeStory && activeStory !== s.name) || (pl.on && pl.key !== 'own:' + s.name));
   }
   for (const s of friendStories()) {
-    drawYarn(cut('f:' + s.owner + ':' + s.name, s.cards.filter(c => placed(c) && visible(c))), FRIEND_YARN, !!activeStory || (pl.on && !pl.key.startsWith('f:' + s.owner + ':' + s.name)));
+    drawYarn(cut('f:' + s.owner + ':' + s.name, s.cards.filter(c => placed(c) && visible(c))), FRIEND_YARN,
+      hl ? !(hl.owner === s.owner && hl.trip === s.name) : (!!activeStory || (pl.on && !pl.key.startsWith('f:' + s.owner + ':' + s.name))));
   }
 }
 
@@ -366,7 +370,7 @@ function storyEditor(s: Story): HTMLElement {
   return wrap;
 }
 function selectStory(name: string | null) {
-  activeStory = name;
+  activeStory = name; hl = null;
   render();
   if (name) fitCards(storyOf(name), 7);
 }
@@ -388,7 +392,7 @@ function connectText() {
   $('connectText').textContent = `Click photos in the order you went to add them to “${connecting}”. ${n} ${n === 1 ? 'stop' : 'stops'} so far.`;
 }
 function startConnect(name: string) {
-  stopPlay(); stopPinning();
+  stopPlay(); stopPinning(); hl = null;
   connecting = name; activeStory = name;
   closeDrawerQuiet();
   document.body.classList.add('connecting');
@@ -399,6 +403,68 @@ function stopConnect() {
   connecting = null; document.body.classList.remove('connecting'); $('connectBar').hidden = true; render();
 }
 $('connectDone').onclick = stopConnect;
+
+// ---------- friends feed ----------
+function timeAgo(c: Card) {
+  const t = timeOf(c); if (!t) return '';
+  const d = Math.round((Date.now() - t) / 864e5);
+  return d <= 0 ? 'today' : d === 1 ? 'yesterday' : d < 30 ? `${d} days ago` : fmtDate(c);
+}
+function setPanelTab(t: 'stories' | 'feed') {
+  panelTab = signedIn ? t : 'stories';
+  $('tabStories').classList.toggle('on', panelTab === 'stories'); $('tabFeed').classList.toggle('on', panelTab === 'feed');
+  $('storyList').hidden = panelTab !== 'stories'; $('feedList').hidden = panelTab !== 'feed';
+  $('newStory').hidden = panelTab !== 'stories'; if (panelTab !== 'stories') $('newStoryForm').hidden = true;
+  renderFeed();
+}
+$('tabStories').onclick = () => setPanelTab('stories');
+$('tabFeed').onclick = () => setPanelTab('feed');
+function renderFeed() {
+  $('tabFeed').hidden = !signedIn;
+  if (panelTab === 'feed' && !signedIn) { panelTab = 'stories'; setPanelTab('stories'); return; }
+  const box = $('feedList'); if (box.hidden) return;
+  box.innerHTML = '';
+  const posts = friendCards.filter(c => c.img).sort((a, b) => (timeOf(b) || 0) - (timeOf(a) || 0));
+  if (!posts.length) {
+    const e = el('div', 'st-empty');
+    e.append(el('b', '', friends.length ? 'Nothing shared yet.' : 'Follow friends to fill this up.'),
+      el('p', '', friends.length ? 'When the people you follow share a photo, it shows up here, newest first.' : 'Open your profile, use Find or share your invite link, and their shared photos appear here.'));
+    box.append(e); return;
+  }
+  for (const c of posts.slice(0, feedShown)) {
+    const post = el('article', 'post');
+    const who = el('button', 'post-who');
+    who.append(el('span', 'ava', initial({ display_name: nameOf(c.owner), username: null })), el('b', '', nameOf(c.owner)),
+      el('small', '', [c.trip, timeAgo(c)].filter(Boolean).join(' · ')));
+    who.onclick = () => openProfile({ id: c.owner });
+    const frame = el('button', 'post-photo'); frame.style.setProperty('--rot', (c.rot / 2) + 'deg');
+    const im = new Image(); im.src = c.img!; im.alt = c.title; im.className = 'look-' + c.look; frame.append(im);
+    if (c.stamp && c.date) frame.append(el('span', 'stamp', stampText(c)));
+    frame.onclick = () => showOnMap(c);
+    post.append(who, frame, el('p', 'post-title', c.title || 'Untitled'));
+    const meta = [placeName(c), fmtDate(c)].filter(Boolean).join(' · '); if (meta) post.append(el('p', 'post-meta', meta));
+    if (c.story) post.append(el('p', 'post-story', c.story));
+    const row = el('div', 'post-actions');
+    const v = likeCache.get(c.id) ?? { n: 0, mine: false };
+    const like = el('button', 'like' + (v.mine ? ' on' : ''), `${v.mine ? '♥' : '♡'} ${v.n}`);
+    like.setAttribute('aria-pressed', String(v.mine));
+    like.onclick = () => {
+      const cur0 = likeCache.get(c.id) ?? { n: 0, mine: false };
+      const nv = { n: Math.max(0, cur0.n + (cur0.mine ? -1 : 1)), mine: !cur0.mine }; likeCache.set(c.id, nv);
+      cloud.setLike(c.id, nv.mine).catch(() => { likeCache.set(c.id, cur0); renderFeed(); });
+      renderFeed(); if (cur === c) drawLike();
+    };
+    const show = el('button', 'btn small', 'Show on map'); show.onclick = () => showOnMap(c);
+    row.append(like, show); post.append(row); box.append(post);
+  }
+  if (posts.length > feedShown) { const more = el('button', 'btn small wide-btn', 'Show more'); more.onclick = () => { feedShown += 20; renderFeed(); }; box.append(more); }
+}
+/** Flies to a friend's photo and lights up their story's string. */
+function showOnMap(c: Card) {
+  hl = c.trip ? { owner: c.owner, trip: c.trip } : null;
+  activeStory = null;
+  render(); openCard(c);
+}
 
 // ---------- loose photos (not on the map yet), a day at a time ----------
 const DAY = 864e5;
@@ -452,7 +518,7 @@ $('trayToggle').onclick = () => { trayOpen = !trayOpen; renderTray(); };
 
 // ---------- everything that depends on the cards ----------
 function render() {
-  renderMap(); renderStrings(); renderStories(); renderTray();
+  renderMap(); renderStrings(); renderStories(); renderFeed(); renderTray();
   const dl = $('tripList'); dl.innerHTML = '';
   stories().forEach(s => dl.append(new Option(s.name)));
 }
@@ -711,6 +777,7 @@ function playStory(name: string) { playList(storyOf(name), 'own:' + name, name);
 function playList(cards0: Card[], key: string, label: string) {
   const list = cards0.filter(placed);
   if (!list.length) return;
+  hl = null;
   stopConnect(); closeDrawerQuiet();
   activeStory = key.startsWith('own:') ? label : null; render();
   Object.assign(pl, { story: label, key, list, i: 0, paused: false, on: true });
@@ -761,7 +828,7 @@ document.addEventListener('keydown', e => {
   else if (connecting) stopConnect();
   else if (pl.on) stopPlay();
   else if (!$('drawer').hidden) closeDrawer();
-  else if (activeStory) selectStory(null);
+  else if (activeStory || hl) { hl = null; selectStory(null); }
 });
 
 // ---------- export / import ----------
@@ -793,6 +860,7 @@ function renderAcct() {
   acctBtn.classList.toggle('avatar', signedIn);
   acctBtn.setAttribute('aria-label', signedIn ? 'Your profile' : 'Sign in');
   $('signIn').hidden = signedIn; $('account').hidden = !signedIn;
+  $('acctBox').classList.toggle('two-col', signedIn);
   $('acctEmail').textContent = cloud.me()?.email ? 'Signed in as ' + cloud.me()!.email : '';
 }
 function openAcct() { $('acctModal').hidden = false; if (signedIn) { renderPeople(); renderInvite(); } else $('phoneIn').focus(); }
@@ -1021,7 +1089,7 @@ let pendingAdd = new URLSearchParams(location.search).get('add');
 async function onAuth(s: boolean) {
   signedIn = s;
   if (!s) {
-    me = null; friends = []; followers = []; friendCards = []; blocked = new Set(); likeCache.clear();
+    me = null; friends = []; followers = []; friendCards = []; blocked = new Set(); likeCache.clear(); hl = null; setPanelTab('stories');
     $('phoneForm').hidden = false; $('codeForm').hidden = true;
     renderAcct(); render(); return;
   }
