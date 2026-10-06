@@ -1012,23 +1012,50 @@ function openAcct() { $('acctModal').hidden = false; if (signedIn) { renderPeopl
 acctBtn.onclick = openAcct;
 $('acctClose').onclick = () => { $('acctModal').hidden = true; };
 const authMsg = (t: string) => { $('authMsg').textContent = t; };
-$('phoneForm').onsubmit = async e => {
+// Supabase only lets one address ask for a code every 60 seconds.
+const RESEND_WAIT = 60;
+let resendTimer = 0;
+function resendCountdown() {
+  const btn = $<HTMLButtonElement>('codeResend');
+  let left = RESEND_WAIT; clearInterval(resendTimer);
+  const tick = () => {
+    btn.disabled = left > 0;
+    btn.textContent = left > 0 ? `Send a new code (${left}s)` : 'Send a new code';
+    if (left-- <= 0) clearInterval(resendTimer);
+  };
+  tick(); resendTimer = window.setInterval(tick, 1000);
+}
+/** Shows the code box straight away and sends the email in the background, so people aren't left staring at "Sending…". */
+async function requestCode() {
+  const email = cloud.cleanEmail(pendingEmail);
+  $('phoneForm').hidden = true; $('codeForm').hidden = false; $('codeIn').focus();
+  resendCountdown();
+  authMsg(`Sending a code to ${email}…`);
+  try {
+    await cloud.sendCode(email);
+    if (cloud.cleanEmail(pendingEmail) !== email) return;   // they switched address meanwhile
+    authMsg(`We emailed a code to ${email}. It can take a minute to arrive. If it isn’t in your inbox, check spam or promotions.`);
+  } catch (err) {
+    if (cloud.cleanEmail(pendingEmail) !== email) return;
+    const msg = (err as Error).message;
+    // a rate limit means a code was sent recently, so keep the code box open
+    if (/rate limit|security purposes|seconds/i.test(msg)) authMsg('A code was sent a moment ago. Check your inbox and spam, or wait a minute and send a new one.');
+    else { $('codeForm').hidden = true; $('phoneForm').hidden = false; authMsg('Couldn’t send the code: ' + msg); }
+  }
+}
+$('phoneForm').onsubmit = e => {
   e.preventDefault();
   pendingEmail = $<HTMLInputElement>('phoneIn').value;
-  authMsg('Sending…');
-  try {
-    await cloud.sendCode(pendingEmail);
-    $('phoneForm').hidden = true; $('codeForm').hidden = false; $('codeIn').focus();
-    authMsg(`We emailed a sign-in code to ${cloud.cleanEmail(pendingEmail)}. Type it here.`);
-  } catch (err) { authMsg('Couldn’t send the code: ' + (err as Error).message); }
+  requestCode();
 };
+$('codeResend').onclick = () => { $<HTMLInputElement>('codeIn').value = ''; requestCode(); };
 $('codeForm').onsubmit = async e => {
   e.preventDefault();
   authMsg('Checking…');
   try { await cloud.verifyCode(pendingEmail, $<HTMLInputElement>('codeIn').value.replace(/\D/g, '')); authMsg(''); }
   catch (err) { authMsg('That code didn’t work. It may have expired, so ask for a new one. (' + (err as Error).message + ')'); }
 };
-$('codeBack').onclick = () => { $('codeForm').hidden = true; $('phoneForm').hidden = false; authMsg(''); };
+$('codeBack').onclick = () => { pendingEmail = ''; $('codeForm').hidden = true; $('phoneForm').hidden = false; authMsg(''); };
 $('signOutBtn').onclick = async () => { await cloud.signOut(); $('acctModal').hidden = true; };
 const showFriendsBox = $<HTMLInputElement>('showFriends');
 showFriendsBox.checked = showFriends;

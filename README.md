@@ -82,7 +82,17 @@ One-time setup in the Supabase dashboard:
 2. **Email sign-in:** Authentication → Sign In / Providers → Email → on. Leave "Confirm email" on.
 3. **Make the emails show a code, not a link:** Authentication → Email Templates. Edit **both** "Confirm signup" (new people get this one) and "Magic Link" (returning people). Put `{{ .Token }}` in the body and remove the link. See `supabase/email-template.html`.
 4. **Redirect address:** Authentication → URL Configuration → set Site URL to your live site, and add `https://YOUR-SITE/app.html` (and `http://localhost:5173/app.html`) under Redirect URLs.
-5. **More than a few emails an hour:** Supabase's built-in email sender is limited. For real use, add a free sender such as Resend under Project Settings → Authentication → SMTP.
+5. **Sending the emails:** see "Sign-in email delivery" below. Don't send them from a personal Gmail address.
+
+### Sign-in email delivery
+
+Supabase sends the code email itself, through whatever SMTP server is set under Authentication → Emails → SMTP Settings. The app only asks for it. What decides whether it lands in the inbox, and how fast:
+
+- **Use a transactional sender on a domain you own, not Gmail.** Mail from a new `@gmail.com` account, relayed in bulk with identical content to many strangers, is exactly what Gmail and Outlook filter into spam, and Gmail's SMTP is slow and capped at about 500 messages a day. Sign up for [Resend](https://resend.com) (free for 3,000 a month) or Postmark, add your domain, and add the DNS records they show you: SPF and DKIM, plus a DMARC record such as `_dmarc  TXT  v=DMARC1; p=none; rua=mailto:you@yourdomain`. Wait until the provider says the domain is verified.
+- **SMTP settings in Supabase:** host `smtp.resend.com`, port `465`, username `resend`, password = a Resend API key, sender email `login@yourdomain` (any address on the verified domain), sender name `Wayframe`.
+- **Subject:** `Your Wayframe sign-in code` in both templates. A slogan in the subject reads as marketing.
+- **Rate limits:** Authentication → Rate Limits → raise "Rate limit for sending emails" once custom SMTP is on (the default is very low). Supabase also enforces 60 seconds between codes for one address; the app's "Send a new code" button waits that long.
+- **Warm up:** the first days on a new domain can still go to spam for some people. Ask early users to mark the email "Not spam", which teaches their provider quickly.
 
 Sharing the site with people:
 
