@@ -1,6 +1,6 @@
-# 📍 Cameraboard
+# 📍 Wayframe
 
-**Pin your photos to the world.** Cameraboard turns a folder of photos into an interactive world map. Each picture sits at the place it was taken, and the closer you zoom, the more you see.
+**Pin your photos to the world.** Wayframe turns a folder of photos into an interactive world map. Each picture sits at the place it was taken, and the closer you zoom, the more you see.
 
 ### 👉 [Open the live site](https://cameraboard-xi.vercel.app/)
 
@@ -10,14 +10,15 @@ Built for photos from a Sony Cyber-shot DSC-V1, and it works with any camera.
 
 ## What it does
 
-- **A map we draw ourselves, with real detail up close.** Zoomed out, every country gets its own colour on a blue ocean, with country names, major cities and seas. Zoom in and a detailed map fades in with states, counties, cities, neighbourhoods and streets, down to the exact spot.
-- **Jump to the exact spot.** Opening a photo flies to its location, and "Zoom to exact spot" goes to street level.
+- **A map we draw ourselves, from our own data.** No map service is used. Zoomed out you see every country in its own colour on a blue ocean, with country names, big cities and seas. Zoom in and states and provinces appear for the whole world, then more cities, and counties across the US, each with names that never overlap.
+- **Jump to the exact spot.** Opening a photo flies to its location, and "Zoom to exact spot" goes in as close as the map data allows. The pin always sits at the exact coordinates.
+- **Works offline.** Place search and naming a pin both use the built-in list of 7,300 cities, so nothing is sent anywhere.
 - **Photo pins.** Each photo is a small picture pin. Photos close together group into a numbered circle that splits apart as you zoom.
 - **Cards with the full story.** Click a pin to open its card: the photo, a title, a like button, the story behind the shot, the date, camera details and where it was taken.
 - **Zoom into the photo.** Open any photo at full size, then scroll or pinch to zoom and drag to pan.
 - **Board view.** Switch tabs to see the same photos as polaroids pinned to a cork board.
 - **Reads your photo details.** Date, exposure, aperture, ISO and focal length come from the photo's EXIF data. GPS is used when the photo has it.
-- **Easy placing.** The DSC-V1 has no GPS, so search a place name or click "Pin on map" and click where the photo was taken.
+- **Easy placing.** The DSC-V1 has no GPS, so search a city (suggestions appear as you type) or click "Pin on map" and click where the photo was taken.
 - **Add many at once.** Pick several photos and they fill the board.
 - **Timeline playback.** Press play and the map flies from photo to photo in date order.
 - **Several photos per place.** Photos in the same spot share one pin with a count. Flip through them in the side panel, and choose which one is the cover.
@@ -43,8 +44,8 @@ Everything runs in the browser. Photos are shrunk on upload and saved in the bro
 You need [Node.js](https://nodejs.org).
 
 ```bash
-git clone https://github.com/aosmannn/cameraboard.git
-cd cameraboard
+git clone https://github.com/aosmannn/wayframe.git
+cd wayframe
 npm install
 npm run dev
 ```
@@ -59,12 +60,14 @@ Open http://localhost:5173.
 
 ## Code layout
 
-Built with TypeScript, Vite and [Leaflet](https://leafletjs.com). The world shapes come from [Natural Earth](https://www.naturalearthdata.com) through the `world-atlas` package.
+Built with TypeScript, Vite and [Leaflet](https://leafletjs.com) (used only to move and zoom the map). Everything drawn on it comes from the data below.
 
 | File | Job |
 | --- | --- |
 | `src/main.ts` | The app: map, side panel, board view, upload and location flow |
-| `src/world.ts` | The coloured world map, themes, labels, and finding which country a point is in |
+| `src/world.ts` | The coloured world map: countries, states, counties, themes, and finding which country a point is in |
+| `src/labels.ts` | Draws place names without overlaps |
+| `src/atlas.ts` | Loads the map data; offline city search and naming |
 | `src/photo.ts` | Reads a photo: shrinks it, pulls EXIF, builds a card |
 | `src/viewer.ts` | The full-size zoom and pan viewer |
 | `src/filters.ts` | Search and filter rules |
@@ -78,6 +81,19 @@ Built with TypeScript, Vite and [Leaflet](https://leafletjs.com). The world shap
 
 Don't commit to `main`. Each person works on their own branch and opens a pull request, then the other person reviews and merges it. Pull before you start new work so you don't overwrite each other.
 
+## Map data
+
+All in `public/data`, loaded as the map needs it. All public domain.
+
+| File | What | Source |
+| --- | --- | --- |
+| `world-atlas` package | Country shapes | Natural Earth 1:50m |
+| `admin1.json` | 4,596 states, provinces and regions worldwide | Natural Earth 1:10m admin-1, simplified with [mapshaper](https://github.com/mbloch/mapshaper) (`-simplify 6% keep-shapes`) |
+| `cities.json` | 7,342 cities with state, country and population | Natural Earth populated places |
+| `us-counties.json` | 3,231 US counties | `us-atlas` package |
+
+Not included: streets and buildings. That level of detail needs OpenStreetMap-sized data.
+
 ## Roadmap
 
 - [ ] Shared board so friends see the same photos and likes (a backend such as Supabase)
@@ -85,4 +101,4 @@ Don't commit to `main`. Each person works on their own branch and opens a pull r
 
 ## Credits
 
-Country shapes © [Natural Earth](https://www.naturalearthdata.com) (public domain). Detailed map © [OpenStreetMap](https://www.openstreetmap.org/copyright) contributors, tiles by [CARTO](https://carto.com/attributions). Place search by [OpenStreetMap Nominatim](https://nominatim.org).
+Map data © [Natural Earth](https://www.naturalearthdata.com) (public domain). US counties from [us-atlas](https://github.com/topojson/us-atlas) (Census Bureau, public domain).

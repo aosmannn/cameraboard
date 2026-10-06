@@ -109,14 +109,6 @@ textarea{resize:vertical}
   .strip{bottom:8px;left:8px;right:8px}
 }
 
-/* world map labels */
-.lbl{background:none;border:0;pointer-events:none}
-.lbl span{position:absolute;transform:translate(-50%,-50%);white-space:nowrap;color:var(--lbl);text-align:center;
-  text-shadow:0 0 3px var(--halo,#fff),0 0 3px var(--halo,#fff)}
-.lbl.country span{font-size:.7rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;opacity:.85}
-.lbl.city span{font-size:.68rem;font-weight:500}
-.lbl.city span::before{content:"";display:inline-block;width:5px;height:5px;border-radius:50%;background:var(--lbl);margin-right:4px;vertical-align:middle}
-.lbl.sea span{font:italic 500 .85rem "DM Sans",serif;color:var(--sea);letter-spacing:.12em;text-shadow:none}
 .ctip{font:500 .8rem "DM Sans",sans-serif}
 .leaflet-container{background:#bde3f6}
 .leaflet-control-attribution{font-size:.65rem}

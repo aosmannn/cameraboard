@@ -89,5 +89,5 @@ export async function renderPoster(cv: HTMLCanvasElement, cards: Card[], title: 
   ctx.font = '34px DM Sans, sans-serif'; ctx.fillStyle = '#76736b';
   ctx.fillText([`${cards.filter(c => c.img).length} photos`, `${countries} countries`, years].filter(Boolean).join('  ·  '), 60, H - 25);
   ctx.textAlign = 'right'; ctx.font = '30px DM Sans, sans-serif';
-  ctx.fillText('Made with Cameraboard', W - 60, H - 25);
+  ctx.fillText('Made with Wayframe', W - 60, H - 25);
 }

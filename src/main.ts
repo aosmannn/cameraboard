@@ -2,11 +2,18 @@ import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import 'leaflet.markercluster';
 import 'leaflet.markercluster/dist/MarkerCluster.css';
+import '@fontsource/dm-sans/400.css';
+import '@fontsource/dm-sans/500.css';
+import '@fontsource/dm-sans/700.css';
+import '@fontsource/caveat/500.css';
+import '@fontsource/caveat/700.css';
+import '@fontsource/vt323/400.css';
 import './style.css';
 import type { Card, Look } from './types';
 import { openStore, loadCards, saveCards } from './storage';
 import { blankCard, fillCard, normalize, cameraName, dayOf, timeOf, stampText, placeKey } from './photo';
 import { drawWorld, countryAt, THEMES, type ThemeName } from './world';
+import { loadCities, searchPlaces, nameAt } from './atlas';
 import { initViewer, openViewer, closeViewer, viewerIsOpen } from './viewer';
 import { filters, matches, activeCount, clearFilters } from './filters';
 import { renderStats } from './stats';
@@ -56,7 +63,7 @@ const stackOf = (c: Card) => placed(c) ? visiblePlaced().filter(x => placeKey(x)
 
 // ---------- map ----------
 const themeName = ((): ThemeName => { const t = lsGet('cb-theme'); return t && t in THEMES ? t as ThemeName : 'classic'; })();
-const map = L.map('map', { zoomControl: false, minZoom: 2, maxZoom: 19, preferCanvas: true,
+const map = L.map('map', { zoomControl: false, minZoom: 2, maxZoom: 10, preferCanvas: true,
   maxBounds: [[-60, -180], [84, 180]], maxBoundsViscosity: 1 }).setView([25, 10], 2);
 L.control.zoom({ position: 'topleft' }).addTo(map);
 const world = drawWorld(map, themeName);
@@ -120,7 +127,7 @@ function fitAll() {
   const pts = visiblePlaced().map(c => [c.lat!, c.lng!] as L.LatLngTuple);
   if (pts.length) map.fitBounds(pts, { padding: [80, 80], maxZoom: 6 });
 }
-function flyTo(c: Card, zoom = 13) {
+function flyTo(c: Card, zoom = 8) {
   const pad = wide() ? { paddingBottomRight: L.point(420, 0) } : { paddingBottomRight: L.point(0, window.innerHeight * 0.7) };
   map.flyToBounds(L.latLngBounds([[c.lat!, c.lng!]]), { ...pad, maxZoom: Math.max(map.getZoom(), zoom), duration: 1.2 });
   map.once('moveend', () => { const m = markers.get(placeKey(c)); if (m) cluster.zoomToShowLayer(m, markSelected); });
@@ -375,27 +382,28 @@ function locNote() {
   $('locNote').textContent = placed(cur) ? `Pinned at ${cur.lat!.toFixed(3)}, ${cur.lng!.toFixed(3)}`
     : 'No location yet. The DSC-V1 has no GPS, so search a place or pin it on the map.';
 }
+/** Names a point from the map's own city list, so nothing is sent to an outside service. */
 async function reverse(lat: number, lng: number): Promise<string> {
-  try {
-    const r = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&zoom=14&lat=${lat}&lon=${lng}`);
-    const j = await r.json(); return j.display_name ? j.display_name.split(',').slice(0, 2).join(',').trim() : '';
-  } catch { return ''; }
+  await loadCities();
+  return nameAt(lat, lng) ?? countryAt(lat, lng) ?? '';
 }
 async function findPlace() {
   const text = fPlace.value.trim(); if (!text || !cur) return;
   const c = cur;
-  $('locNote').textContent = 'Searching…';
-  try {
-    const r = await fetch('https://nominatim.openstreetmap.org/search?format=json&limit=1&q=' + encodeURIComponent(text));
-    const [h] = await r.json();
-    if (!h) { $('locNote').textContent = 'No match. Try another name, or pin it on the map.'; return; }
-    const name = h.display_name.split(',').slice(0, 3).join(',').trim();
-    c.lat = +h.lat; c.lng = +h.lon; c.place = name; fPlace.value = name;
-    save(); render(); locNote(); drawStack(c);
-    if (view !== 'map') setView('map');
-    flyTo(c);
-  } catch { $('locNote').textContent = 'Search failed. Pin it on the map instead.'; }
+  await loadCities();
+  const hits = searchPlaces(text, 6);
+  const h = hits.find(x => x.label === text) ?? hits[0];
+  if (!h) { $('locNote').textContent = 'No city found with that name. Try another spelling, or pin it on the map.'; return; }
+  c.lat = h.lat; c.lng = h.lng; c.place = h.short; fPlace.value = h.short;
+  save(); render(); locNote(); drawStack(c);
+  if (view !== 'map') setView('map');
+  flyTo(c);
 }
+fPlace.oninput = async () => {
+  await loadCities();
+  const dl = $('placeList'); dl.innerHTML = '';
+  searchPlaces(fPlace.value, 6).forEach(p => dl.append(new Option(p.label)));
+};
 $('placeBtn').onclick = findPlace;
 fPlace.onkeydown = e => { if (e.key === 'Enter') findPlace(); };
 
@@ -411,7 +419,7 @@ function stopPinning() {
 }
 $('pinBtn').onclick = () => { if (cur) startPinning([cur]); };
 $('pinCancel').onclick = stopPinning;
-$('exactBtn').onclick = () => { if (cur && placed(cur)) { if (view !== 'map') setView('map'); flyTo(cur, 17); } };
+$('exactBtn').onclick = () => { if (cur && placed(cur)) { if (view !== 'map') setView('map'); flyTo(cur, 10); } };
 $('clearLoc').onclick = () => {
   if (!cur) return;
   cur.lat = cur.lng = null; cur.place = ''; fPlace.value = '';
@@ -479,7 +487,7 @@ function playStep(i: number) {
   $('pcTitle').textContent = c.title || 'Untitled';
   $('pcWhere').textContent = [c.place, c.date ? new Date(c.date).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' }) : ''].filter(Boolean).join(' · ');
   $('pcCount').textContent = `${pl.i + 1} of ${pl.list.length}`;
-  map.flyTo([c.lat!, c.lng!], 10, { duration: 2.2 });
+  map.flyTo([c.lat!, c.lng!], 7, { duration: 2.2 });
   map.once('moveend', () => { const m = markers.get(placeKey(c)); if (m) cluster.zoomToShowLayer(m, markSelected); markSelected(); });
   markSelected();
   if (!pl.paused) pl.timer = window.setTimeout(() => playStep(pl.i + 1), 4800);
@@ -516,7 +524,7 @@ $('posterClose').onclick = () => { $('posterModal').hidden = true; };
 $('posterSave').onclick = () => {
   posterCv.toBlob(b => {
     if (!b) return;
-    const a = document.createElement('a'); a.href = URL.createObjectURL(b); a.download = 'cameraboard-poster.png'; a.click();
+    const a = document.createElement('a'); a.href = URL.createObjectURL(b); a.download = 'wayframe-poster.png'; a.click();
     setTimeout(() => URL.revokeObjectURL(a.href), 2000);
   }, 'image/png');
 };
@@ -538,14 +546,14 @@ document.addEventListener('keydown', e => {
 $('exportBtn').onclick = () => {
   const a = document.createElement('a');
   a.href = URL.createObjectURL(new Blob([JSON.stringify(cards)], { type: 'application/json' }));
-  a.download = 'cameraboard.json'; a.click();
+  a.download = 'wayframe.json'; a.click();
 };
 $<HTMLInputElement>('importFile').onchange = async e => {
   const f = (e.target as HTMLInputElement).files?.[0]; if (!f) return;
   try {
     const d = JSON.parse(await f.text()); if (!Array.isArray(d)) throw 0;
     cards = d.map(normalize); await save(); render(); fitAll();
-  } catch { alert('That file is not a Cameraboard export.'); }
+  } catch { alert('That file is not a Wayframe export.'); }
 };
 
 // ---------- start ----------
@@ -556,6 +564,7 @@ $<HTMLInputElement>('importFile').onchange = async e => {
   const saved = await loadCards();
   cards = saved ? saved.map(normalize) : Array.from({ length: SLOTS }, (_, i) => blankCard(i));
   render(); fitAll();
+  document.fonts.ready.then(() => map.fire('moveend'));
   const v = lsGet('cb-view');
   setView(v === 'board' || v === 'stats' ? v : 'map');
 })();
