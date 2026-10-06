@@ -371,3 +371,7 @@ h3.first { margin-top: 12px !important; }
 
 .invite-banner { top: 76px; z-index: 40; max-width: min(640px, calc(100% - 32px)); border-radius: 18px; padding: 12px 12px 12px 18px; }
 .invite-banner span { line-height: 1.35; }
+
+.country-chip { top: 76px; z-index: 22; }
+.country-chip span { font-weight: 500; }
+.leaflet-container.has-pick { cursor: pointer; }

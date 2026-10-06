@@ -4,7 +4,7 @@
 
 ### 👉 [Open the live site](https://cameraboard-xi.vercel.app/)
 
-Built for photos from a Sony Cyber-shot DSC-V1, and it works with any camera.
+Made for photos from old cameras with no GPS, such as point-and-shoots, early digicams, DSLRs and film scans, and it works with any camera or phone.
 
 ---
 
@@ -15,7 +15,7 @@ Built for photos from a Sony Cyber-shot DSC-V1, and it works with any camera.
 - **Play a story.** The map flies from stop to stop and the string draws itself as you go.
 - **A map we draw ourselves, from our own data.** No map service is used. Zoomed out you see countries, big cities and seas. Zoom in and states and provinces appear for the whole world, then more cities, and counties across the US, with names that never overlap. Three styles: Paper, Atlas and Night.
 - **Photo cards.** Open a photo for its title, what happened, the date, its place in the story, likes, and the camera details (model, exposure, aperture, ISO, focal length) read from the file.
-- **Photos without GPS.** The DSC-V1 has no GPS, so photos not on the map yet wait in a tray, grouped by day. Put a whole day at the place of the nearest photo in time, search a city (works offline), or click the map.
+- **Photos without GPS.** Many older cameras have no GPS, so photos not on the map yet wait in a tray, grouped by day. Put a whole day at the place of the nearest photo in time, search a city (works offline), or click the map.
 - **Retro look.** Early digicam, warm film or black and white, plus an optional date stamp in the corner.
 - **Poster.** Download a printable PNG of a story or all your photos, string included.
 - **Friends feed.** A "Friends" tab in the left panel lists photos the people you follow chose to share, newest first. Like them, tap a name to see a profile, or press "Show on map" to fly to the spot and light up that story's string.

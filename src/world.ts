@@ -93,7 +93,7 @@ const inRing = (r: Ring, x: number, y: number) => {
 
 /** Name of the country containing this point. Photos taken from a pier, bridge or boat land just off the
  *  coastline in the map data, so a point in the water falls back to the nearest country within ~40 km. */
-export function countryAt(lat: number, lng: number): string | null {
+export function countryAt(lat: number, lng: number, strict = false): string | null {
   for (const f of fc.features) {
     if (f.properties.name === 'Antarctica') continue;
     for (const p of f._polys as Poly[]) {
@@ -104,6 +104,7 @@ export function countryAt(lat: number, lng: number): string | null {
       }
     }
   }
+  if (strict) return null;
   const TOL = 0.4, k = Math.cos(lat * Math.PI / 180);
   let best: string | null = null, bd = TOL * TOL;
   for (const f of fc.features) {
@@ -147,9 +148,24 @@ export function paintWorld(ctx: CanvasRenderingContext2D, W: number, H: number,
   return { px, py };
 }
 
+/** The part of a country to zoom to: its biggest piece, so far-away islands don't stretch the view. */
+export function countryBounds(name: string): L.LatLngBounds | null {
+  const f = fc.features.find((x: any) => x.properties.name === name);
+  if (!f) return null;
+  let best: Poly | null = null, ba = 0;
+  for (const p of f._polys as Poly[]) {
+    if (p.bbox[0] < -180) continue;   // skip the copy shifted for the antimeridian
+    const a = (p.bbox[2] - p.bbox[0]) * (p.bbox[3] - p.bbox[1]);
+    if (a > ba) { ba = a; best = p; }
+  }
+  return best ? L.latLngBounds([best.bbox[1], best.bbox[0]], [best.bbox[3], Math.min(best.bbox[2], 180)]) : null;
+}
+
 export interface World {
   setTheme(t: ThemeName): void;
   setVisited(names: Set<string> | null): void;
+  /** Draws an outline around a country (or clears it with null). */
+  highlight(name: string | null): void;
 }
 
 const SEA_ZOOM_MAX = 7;
@@ -177,8 +193,9 @@ export function drawWorld(map: L.Map, initial: ThemeName): World {
     labels.setColors({ text: T.label, halo: T.halo, sea: T.sea });
   };
   applyChrome();
-  for (const [name, z] of [['worldPane', 150], ['statePane', 160], ['countyPane', 170]] as [string, number][])
+  for (const [name, z] of [['worldPane', 150], ['statePane', 160], ['countyPane', 170], ['hlPane', 180]] as [string, number][])
     map.createPane(name).style.zIndex = String(z);
+  map.getPane('hlPane')!.style.pointerEvents = 'none';
 
   // ---- countries ----
   const countryRenderer = L.canvas({ pane: 'worldPane' });
@@ -264,12 +281,26 @@ export function drawWorld(map: L.Map, initial: ThemeName): World {
     const r = countryRenderer as any; if (r._map) r._reset();
   });
 
+  // ---- the outline around a clicked country ----
+  const hlRenderer = L.canvas({ pane: 'hlPane' });
+  const hlGroup = L.layerGroup().addTo(map);
+  let hlName: string | null = null;
+  const drawHighlight = () => {
+    hlGroup.clearLayers();
+    const f = hlName && fc.features.find((x: any) => x.properties.name === hlName);
+    if (!f) return;
+    const accent = T === THEMES.night ? '#ff8a66' : '#d6402b';
+    const common = { pane: 'hlPane', renderer: hlRenderer, interactive: false } as any;
+    L.geoJSON(f, { ...common, style: { color: accent, weight: 9, opacity: 0.22, fillColor: accent, fillOpacity: 0.1, lineJoin: 'round' } } as L.GeoJSONOptions).addTo(hlGroup);
+    L.geoJSON(f, { ...common, style: { color: accent, weight: 3, opacity: 1, fill: false, lineJoin: 'round' } } as L.GeoJSONOptions).addTo(hlGroup);
+  };
   const restyle = () => {
     world.options.style = style; world.setStyle(style);
     states?.setStyle(stateStyle); counties?.setStyle({ color: T.border });
   };
   return {
-    setTheme(t) { T = THEMES[t]; applyChrome(); restyle(); },
+    setTheme(t) { T = THEMES[t]; applyChrome(); restyle(); drawHighlight(); },
+    highlight(name) { hlName = name; drawHighlight(); },
     setVisited(names) { visited = names; restyle(); }
   };
 }
