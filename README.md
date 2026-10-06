@@ -60,7 +60,8 @@ Built with TypeScript, Vite and [Leaflet](https://leafletjs.com) (used only to m
 | `src/labels.ts` | Draws place names without overlaps |
 | `src/atlas.ts` | Loads the map data; offline city search and naming |
 | `src/cloud.ts` | Sign-in, syncing your photos, friends and likes (Supabase) |
-| `supabase/schema.sql` | Database tables, storage bucket and privacy rules |
+| `supabase/migrations/` | Database tables, storage bucket and privacy rules, one file per change |
+| `supabase/schema.sql` | The same, joined into one file for pasting (`npm run db:schema`) |
 | `src/photo.ts` | Reads a photo: shrinks it, pulls EXIF, builds a card |
 | `src/viewer.ts` | The full-size zoom and pan viewer |
 | `src/poster.ts` | The poster image |
@@ -78,11 +79,22 @@ The app talks to the Supabase project `psuykzkrakkdqhulrqig`. Its publishable ke
 
 One-time setup in the Supabase dashboard:
 
-1. **Database:** SQL Editor → New query → paste all of `supabase/schema.sql` → Run. It creates the tables, the private `photos` storage bucket, and the row level security rules. It is safe to run again.
+1. **Database:** SQL Editor → New query → paste all of `supabase/schema.sql` → Run (or use the automatic setup below, which does this for you on every change). It creates the tables, the private `photos` storage bucket, and the row level security rules. It is safe to run again.
 2. **Email sign-in:** Authentication → Sign In / Providers → Email → on. Leave "Confirm email" on.
 3. **Make the emails show a code, not a link:** Authentication → Email Templates. Edit **both** "Confirm signup" (new people get this one) and "Magic Link" (returning people). Put `{{ .Token }}` in the body and remove the link. See `supabase/email-template.html`.
 4. **Redirect address:** Authentication → URL Configuration → set Site URL to your live site, and add `https://YOUR-SITE/app.html` (and `http://localhost:5173/app.html`) under Redirect URLs.
 5. **More than a few emails an hour:** Supabase's built-in email sender is limited. For real use, add a free sender such as Resend under Project Settings → Authentication → SMTP.
+
+### Database changes apply themselves
+
+Each database change is a file in `supabase/migrations/`. Once the two secrets below are set, pushing a new migration applies it to the live database through the **Database** GitHub Action (`.github/workflows/database.yml`), so you never paste SQL again.
+
+1. Make an access token at <https://supabase.com/dashboard/account/tokens>.
+2. Find the database password in Supabase under Project Settings → Database (reset it there if you've lost it).
+3. In GitHub: Settings → Secrets and variables → Actions → New repository secret. Add `SUPABASE_ACCESS_TOKEN` and `SUPABASE_DB_PASSWORD`.
+4. Run the **Database** action once from the Actions tab to bring the database up to date.
+
+To change the database later, add `supabase/migrations/<YYYYMMDDHHMMSS>_what_it_does.sql`, push, and run `npm run db:schema` to refresh `supabase/schema.sql`. From a computer you can also run `SUPABASE_ACCESS_TOKEN=… SUPABASE_DB_PASSWORD=… npx supabase link --project-ref psuykzkrakkdqhulrqig && npm run db:push`.
 
 Sharing the site with people:
 

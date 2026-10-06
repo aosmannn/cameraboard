@@ -1,0 +1,2 @@
+# Supabase project settings for the CLI. Only the project id is needed to push database changes.
+project_id = "psuykzkrakkdqhulrqig"

@@ -6,7 +6,9 @@
     "dev": "vite --host",
     "build": "tsc --noEmit && vite build",
     "typecheck": "tsc --noEmit",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "db:push": "npx --yes supabase@latest db push",
+    "db:schema": "cat supabase/migrations/*.sql > supabase/schema.sql"
   },
   "devDependencies": {
     "@types/geojson": "^7946.0.16",
