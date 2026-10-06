@@ -258,16 +258,21 @@ create table if not exists public.photos (
   rot real not null default 0,
   meta jsonb not null default '{}',
   image_path text,
-  shared boolean not null default false,
+  shared boolean not null default false,   -- older versions; replaced by visibility below
   updated_at timestamptz not null default now()
 );
+-- Who can see a photo: private (only you), friends (people who follow you), public (anyone with your link).
+alter table public.photos add column if not exists visibility text not null default 'private';
+alter table public.photos drop constraint if exists photos_visibility_values;
+alter table public.photos add constraint photos_visibility_values check (visibility in ('private', 'friends', 'public'));
+update public.photos set visibility = 'friends' where shared and visibility = 'private';
 create index if not exists photos_owner on public.photos (owner);
 alter table public.photos enable row level security;
 drop policy if exists "see your photos and friends' shared photos" on public.photos;
 create policy "see your photos and friends' shared photos" on public.photos
   for select to authenticated using (
     owner = auth.uid()
-    or (shared and exists (select 1 from public.follows f where f.follower = auth.uid() and f.followee = photos.owner))
+    or (visibility in ('friends', 'public') and exists (select 1 from public.follows f where f.follower = auth.uid() and f.followee = photos.owner))
   );
 drop policy if exists "add your photos" on public.photos;
 create policy "add your photos" on public.photos
@@ -283,6 +288,35 @@ create or replace function public.touch_updated_at() returns trigger language pl
 begin new.updated_at = now(); return new; end $$;
 drop trigger if exists photos_touch on public.photos;
 create trigger photos_touch before update on public.photos for each row execute function public.touch_updated_at();
+
+-- Public photos by owner. Reached with an invite code, a discoverable @username, or an id, and works without
+-- signing in. Only photos set to "public" are ever returned.
+create or replace function public.public_photos(code text default null, handle text default null, uid uuid default null)
+returns table (id uuid, owner uuid, owner_name text, title text, story text, taken_at text, lat double precision,
+  lng double precision, place text, trip text, seq integer, look text, stamp boolean, pin_color text, cover boolean,
+  rot real, meta jsonb, image_path text)
+language sql stable security definer set search_path = '' as $$
+  select ph.id, ph.owner, p.display_name, ph.title, ph.story, ph.taken_at, ph.lat, ph.lng, ph.place, ph.trip, ph.seq,
+         ph.look, ph.stamp, ph.pin_color, ph.cover, ph.rot, ph.meta, ph.image_path
+  from public.photos ph join public.profiles p on p.id = ph.owner
+  where ph.visibility = 'public' and ph.image_path is not null
+    and ((code is not null and p.invite_code = trim(code))
+      or (handle is not null and p.discoverable and p.username = lower(trim(handle)))
+      or (uid is not null and p.id = uid))
+    and (auth.uid() is null or not public.is_blocked(auth.uid(), ph.owner))
+  order by ph.trip, ph.seq, ph.taken_at
+  limit 300;
+$$;
+revoke all on function public.public_photos(text, text, uuid) from public;
+grant execute on function public.public_photos(text, text, uuid) to anon, authenticated;
+
+-- Used by the storage rule below so signed-out visitors can open public images.
+create or replace function public.is_public_image(path text) returns boolean
+language sql stable security definer set search_path = '' as $$
+  select exists (select 1 from public.photos where image_path = path and visibility = 'public');
+$$;
+revoke all on function public.is_public_image(text) from public;
+grant execute on function public.is_public_image(text) to anon, authenticated;
 
 -- ---------- likes ----------
 create table if not exists public.likes (
@@ -313,6 +347,9 @@ create policy "replace files in your folder" on storage.objects
 drop policy if exists "delete files in your folder" on storage.objects;
 create policy "delete files in your folder" on storage.objects
   for delete to authenticated using (bucket_id = 'photos' and (storage.foldername(name))[1] = auth.uid()::text);
+drop policy if exists "anyone can see public images" on storage.objects;
+create policy "anyone can see public images" on storage.objects
+  for select to anon, authenticated using (bucket_id = 'photos' and public.is_public_image(name));
 drop policy if exists "see your files and friends' shared photos" on storage.objects;
 create policy "see your files and friends' shared photos" on storage.objects
   for select to authenticated using (
