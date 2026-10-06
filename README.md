@@ -69,7 +69,6 @@ Don't commit to `main`. Each person works on their own branch and opens a pull r
 - [ ] Sign-in, so each person's likes and uploads are theirs
 - [ ] Photo albums and trips
 - [ ] Street-level detail when zoomed in far
-- [ ] A better name for the project
 
 ## Credits
 
