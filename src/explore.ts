@@ -12,7 +12,7 @@ let camera = params.get('camera') ?? '', q = params.get('q') ?? '';
 
 root.innerHTML = '';
 const head = el('div', 'page-head');
-const titles = el('div'); titles.append(el('h1', '', 'Explore'), el('p', 'lede', 'Photos and stories from people around the world, pinned to where they were taken.'));
+const titles = el('div'); titles.append(el('h1', '', 'Explore'), el('p', 'lede', 'Photos and stories from people around the world, each pinned to the place it was taken.'));
 const tabs = el('div', 'tabs'); tabs.setAttribute('role', 'tablist');
 const tPhotos = el('button', '', 'Photos'), tStories = el('button', '', 'Stories');
 for (const b of [tPhotos, tStories]) { b.type = 'button'; b.setAttribute('role', 'tab'); tabs.append(b); }
@@ -28,8 +28,8 @@ let photos: Card[] = [], owners = new Map<string, string>(), offset = 0, token =
 
 function emptyState(what: string) {
   const e = el('div', 'empty');
-  e.append(el('h2', '', `No ${what} here yet`),
-    el('p', '', 'Be the first. In the map, set a photo or story to Public, then turn on “Show my public photos in the community gallery” in your profile. Nothing is listed until you do.'));
+  e.append(el('h2', '', `No ${what} yet`),
+    el('p', '', 'Be the first to share. In the map, set a photo or story to Public, then turn on “Show my public photos in the community gallery” in your profile. Nothing is listed unless you choose it.'));
   const a = el('a', 'btn primary', 'Open the map'); a.href = '/app.html'; e.append(a);
   return e;
 }

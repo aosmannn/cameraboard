@@ -37,6 +37,7 @@ section { padding-inline: var(--gutter); }
 @keyframes pop { from { transform: translateY(8px); opacity: 0; } }
 
 .how { padding-block: 70px; border-top: 1px solid var(--line); }
+.how .eyebrow { margin-bottom: 10px; }
 .how h2, .final h2 { font-size: clamp(34px, 4.4vw, 56px); line-height: 1.05; }
 .steps { list-style: none; margin: 36px 0 0; padding: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 24px; }
 .step { padding: 22px; background: var(--panel); border-radius: 20px; box-shadow: var(--shadow); }
@@ -95,7 +96,7 @@ section { padding-inline: var(--gutter); }
 .p-row small { display: block; color: var(--mute); }
 .people-card .fine { margin-top: 14px; }
 
-.final { display: flex; flex-direction: column; align-items: center; gap: 28px; padding-block: 90px 100px; text-align: center; border-top: 1px solid var(--line); }
+.final { display: flex; flex-direction: column; align-items: center; gap: 18px; padding-block: 90px 100px; text-align: center; border-top: 1px solid var(--line); }
 .final h2 { max-width: 16em; }
 
 @media (max-width: 900px) {

@@ -24,6 +24,7 @@ let authDone: () => void = () => {};
 /** Resolves once we know whether someone is signed in. */
 export const authReady = new Promise<void>(r => { authDone = r; });
 
+export const CONTACT_EMAIL = 'wayframe0@gmail.com';
 const LINKS: [Section, string, string][] = [['explore', 'Explore', '/explore'], ['cameras', 'Cameras', '/cameras']];
 
 /** Adds the header and footer, and shows who is signed in. */
@@ -50,13 +51,18 @@ export function mountShell(active: Section) {
   const foot = el('footer', 'foot');
   const about = el('div');
   const flogo = el('a', 'logo small', 'Wayframe'); flogo.href = '/';
-  about.append(flogo, el('p', '', 'Pin your photos to the world, string them into stories, and share them. Yours first: nothing leaves your device unless you choose.'));
-  const site = el('div'); site.append(el('b', '', 'Look around'));
-  for (const [, label, href] of [['', 'Explore the gallery', '/explore'], ['', 'Stories', '/explore?tab=stories'], ['', 'Cameras', '/cameras']] as const) { const a = el('a', '', label); a.href = href; site.append(a); }
-  const app = el('div'); app.append(el('b', '', 'Make your own'));
-  for (const [label, href] of [['Open the map', '/app.html'], ['Sign in', '/app.html?account=1'], ['How it works', '/#how']] as const) { const a = el('a', '', label); a.href = href; app.append(a); }
-  const credit = el('p', 'credit', 'Map data © Natural Earth, public domain. Photos belong to the people who took them.');
-  foot.append(about, site, app, credit);
+  about.append(flogo, el('p', '', 'Turn your photos into a map of where you’ve been. Private by default, and built for every camera you own.'));
+  const col = (title: string, items: [string, string][]) => {
+    const d = el('div'); d.append(el('b', '', title));
+    for (const [label, href] of items) { const a = el('a', '', label); a.href = href; d.append(a); }
+    return d;
+  };
+  foot.append(
+    about,
+    col('Product', [['Open the map', '/app.html'], ['Explore', '/explore'], ['Stories', '/explore?tab=stories'], ['Cameras', '/cameras']]),
+    col('Company', [['Privacy', '/privacy'], ['Terms', '/terms'], ['Contact', 'mailto:' + CONTACT_EMAIL]])
+  );
+  foot.append(el('p', 'credit', `© ${new Date().getFullYear()} Wayframe. Map data from Natural Earth, public domain. Photos belong to the people who took them.`));
   document.body.append(foot);
 
   if (!cloud.cloudEnabled) authDone();

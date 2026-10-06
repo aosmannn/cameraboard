@@ -191,3 +191,14 @@ img { max-width: 100%; }
   .page { padding-top: 24px; }
 }
 @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } * { transition: none !important; animation: none !important; } }
+
+/* ---- long text pages (privacy, terms) ---- */
+.legal { max-width: 760px; margin-inline: auto; padding-bottom: 40px; }
+.legal h1 { font-size: clamp(40px, 5vw, 60px); line-height: 1.04; }
+.legal .updated { margin-top: 8px; color: var(--mute); font-size: 14.5px; }
+.legal .lede { margin: 18px 0 8px; color: var(--mute); font-size: 19px; }
+.legal h2 { font-size: 30px; margin: 34px 0 8px; }
+.legal p, .legal li { color: var(--ink); }
+.legal p { margin-top: 10px; }
+.legal ul { margin: 10px 0 0; padding-left: 22px; display: grid; gap: 6px; }
+.legal a { color: var(--yarn); }

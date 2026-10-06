@@ -18,12 +18,12 @@ async function index() {
   setTitle('Cameras');
   root.innerHTML = '';
   const head = el('div', 'page-head'); const t = el('div');
-  t.append(el('h1', '', 'Cameras'), el('p', 'lede', 'The cameras behind the photos. Old compacts, DSLRs, film scans and phones, read straight from each photo’s own details.'));
+  t.append(el('h1', '', 'Cameras'), el('p', 'lede', 'The cameras behind the photos: compacts, DSLRs, film scans and phones, read from each photo’s own details.'));
   head.append(t); root.append(head);
   const list = await cloud.exploreCameras();
   if (!list.length) {
     const e = el('div', 'empty');
-    e.append(el('h2', '', 'No cameras listed yet'), el('p', '', 'Cameras show up here once people share public photos to the community gallery. Add yours: Wayframe reads the camera, shutter, aperture and ISO from every photo that has them.'));
+    e.append(el('h2', '', 'No cameras yet'), el('p', '', 'Cameras appear here once people share photos to the community gallery. Wayframe reads the camera, shutter speed, aperture and ISO from every photo that includes them.'));
     const a = el('a', 'btn primary', 'Open the map'); a.href = '/app.html'; e.append(a); root.append(e); return;
   }
   const grid = el('div', 'cards');

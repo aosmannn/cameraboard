@@ -1,6 +1,8 @@
 {
   "rewrites": [
     { "source": "/explore", "destination": "/explore.html" },
+    { "source": "/privacy", "destination": "/privacy.html" },
+    { "source": "/terms", "destination": "/terms.html" },
     { "source": "/cameras", "destination": "/cameras.html" },
     { "source": "/cameras/:slug", "destination": "/cameras.html" },
     { "source": "/s/:key", "destination": "/story.html" },

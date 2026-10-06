@@ -113,7 +113,7 @@ function choose(s: Stop) {
   $('demoRoute').textContent = order.map(o => o.name).join(' → ') || ' ';
   $('resetDemo').hidden = false;
   $('demoHint').textContent = order.length === STOPS.length
-    ? 'That’s a story. Open Wayframe to make yours.'
+    ? 'That’s a story. Open Wayframe to make your own.'
     : order.length ? `Stop ${order.length} of ${STOPS.length}. Keep going.` : 'Click the photos in the order you went';
 }
 function reset() {
@@ -150,7 +150,7 @@ document.querySelectorAll<HTMLButtonElement>('[data-follow]').forEach(b => {
   b.onclick = () => {
     const on = b.classList.toggle('on'); b.textContent = on ? 'Following' : 'Follow';
     following += on ? 1 : -1;
-    $('peopleNote').textContent = following ? `Their stories would now appear on your map in blue string.` : 'Example people. Press Follow.';
+    $('peopleNote').textContent = following ? `Their shared stories would now appear on your map in blue.` : 'Example people. Press Follow.';
   };
 });
 document.querySelectorAll<HTMLElement>('.step').forEach(s => s.addEventListener('mouseenter', () => s.classList.add('hot')));
