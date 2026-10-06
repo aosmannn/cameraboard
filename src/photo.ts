@@ -6,7 +6,8 @@ export const PINS = ['#d6453d', '#2f7dd1', '#2e9e5b', '#e8b422', '#8e44ad'];
 export const blankCard = (i: number): Card => ({
   id: crypto.randomUUID(), rot: +(Math.random() * 6 - 3).toFixed(1), pin: PINS[i % PINS.length],
   img: null, title: '', story: '', date: '', likes: 0, liked: false, meta: {}, lat: null, lng: null, place: '',
-  trip: '', seq: 0, pinColor: '', pinIcon: '', cover: false, look: 'none', stamp: false
+  trip: '', seq: 0, pinColor: '', pinIcon: '', cover: false, look: 'none', stamp: false,
+  shared: false, owner: '', imgPath: ''
 });
 
 /** Fills in fields that older saved boards don't have. */
