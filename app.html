@@ -25,6 +25,8 @@
         <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="4" cy="10" r="1.6"/><circle cx="10" cy="10" r="1.6"/><circle cx="16" cy="10" r="1.6"/></svg>
       </summary>
       <div class="menu-list">
+        <a href="/explore">Explore the gallery</a>
+        <a href="/cameras">Cameras</a>
         <label class="menu-row">Map style <select id="themeSel"></select></label>
         <button id="posterBtn">Make a poster</button>
         <button id="exportBtn">Export backup</button>
@@ -244,6 +246,7 @@
       <label class="lab" for="userIn">Username <span class="opt">optional</span></label>
       <div class="at-row"><span aria-hidden="true">@</span><input id="userIn" class="plain" maxlength="20" placeholder="yourname" autocomplete="off" autocapitalize="none" spellcheck="false"></div>
       <label class="switch"><input id="discBox" type="checkbox"><span><b>Let people find me by username</b><small id="discHint">Off. Nobody can find you by searching. You can still be added with your invite link or by email.</small></span></label>
+      <label class="switch"><input id="galBox" type="checkbox"><span><b>Show my public photos in the community gallery</b><small id="galHint">Off. Photos you set to Public can only be opened with your link.</small></span></label>
       <div class="row">
         <button id="profSave" class="btn primary">Save</button>
         <button id="viewMine" class="linkbtn">See how others see it</button>

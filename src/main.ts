@@ -339,6 +339,16 @@ function renderStories() {
       if (levels.size > 1) { vis.prepend(new Option('Mixed', 'mixed')); vis.value = 'mixed'; } else vis.value = [...levels][0];
       vis.onchange = () => { if (vis.value === 'mixed') return; s.cards.forEach(c => { c.visibility = vis.value as Card['visibility']; }); save(); render(); };
       actions.append(vis);
+      if (me && levels.has('public')) {
+        const pg = el('button', 'btn small', 'Copy page link');
+        pg.title = 'A page anyone can open, showing the public photos in this story';
+        pg.onclick = async () => {
+          const link = cloud.storyLink(me!.id, s.name);
+          try { await navigator.clipboard.writeText(link); pg.textContent = 'Link copied'; } catch { pg.textContent = link; }
+          setTimeout(() => { pg.textContent = 'Copy page link'; }, 2500);
+        };
+        actions.append(pg);
+      }
     }
     item.append(actions);
     if (on) item.append(storyEditor(s));
@@ -1045,12 +1055,20 @@ function discHint() {
 }
 userIn.oninput = () => { userIn.value = userIn.value.toLowerCase().replace(/[^a-z0-9_]/g, ''); discHint(); };
 discBox.onchange = discHint;
+const galBox = $<HTMLInputElement>('galBox');
+function galHint() {
+  $('galHint').textContent = galBox.checked
+    ? 'On. Your Public photos and stories are listed on the Explore pages, with your name. Turn this off any time.'
+    : 'Off. Photos you set to Public can only be opened with your link.';
+}
+galBox.onchange = galHint;
 function fillProfileForm() {
   userIn.value = me?.username ?? ''; $<HTMLInputElement>('nameIn').value = me?.display_name ?? ''; discBox.checked = !!me?.discoverable; discHint();
+  galBox.checked = !!me?.gallery; galHint();
 }
 $('profSave').onclick = async () => {
   try {
-    await cloud.saveProfile({ display_name: $<HTMLInputElement>('nameIn').value, username: userIn.value, discoverable: discBox.checked });
+    await cloud.saveProfile({ display_name: $<HTMLInputElement>('nameIn').value, username: userIn.value, discoverable: discBox.checked, gallery: galBox.checked });
     me = await cloud.myProfile(); fillProfileForm(); renderAcct(); syncNote('Saved.'); openPending();
   } catch (err) { syncNote((err as Error).message); }
 };
@@ -1327,5 +1345,7 @@ setInterval(() => { if (signedIn) refreshFriends(); }, 45 * 60 * 1000);   // sig
   fitCards(cards, 5);
   document.fonts.ready.then(() => map.fire('moveend'));
   renderAcct();
-  cloud.initAuth(onAuth).then(showInviteBanner).catch(err => console.warn('Sign-in unavailable', err));
+  cloud.initAuth(onAuth).then(showInviteBanner).then(() => {
+    if (new URLSearchParams(location.search).get('account')) { history.replaceState(null, '', location.pathname); openAcct(); }
+  }).catch(err => console.warn('Sign-in unavailable', err));
 })();

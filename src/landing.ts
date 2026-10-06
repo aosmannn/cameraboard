@@ -1,13 +1,9 @@
-import '@fontsource/dm-sans/400.css';
-import '@fontsource/dm-sans/500.css';
-import '@fontsource/dm-sans/700.css';
-import '@fontsource/caveat/500.css';
-import '@fontsource/caveat/700.css';
-import '@fontsource/vt323/400.css';
-import '@fontsource/instrument-serif/400.css';
-import '@fontsource/instrument-serif/400-italic.css';
+import { mountShell } from './site';
 import './landing.css';
 import { THEMES, paintWorld, mercY } from './world';
+import * as cloud from './cloud';
+
+mountShell('home');
 
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
 
@@ -158,3 +154,17 @@ document.querySelectorAll<HTMLButtonElement>('[data-follow]').forEach(b => {
   };
 });
 document.querySelectorAll<HTMLElement>('.step').forEach(s => s.addEventListener('mouseenter', () => s.classList.add('hot')));
+
+// ---------- from the community ----------
+cloud.explorePhotos({ limit: 8 }).then(r => {
+  const strip = $('strip');
+  if (!r.cards.length) { $('stripNote').hidden = false; return; }
+  r.cards.forEach((c, i) => {
+    const a = document.createElement('a'); a.className = 'tile'; a.href = '/explore'; a.style.setProperty('--rot', (i % 2 ? 2 : -2) + 'deg');
+    a.innerHTML = '<span class="frame"><img alt="" loading="lazy"><span class="cap"><b></b><small></small></span></span>';
+    const im = a.querySelector('img')!; im.src = c.img!; im.className = 'look-' + c.look;
+    a.querySelector('b')!.textContent = c.title || 'Untitled';
+    a.querySelector('small')!.textContent = (c.place || '').split(',').slice(0, 2).join(',');
+    strip.append(a);
+  });
+}).catch(() => { $('community').hidden = true; });

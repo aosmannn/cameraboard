@@ -318,6 +318,89 @@ $$;
 revoke all on function public.is_public_image(text) from public;
 grant execute on function public.is_public_image(text) to anon, authenticated;
 
+-- ---------- community gallery ----------
+-- "Public" means anyone with your link. The community gallery is a separate, opt-in switch on your profile:
+-- only people who turn it on have their public photos listed on the Explore pages.
+alter table public.profiles add column if not exists gallery boolean not null default false;
+
+create or replace function public.camera_slug(c text) returns text
+language sql immutable set search_path = '' as $$
+  select trim(both '-' from lower(regexp_replace(trim(coalesce(c, '')), '[^a-zA-Z0-9]+', '-', 'g')));
+$$;
+
+-- Newest first. Optional filters: a camera slug and a search word (title, place or camera). 96 per page at most.
+create or replace function public.explore_photos(lim integer default 48, off integer default 0, cam text default null, q text default null)
+returns table (id uuid, owner uuid, owner_name text, title text, story text, taken_at text, lat double precision,
+  lng double precision, place text, trip text, seq integer, look text, stamp boolean, pin_color text, cover boolean,
+  rot real, meta jsonb, image_path text)
+language sql stable security definer set search_path = '' as $$
+  select ph.id, ph.owner, p.display_name, ph.title, ph.story, ph.taken_at, ph.lat, ph.lng, ph.place, ph.trip, ph.seq,
+         ph.look, ph.stamp, ph.pin_color, ph.cover, ph.rot, ph.meta, ph.image_path
+  from public.photos ph join public.profiles p on p.id = ph.owner
+  where ph.visibility = 'public' and ph.image_path is not null and p.gallery
+    and (coalesce(cam, '') = '' or public.camera_slug(ph.meta ->> 'camera') = cam)
+    and (coalesce(trim(q), '') = '' or ph.title ilike '%' || replace(replace(trim(q), '%', ''), '_', '') || '%'
+         or ph.place ilike '%' || replace(replace(trim(q), '%', ''), '_', '') || '%'
+         or (ph.meta ->> 'camera') ilike '%' || replace(replace(trim(q), '%', ''), '_', '') || '%')
+    and (auth.uid() is null or not public.is_blocked(auth.uid(), ph.owner))
+  order by ph.updated_at desc
+  limit least(greatest(lim, 1), 96) offset greatest(off, 0);
+$$;
+revoke all on function public.explore_photos(integer, integer, text, text) from public;
+grant execute on function public.explore_photos(integer, integer, text, text) to anon, authenticated;
+
+-- Stories in the gallery: a story is the photos a person set to Public under one story name.
+create or replace function public.explore_stories(lim integer default 24, off integer default 0)
+returns table (owner uuid, owner_name text, trip text, stops bigint, places text[], cover_path text, updated timestamptz)
+language sql stable security definer set search_path = '' as $$
+  select ph.owner, p.display_name, ph.trip, count(*),
+         array_agg(ph.place order by ph.seq, ph.taken_at),
+         (array_agg(ph.image_path order by ph.cover desc, ph.seq, ph.taken_at))[1],
+         max(ph.updated_at)
+  from public.photos ph join public.profiles p on p.id = ph.owner
+  where ph.visibility = 'public' and ph.image_path is not null and p.gallery and ph.trip <> ''
+    and (auth.uid() is null or not public.is_blocked(auth.uid(), ph.owner))
+  group by ph.owner, p.display_name, ph.trip
+  order by max(ph.updated_at) desc
+  limit least(greatest(lim, 1), 60) offset greatest(off, 0);
+$$;
+revoke all on function public.explore_stories(integer, integer) from public;
+grant execute on function public.explore_stories(integer, integer) to anon, authenticated;
+
+-- Cameras people shot the gallery photos on, most photos first.
+create or replace function public.explore_cameras()
+returns table (camera text, slug text, photos bigint, people bigint, cover_path text)
+language sql stable security definer set search_path = '' as $$
+  select (array_agg(ph.meta ->> 'camera' order by ph.updated_at desc))[1], public.camera_slug(ph.meta ->> 'camera'),
+         count(*), count(distinct ph.owner), (array_agg(ph.image_path order by ph.updated_at desc))[1]
+  from public.photos ph join public.profiles p on p.id = ph.owner
+  where ph.visibility = 'public' and ph.image_path is not null and p.gallery
+    and public.camera_slug(ph.meta ->> 'camera') <> ''
+    and (auth.uid() is null or not public.is_blocked(auth.uid(), ph.owner))
+  group by public.camera_slug(ph.meta ->> 'camera')
+  order by count(*) desc, 1
+  limit 200;
+$$;
+revoke all on function public.explore_cameras() from public;
+grant execute on function public.explore_cameras() to anon, authenticated;
+
+-- A profile header for signed-out visitors: a name, a username only if they're discoverable, and counts of what's public.
+create or replace function public.public_card(code text default null, handle text default null, uid uuid default null)
+returns table (id uuid, display_name text, username text, photos bigint, stories bigint)
+language sql stable security definer set search_path = '' as $$
+  select p.id, p.display_name, case when p.discoverable then p.username end,
+         (select count(*) from public.photos ph where ph.owner = p.id and ph.visibility = 'public' and ph.image_path is not null),
+         (select count(distinct ph.trip) from public.photos ph where ph.owner = p.id and ph.visibility = 'public' and ph.image_path is not null and ph.trip <> '')
+  from public.profiles p
+  where ((code is not null and p.invite_code = trim(code))
+      or (handle is not null and p.discoverable and p.username = lower(trim(handle)))
+      or (uid is not null and p.id = uid and p.gallery))
+    and (auth.uid() is null or not public.is_blocked(auth.uid(), p.id))
+  limit 1;
+$$;
+revoke all on function public.public_card(text, text, uuid) from public;
+grant execute on function public.public_card(text, text, uuid) to anon, authenticated;
+
 -- ---------- likes ----------
 create table if not exists public.likes (
   photo_id uuid not null references public.photos on delete cascade,

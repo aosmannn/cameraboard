@@ -102,8 +102,8 @@ button { cursor: pointer; }
 .menu summary { list-style: none; }
 .menu summary::-webkit-details-marker { display: none; }
 .menu-list { position: absolute; right: 0; top: calc(100% + 8px); min-width: 220px; padding: 6px; background: var(--panel); border: 1px solid var(--line); border-radius: 14px; box-shadow: var(--shadow); display: flex; flex-direction: column; }
-.menu-list > button, .menu-list > label { border: 0; background: none; text-align: left; padding: 10px 12px; border-radius: 9px; cursor: pointer; }
-.menu-list > button:hover, .menu-list > label:hover { background: var(--panel-2); }
+.menu-list > button, .menu-list > label, .menu-list > a { display: block; color: inherit; text-decoration: none; border: 0; background: none; text-align: left; padding: 10px 12px; border-radius: 9px; cursor: pointer; }
+.menu-list > button:hover, .menu-list > label:hover, .menu-list > a:hover { background: var(--panel-2); }
 .menu-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 .menu-row select { border: 1px solid var(--line); background: var(--panel-2); border-radius: 8px; padding: 4px 6px; }
 

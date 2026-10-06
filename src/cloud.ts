@@ -40,7 +40,7 @@ export async function signOut() { await sb?.auth.signOut(); }
 
 /** username is null unless the person chose to be discoverable (or it's you). */
 export interface Person { id: string; display_name: string; username: string | null }
-export interface MyProfile extends Person { discoverable: boolean; invite_code: string }
+export interface MyProfile extends Person { discoverable: boolean; invite_code: string; gallery: boolean }
 export interface Profile extends Person { discoverable: boolean }
 export const USERNAME_RE = /^[a-z0-9_]{3,20}$/;
 export const cleanUsername = (raw: string) => raw.trim().replace(/^@/, '').toLowerCase();
@@ -49,16 +49,21 @@ export const labelOf = (p: Pick<Person, 'display_name' | 'username'>) => p.displ
 
 export async function myProfile(): Promise<MyProfile | null> {
   const u = me(); if (!u) return null;
-  const { data } = await sb!.from('profiles').select('id, display_name, username, discoverable, invite_code').eq('id', u.id).maybeSingle();
-  return (data as MyProfile | null) ?? null;
+  const q = (cols: string) => sb!.from('profiles').select(cols).eq('id', u.id).maybeSingle();
+  let { data, error } = await q('id, display_name, username, discoverable, invite_code, gallery');
+  // The gallery column arrives with the latest supabase/schema.sql; until it's run, load the profile without it.
+  if (error) ({ data } = await q('id, display_name, username, discoverable, invite_code'));
+  const row = data as unknown as MyProfile | null;
+  return row ? { ...row, gallery: !!row.gallery } : null;
 }
-export async function saveProfile(p: { display_name: string; username: string; discoverable: boolean }) {
+export async function saveProfile(p: { display_name: string; username: string; discoverable: boolean; gallery?: boolean }) {
   const u = me(); if (!u) return;
   const username = cleanUsername(p.username);
   if (username && !USERNAME_RE.test(username)) throw new Error('Usernames are 3 to 20 letters, numbers or underscores.');
   if (p.discoverable && !username) throw new Error('Pick a username to be discoverable.');
   const { error } = await sb!.from('profiles').update({
-    display_name: p.display_name.trim().slice(0, 40), username: username || null, discoverable: p.discoverable && !!username
+    display_name: p.display_name.trim().slice(0, 40), username: username || null, discoverable: p.discoverable && !!username,
+    ...(p.gallery === undefined ? {} : { gallery: p.gallery })
   }).eq('id', u.id);
   if (error) throw new Error(error.code === '23505' ? 'That username is taken. Try another.' : error.message);
 }
@@ -69,6 +74,8 @@ export async function setInviteCode(code: string) {
 /** Invite links point at the public site, never at a protected preview address. */
 const SITE = (import.meta.env.VITE_PUBLIC_URL as string | undefined)?.replace(/\/$/, '') || '';
 export const inviteLink = (code: string) => `${SITE || location.origin}/app.html?add=${code}`;
+/** The page that tells one story: the public photos under that story name. */
+export const storyLink = (ownerId: string, trip: string) => `${SITE || location.origin}/s/${ownerId}?t=${encodeURIComponent(trip)}`;
 /** The name behind an invite link. Works without signing in. */
 export async function invitePreview(code: string): Promise<string | null> {
   if (!sb) return null;
@@ -233,19 +240,74 @@ export async function setLike(id: string, on: boolean) {
   else await sb!.from('likes').delete().eq('photo_id', id).eq('user_id', me()!.id);
 }
 
-/** A person's public photos, reached with their invite link, @username or id. Works without signing in. */
-export async function publicPhotos(who: { code?: string; handle?: string; id?: string }): Promise<{ cards: Card[]; owners: Map<string, string> }> {
+/** Image links that work for anyone: public images can be signed without an account. */
+async function signPaths(paths: string[]): Promise<Map<string, string>> {
+  const out = new Map<string, string>();
+  const list = [...new Set(paths.filter(Boolean))];
+  if (!sb || !list.length) return out;
+  const { data } = await sb.storage.from(BUCKET).createSignedUrls(list, 3600);
+  for (const s of data ?? []) if (s.signedUrl && s.path) out.set(s.path, s.signedUrl);
+  return out;
+}
+type PublicRow = Row & { owner_name: string };
+async function rowsToCards(rows: PublicRow[]) {
   const out = { cards: [] as Card[], owners: new Map<string, string>() };
-  if (!sb) return out;
-  const { data, error } = await sb.rpc('public_photos', { code: who.code ?? null, handle: who.handle ? cleanUsername(who.handle) : null, uid: who.id ?? null });
-  if (error) throw new Error(error.message);
-  const rows = (data ?? []) as (Row & { owner_name: string })[];
-  if (!rows.length) return out;
-  const { data: signed } = await sb.storage.from(BUCKET).createSignedUrls(rows.map(r => r.image_path!), 3600);
-  const url = new Map((signed ?? []).map(s => [s.path, s.signedUrl]));
+  const url = await signPaths(rows.map(r => r.image_path!));
   for (const r of rows) {
     const u = url.get(r.image_path!); if (!u) continue;
     out.cards.push(fromRow({ ...r, visibility: 'public' }, u)); out.owners.set(r.owner, r.owner_name || 'A friend');
   }
   return out;
+}
+
+/** A person's public photos, reached with their invite link, @username or id. Works without signing in. */
+export async function publicPhotos(who: { code?: string; handle?: string; id?: string }): Promise<{ cards: Card[]; owners: Map<string, string> }> {
+  if (!sb) return { cards: [], owners: new Map() };
+  const { data, error } = await sb.rpc('public_photos', { code: who.code ?? null, handle: who.handle ? cleanUsername(who.handle) : null, uid: who.id ?? null });
+  if (error) throw new Error(error.message);
+  return rowsToCards((data ?? []) as PublicRow[]);
+}
+
+// ---------- community gallery (Explore pages) ----------
+/** Lower-case, dashes between words: the form cameras take in page addresses. */
+export const slugify = (t: string) => t.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+
+/** Public photos from people who turned on "Show my public photos in the community gallery". Newest first. */
+export async function explorePhotos(o: { limit?: number; offset?: number; camera?: string; q?: string } = {}) {
+  if (!sb) return { cards: [] as Card[], owners: new Map<string, string>(), more: false };
+  const limit = o.limit ?? 48;
+  const { data, error } = await sb.rpc('explore_photos', { lim: limit, off: o.offset ?? 0, cam: o.camera || null, q: o.q?.trim() || null });
+  if (error) throw new Error(error.message);
+  const rows = (data ?? []) as PublicRow[];
+  return { ...(await rowsToCards(rows)), more: rows.length >= limit };
+}
+export interface GalleryStory { owner: string; owner_name: string; trip: string; stops: number; places: string[]; cover: string; updated: string }
+export async function exploreStories(limit = 24, offset = 0): Promise<{ stories: GalleryStory[]; more: boolean }> {
+  if (!sb) return { stories: [], more: false };
+  const { data, error } = await sb.rpc('explore_stories', { lim: limit, off: offset });
+  if (error) throw new Error(error.message);
+  const rows = (data ?? []) as { owner: string; owner_name: string; trip: string; stops: number; places: string[]; cover_path: string; updated: string }[];
+  const url = await signPaths(rows.map(r => r.cover_path));
+  return {
+    more: rows.length >= limit,
+    stories: rows.map(r => ({ owner: r.owner, owner_name: r.owner_name || 'A traveller', trip: r.trip, stops: Number(r.stops), places: r.places ?? [], cover: url.get(r.cover_path) ?? '', updated: r.updated }))
+  };
+}
+export interface CameraStat { camera: string; slug: string; photos: number; people: number; cover: string }
+export async function exploreCameras(): Promise<CameraStat[]> {
+  if (!sb) return [];
+  const { data, error } = await sb.rpc('explore_cameras');
+  if (error) throw new Error(error.message);
+  const rows = (data ?? []) as { camera: string; slug: string; photos: number; people: number; cover_path: string }[];
+  const url = await signPaths(rows.map(r => r.cover_path));
+  return rows.map(r => ({ camera: r.camera, slug: r.slug, photos: Number(r.photos), people: Number(r.people), cover: url.get(r.cover_path) ?? '' }));
+}
+export interface PublicCard { id: string; display_name: string; username: string | null; photos: number; stories: number }
+/** A name and counts for a profile page. Works without signing in. */
+export async function publicCard(who: { code?: string; handle?: string; id?: string }): Promise<PublicCard | null> {
+  if (!sb) return null;
+  const { data, error } = await sb.rpc('public_card', { code: who.code ?? null, handle: who.handle ? cleanUsername(who.handle) : null, uid: who.id ?? null });
+  if (error) throw new Error(error.message);
+  const r = (data ?? [])[0] as PublicCard | undefined;
+  return r ? { ...r, photos: Number(r.photos), stories: Number(r.stories) } : null;
 }

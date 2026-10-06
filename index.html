@@ -7,17 +7,6 @@
 <meta name="description" content="Hang your photos on a world map, string them into stories, and share them with friends.">
 </head>
 <body>
-<header class="nav">
-  <a class="logo" href="/" aria-label="Wayframe home">Wayframe</a>
-  <nav aria-label="Sections">
-    <a href="#try">Try it</a>
-    <a href="#how">How it works</a>
-    <a href="#cameras">Old cameras</a>
-    <a href="#friends">Friends</a>
-  </nav>
-  <a class="btn primary" href="/app.html">Open Wayframe</a>
-</header>
-
 <main>
   <section class="hero" id="try">
     <div class="hero-copy">
@@ -78,11 +67,24 @@
     </ol>
   </section>
 
+  <section class="community" id="community">
+    <div class="community-head">
+      <div>
+        <p class="eyebrow">From the community</p>
+        <h2>Fresh off the wall.</h2>
+      </div>
+      <a class="btn" href="/explore">Explore the gallery</a>
+    </div>
+    <div class="strip" id="strip" aria-live="polite"></div>
+    <p class="fine" id="stripNote" hidden>The gallery is empty so far. Make a photo Public and turn on “Show my public photos in the community gallery” in your profile to be the first.</p>
+  </section>
+
   <section class="split" id="cameras">
     <div class="split-copy">
       <p class="eyebrow">Built for cameras with no GPS</p>
       <h2>Your old camera never knew where it was. Wayframe does.</h2>
       <p>Point-and-shoots, old digicams, DSLRs and film scans: most write the date and settings into every file, but not the place. Wayframe reads whatever your camera saved, shows it as a “shot on” label, lets you type the camera in when a file has none, and makes putting the rest on the map quick: drop a whole day of photos on one city in a click.</p>
+      <p class="more-link"><a href="/cameras">Browse photos by camera →</a></p>
       <div class="chips" role="group" aria-label="Photo look">
         <button class="chip on" data-look="none">Original</button>
         <button class="chip" data-look="digicam">Early digicam</button>
@@ -143,10 +145,6 @@
   </section>
 </main>
 
-<footer class="foot">
-  <span class="logo small">Wayframe</span>
-  <span>Map data © <a href="https://www.naturalearthdata.com">Natural Earth</a>, public domain. Sample scenes are illustrations.</span>
-</footer>
 <script type="module" src="/src/landing.ts"></script>
 </body>
 </html>
