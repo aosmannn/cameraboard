@@ -1,4 +1,4 @@
--- Wayframe database. Run once in Supabase: SQL Editor -> New query -> paste all of this -> Run.
+-- Wayframe database. Safe to run again. Run in Supabase: SQL Editor -> New query -> paste all of this -> Run.
 -- Every table has row level security, so people only ever see their own photos and the photos
 -- friends chose to share with them.
 
@@ -16,38 +16,39 @@ create policy "signed-in people can see names" on public.profiles
 create policy "people edit their own name" on public.profiles
   for update to authenticated using (id = auth.uid()) with check (id = auth.uid());
 
--- Hashed phone numbers, used only to match contacts. No policies on purpose: nobody can read this
+-- Hashed email addresses, used only to match contacts. No policies on purpose: nobody can read this
 -- table directly, only through match_contacts() below.
-create table if not exists public.phone_index (
+drop table if exists public.phone_index;   -- from an earlier version that used phone numbers
+create table if not exists public.email_index (
   user_id uuid primary key references auth.users on delete cascade,
-  phone_hash text not null unique
+  email_hash text not null unique
 );
-alter table public.phone_index enable row level security;
+alter table public.email_index enable row level security;
 
--- Every new account gets a profile, and its verified phone number is indexed by hash.
+-- Every new account gets a profile, and its email is indexed by hash.
 create or replace function public.on_account_change() returns trigger
 language plpgsql security definer set search_path = '' as $$
 begin
   insert into public.profiles (id) values (new.id) on conflict (id) do nothing;
-  if new.phone is not null and new.phone <> '' then
-    insert into public.phone_index (user_id, phone_hash)
-    values (new.id, encode(extensions.digest(new.phone, 'sha256'), 'hex'))
-    on conflict (user_id) do update set phone_hash = excluded.phone_hash;
+  if new.email is not null and new.email <> '' then
+    insert into public.email_index (user_id, email_hash)
+    values (new.id, encode(extensions.digest(lower(trim(new.email)), 'sha256'), 'hex'))
+    on conflict (user_id) do update set email_hash = excluded.email_hash;
   end if;
   return new;
 end $$;
 drop trigger if exists wayframe_account on auth.users;
-create trigger wayframe_account after insert or update of phone on auth.users
+create trigger wayframe_account after insert or update of email on auth.users
   for each row execute function public.on_account_change();
 
--- Given hashed phone numbers from someone's contacts, return the ones that have an account.
--- Capped at 2000 numbers per call.
+-- Given hashed email addresses from someone's contacts, return the ones that have an account.
+-- Capped at 2000 per call.
 create or replace function public.match_contacts(hashes text[])
 returns table (id uuid, display_name text)
 language sql stable security definer set search_path = '' as $$
   select p.id, p.display_name
-  from public.phone_index i join public.profiles p on p.id = i.user_id
-  where i.phone_hash = any (hashes[1:2000]) and i.user_id <> auth.uid();
+  from public.email_index i join public.profiles p on p.id = i.user_id
+  where i.email_hash = any (hashes[1:2000]) and i.user_id <> auth.uid();
 $$;
 revoke all on function public.match_contacts(text[]) from public, anon;
 grant execute on function public.match_contacts(text[]) to authenticated;

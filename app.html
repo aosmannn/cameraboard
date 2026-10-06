@@ -1,0 +1,241 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Wayframe</title>
+</head>
+<body>
+<div id="map"></div>
+<div class="map-grain" aria-hidden="true"></div>
+
+<header class="top">
+  <div class="top-left">
+    <a class="brand" href="/" aria-label="Wayframe home">Wayframe</a>
+    <label class="search">
+      <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="8.5" cy="8.5" r="5.5"/><path d="M13 13l4 4"/></svg>
+      <input id="q" type="search" placeholder="Search photos and places" aria-label="Search photos and places">
+    </label>
+  </div>
+  <div class="top-right">
+    <button id="acctBtn" class="btn acct" hidden>Sign in</button>
+    <button id="addBtn" class="btn primary"><span class="add-long">Add photos</span><span class="add-short">Add</span></button>
+    <details class="menu">
+      <summary class="btn icon" aria-label="More options">
+        <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="4" cy="10" r="1.6"/><circle cx="10" cy="10" r="1.6"/><circle cx="16" cy="10" r="1.6"/></svg>
+      </summary>
+      <div class="menu-list">
+        <label class="menu-row">Map style <select id="themeSel"></select></label>
+        <button id="posterBtn">Make a poster</button>
+        <button id="exportBtn">Export backup</button>
+        <label>Import backup<input id="importFile" type="file" accept="application/json" hidden></label>
+      </div>
+    </details>
+  </div>
+</header>
+
+<aside id="stories" class="stories">
+  <div class="st-head">
+    <h2>Stories</h2>
+    <button id="newStory" class="btn small">New story</button>
+    <button id="storiesHide" class="x2" aria-label="Hide stories">✕</button>
+  </div>
+  <form id="newStoryForm" class="new-story" hidden>
+    <input id="newStoryName" placeholder="Name it, e.g. Summer in Spain" aria-label="Story name" autocomplete="off">
+    <button class="btn small primary">Start</button>
+  </form>
+  <div id="storyList" class="story-list"></div>
+</aside>
+<button id="storiesShow" class="stories-show" hidden>Stories</button>
+
+<div id="connectBar" class="banner" hidden>
+  <span id="connectText"></span>
+  <button id="connectDone" class="btn small primary">Done</button>
+</div>
+<div id="pinBanner" class="banner" hidden>
+  <span id="pinText">Click the map to place this photo</span>
+  <button id="pinCancel" class="btn small">Cancel</button>
+</div>
+
+<div id="empty" class="empty-state" hidden>
+  <h2>Pin your first photo</h2>
+  <p>Add photos, put them where they were taken, then string them together into a story.</p>
+  <button class="btn primary" id="emptyAdd">Add photos</button>
+</div>
+
+<div id="playCard" class="playcard" hidden>
+  <img id="pcImg" alt="">
+  <div class="pc-text">
+    <b id="pcTitle"></b>
+    <span id="pcWhere"></span>
+    <span id="pcCount"></span>
+  </div>
+  <div class="pc-ctl">
+    <button id="pcPrev" aria-label="Previous stop">‹</button>
+    <button id="pcPause" aria-label="Pause">❚❚</button>
+    <button id="pcNext" aria-label="Next stop">›</button>
+    <button id="pcStop" aria-label="Stop">✕</button>
+  </div>
+</div>
+
+<section id="tray" class="tray" hidden>
+  <div class="tray-head">
+    <b id="trayTitle"></b>
+    <button id="trayToggle" class="x2" aria-label="Collapse">–</button>
+  </div>
+  <div id="trayList" class="tray-list"></div>
+</section>
+
+<aside id="drawer" class="drawer" hidden>
+  <button class="x" id="dClose" aria-label="Close">✕</button>
+  <div class="d-photo">
+    <button class="photo" id="photoBtn" aria-label="View full size"><img id="dImg" alt=""><span id="dStamp" class="stamp" hidden></span></button>
+  </div>
+  <div class="body">
+    <input id="fTitle" class="title" placeholder="Name this photo" aria-label="Photo title">
+    <p id="dOwner" class="d-owner" hidden></p>
+    <p id="dMeta" class="d-meta"></p>
+    <div id="dStory" class="d-story" hidden>
+      <button id="dsPrev" aria-label="Previous stop">‹</button>
+      <span id="dsText"></span>
+      <button id="dsNext" aria-label="Next stop">›</button>
+    </div>
+    <div id="stack" class="d-story" hidden>
+      <button id="stPrev" aria-label="Previous photo here">‹</button>
+      <span id="stText"></span>
+      <button id="stNext" aria-label="Next photo here">›</button>
+    </div>
+    <div class="row">
+      <button id="likeBtn" class="like">♡ <span id="likeCount">0</span></button>
+      <span class="grow"></span>
+      <button id="replaceBtn" class="btn small ghost edit-only">Replace</button>
+      <button id="deleteBtn" class="btn small ghost danger edit-only">Remove</button>
+    </div>
+    <label id="shareRow" class="share edit-only" hidden><input id="shareBox" type="checkbox"> <span><b>Share with friends</b><small>Friends who follow you see this photo and its story.</small></span></label>
+
+    <label class="lab" for="fStory">What happened here</label>
+    <textarea id="fStory" rows="4" placeholder="Who was there, what you did, why this shot."></textarea>
+
+    <div class="edit-only">
+    <label class="lab" for="fTripName">Story</label>
+    <input id="fTripName" list="tripList" class="plain" placeholder="Add to a story" autocomplete="off">
+    <datalist id="tripList"></datalist>
+
+    <label class="lab" for="fPlace">Where</label>
+    <div class="place-row">
+      <input id="fPlace" list="placeList" class="plain" placeholder="Search a city, e.g. Barcelona" autocomplete="off">
+      <datalist id="placeList"></datalist>
+      <button id="placeBtn" class="btn small">Find</button>
+    </div>
+    <div class="row">
+      <button id="pinBtn" class="btn small">Pin on map</button>
+      <button id="exactBtn" class="btn small">Zoom in</button>
+      <button id="clearLoc" class="btn small ghost">Clear</button>
+    </div>
+    <p id="locNote" class="hint"></p>
+
+    <div id="shotOn" class="shoton"></div>
+
+    <details class="fold">
+      <summary>Pin colour and photo look</summary>
+      <div id="swatches" class="swatches"></div>
+      <label class="check"><input id="coverBox" type="checkbox"> Show this photo on top when others share the spot</label>
+      <div class="row">
+        <select id="lookSel" class="plain sel" aria-label="Photo look">
+          <option value="none">Original</option>
+          <option value="digicam">Early digicam</option>
+          <option value="film">Warm film</option>
+          <option value="bw">Black and white</option>
+        </select>
+        <label class="check"><input id="stampBox" type="checkbox"> Date stamp</label>
+      </div>
+    </details>
+
+    <details class="fold">
+      <summary>Date and file</summary>
+      <label class="field">Date taken <input id="fDate" type="datetime-local" class="plain"></label>
+      <dl id="meta" class="meta"></dl>
+    </details>
+    </div>
+  </div>
+</aside>
+
+<div id="viewer" class="viewer" hidden>
+  <button class="x" id="vwClose" aria-label="Close">✕</button>
+  <img id="vwImg" alt="" draggable="false">
+  <div class="zoom-ctl">
+    <button id="zIn" aria-label="Zoom in">+</button>
+    <button id="zOut" aria-label="Zoom out">−</button>
+    <button id="zReset" aria-label="Fit">⟲</button>
+  </div>
+  <p class="hint">Scroll or pinch to zoom · drag to pan · double-click to zoom in</p>
+</div>
+
+<div id="posterModal" class="modal" hidden>
+  <div class="modal-box">
+    <div class="m-head">
+      <h2>Poster</h2>
+      <input id="posterTitle" class="plain" placeholder="Poster title" value="My travels" aria-label="Poster title">
+      <button id="posterSave" class="btn primary">Download PNG</button>
+      <button id="posterClose" class="btn">Close</button>
+    </div>
+    <canvas id="posterCv"></canvas>
+  </div>
+</div>
+
+<div id="acctModal" class="modal" hidden>
+  <div class="modal-box acct-box">
+    <button class="x2 m-close" id="acctClose" aria-label="Close">✕</button>
+    <section id="signIn">
+      <h2>Sign in</h2>
+      <p class="sub">Enter your email and we’ll send a 6-digit code. No password needed.</p>
+      <form id="phoneForm">
+        <label class="lab" for="phoneIn">Email</label>
+        <input id="phoneIn" class="plain" type="email" placeholder="you@example.com" autocomplete="email" required>
+        <button class="btn primary wide">Email me a code</button>
+      </form>
+      <form id="codeForm" hidden>
+        <label class="lab" for="codeIn">Code from your email</label>
+        <input id="codeIn" class="plain code" inputmode="numeric" autocomplete="one-time-code" maxlength="6" required>
+        <button class="btn primary wide">Sign in</button>
+        <button type="button" id="codeBack" class="linkbtn">Use a different email</button>
+      </form>
+      <p id="authMsg" class="hint" role="status"></p>
+    </section>
+
+    <section id="account" hidden>
+      <h2>Your account</h2>
+      <p id="acctEmail" class="sub"></p>
+      <label class="lab" for="nameIn">Your name</label>
+      <div class="place-row">
+        <input id="nameIn" class="plain" maxlength="40" placeholder="What friends see">
+        <button id="nameSave" class="btn small">Save</button>
+      </div>
+      <p id="syncNote" class="hint" role="status"></p>
+
+      <h3>Friends</h3>
+      <div id="friendList" class="people"></div>
+      <label class="check"><input id="showFriends" type="checkbox" checked> Show friends’ photos on the map</label>
+
+      <h3>Find friends</h3>
+      <p class="hint">Paste your friends’ email addresses. We check which ones use Wayframe. Addresses are sent as one-way hashes and aren’t saved.</p>
+      <button id="pickContacts" class="btn small" hidden>Choose from your contacts</button>
+      <textarea id="numbersIn" class="plain nums" rows="3" placeholder="Paste email addresses, one per line"></textarea>
+      <div class="row">
+        <span class="grow"></span>
+        <button id="findBtn" class="btn small primary">Find friends</button>
+      </div>
+      <div id="matchList" class="people"></div>
+      <div class="row">
+        <button id="inviteBtn" class="btn small">Copy invite link</button>
+        <span class="grow"></span>
+        <button id="signOutBtn" class="linkbtn">Sign out</button>
+      </div>
+    </section>
+  </div>
+</div>
+
+<input id="picker" type="file" accept="image/*" hidden>
+<script type="module" src="/src/main.ts"></script>
+</body>
+</html>

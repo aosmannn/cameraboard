@@ -1,4 +1,4 @@
-// Accounts, sync and friends, through Supabase (project psuykzkrakkdqhulrqig).
+// Accounts (email code sign-in), sync and friends, through Supabase (project psuykzkrakkdqhulrqig).
 // The app works fully without this: if no key is configured, everything stays in the browser.
 import { createClient, type Session } from '@supabase/supabase-js';
 import type { Card } from './types';
@@ -24,18 +24,16 @@ export async function initAuth(onChange: (signedIn: boolean) => void) {
   onChange(!!session);
 }
 
-/** Phone numbers go to Supabase as +<country><number>, e.g. +14045551234. */
-export const toE164 = (raw: string) => {
-  const t = raw.trim();
-  const d = t.replace(/\D/g, '');
-  return t.startsWith('+') ? '+' + d : d.length === 10 ? '+1' + d : '+' + d;
-};
-export async function sendCode(phone: string) {
-  const { error } = await sb!.auth.signInWithOtp({ phone: toE164(phone) });
+export const cleanEmail = (raw: string) => raw.trim().toLowerCase();
+/** Emails the person a 6-digit code (and a link that does the same thing). */
+export async function sendCode(email: string) {
+  const { error } = await sb!.auth.signInWithOtp({
+    email: cleanEmail(email), options: { emailRedirectTo: location.origin + '/app.html' }
+  });
   if (error) throw error;
 }
-export async function verifyCode(phone: string, token: string) {
-  const { error } = await sb!.auth.verifyOtp({ phone: toE164(phone), token: token.trim(), type: 'sms' });
+export async function verifyCode(email: string, token: string) {
+  const { error } = await sb!.auth.verifyOtp({ email: cleanEmail(email), token: token.trim(), type: 'email' });
   if (error) throw error;
 }
 export async function signOut() { await sb?.auth.signOut(); }
@@ -129,24 +127,15 @@ export async function pullMine(have: Set<string>): Promise<Card[]> {
 // ---------- friends ----------
 export interface Person { id: string; display_name: string }
 
-/** Hashes numbers the same way the database does (sha256 of the digits after the +). */
-async function hashPhone(e164: string) {
-  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(e164.replace(/^\+/, '')));
+/** Hashes addresses the same way the database does (sha256 of the lower-case address). */
+async function hashEmail(email: string) {
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(cleanEmail(email)));
   return [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2, '0')).join('');
 }
-/** Numbers in contacts often have no country code; `cc` is used for those (e.g. "1" for the US). */
-export function normaliseContact(raw: string, cc: string) {
-  const t = raw.trim(); if (!t) return '';
-  let d = t.replace(/\D/g, '');
-  if (t.startsWith('+')) return '+' + d;
-  if (d.startsWith('00')) return '+' + d.slice(2);
-  if (d.startsWith('0')) d = d.slice(1);
-  if (cc === '1' && d.length === 11 && d.startsWith('1')) return '+' + d;
-  return '+' + cc + d;
-}
-export async function matchContacts(numbers: string[], cc: string): Promise<Person[]> {
-  const e164 = [...new Set(numbers.map(n => normaliseContact(n, cc)).filter(n => n.length > 6))].slice(0, 2000);
-  const hashes = await Promise.all(e164.map(hashPhone));
+export async function matchContacts(emails: string[]): Promise<Person[]> {
+  const ok = [...new Set(emails.map(cleanEmail).filter(e => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e)))].slice(0, 2000);
+  if (!ok.length) return [];
+  const hashes = await Promise.all(ok.map(hashEmail));
   const { data, error } = await sb!.rpc('match_contacts', { hashes });
   if (error) throw error;
   return data as Person[];

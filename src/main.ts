@@ -779,35 +779,35 @@ $<HTMLInputElement>('importFile').onchange = async e => {
   } catch { alert('That file is not a Wayframe export.'); }
 };
 
-// ---------- account: phone sign-in, friends from contacts ----------
+// ---------- account: email sign-in, friends from contacts ----------
 const acctBtn = $('acctBtn');
-let pendingPhone = '';
+let pendingEmail = '';
 function renderAcct() {
   acctBtn.hidden = !cloud.cloudEnabled;
   acctBtn.textContent = signedIn ? (myName.trim()[0] || '☺').toUpperCase() : 'Sign in';
   acctBtn.classList.toggle('avatar', signedIn);
   acctBtn.setAttribute('aria-label', signedIn ? 'Your account' : 'Sign in');
   $('signIn').hidden = signedIn; $('account').hidden = !signedIn;
-  const phone = cloud.me()?.phone;
-  $('acctPhone').textContent = phone ? 'Signed in as +' + phone : '';
+  const email = cloud.me()?.email;
+  $('acctEmail').textContent = email ? 'Signed in as ' + email : '';
 }
 acctBtn.onclick = () => { $('acctModal').hidden = false; if (signedIn) renderPeople(); else $('phoneIn').focus(); };
 $('acctClose').onclick = () => { $('acctModal').hidden = true; };
 const authMsg = (t: string) => { $('authMsg').textContent = t; };
 $('phoneForm').onsubmit = async e => {
   e.preventDefault();
-  pendingPhone = $<HTMLInputElement>('phoneIn').value;
+  pendingEmail = $<HTMLInputElement>('phoneIn').value;
   authMsg('Sending…');
   try {
-    await cloud.sendCode(pendingPhone);
+    await cloud.sendCode(pendingEmail);
     $('phoneForm').hidden = true; $('codeForm').hidden = false; $('codeIn').focus();
-    authMsg(`We texted a code to ${cloud.toE164(pendingPhone)}.`);
+    authMsg(`We emailed a code to ${cloud.cleanEmail(pendingEmail)}. You can also tap the link in that email.`);
   } catch (err) { authMsg('Couldn’t send the code: ' + (err as Error).message); }
 };
 $('codeForm').onsubmit = async e => {
   e.preventDefault();
   authMsg('Checking…');
-  try { await cloud.verifyCode(pendingPhone, $<HTMLInputElement>('codeIn').value); authMsg(''); }
+  try { await cloud.verifyCode(pendingEmail, $<HTMLInputElement>('codeIn').value); authMsg(''); }
   catch (err) { authMsg('That code didn’t work: ' + (err as Error).message); }
 };
 $('codeBack').onclick = () => { $('codeForm').hidden = true; $('phoneForm').hidden = false; authMsg(''); };
@@ -835,26 +835,26 @@ function renderPeople() {
   }
 }
 $('findBtn').onclick = async () => {
-  const lines = $<HTMLTextAreaElement>('numbersIn').value.split(/[\n,;]+/);
+  const lines = $<HTMLTextAreaElement>('numbersIn').value.split(/[\s,;]+/);
   const out = $('matchList'); out.innerHTML = '';
   try {
-    const found = await cloud.matchContacts(lines, $<HTMLInputElement>('ccIn').value.replace(/\D/g, '') || '1');
-    if (!found.length) { out.append(el('p', 'hint', 'None of those numbers use Wayframe yet. Send them the invite link.')); return; }
+    const found = await cloud.matchContacts(lines);
+    if (!found.length) { out.append(el('p', 'hint', 'None of those addresses use Wayframe yet. Send them the invite link.')); return; }
     for (const p of found) {
       const already = friends.some(f => f.id === p.id);
       const b = el('button', 'btn small' + (already ? '' : ' primary'), already ? 'Following' : 'Follow');
       b.onclick = async () => { await cloud.follow(p.id); b.textContent = 'Following'; b.className = 'btn small'; await refreshFriends(); };
       out.append(person(p, b));
     }
-  } catch (err) { out.append(el('p', 'hint', 'Couldn’t check those numbers: ' + (err as Error).message)); }
+  } catch (err) { out.append(el('p', 'hint', 'Couldn’t check those addresses: ' + (err as Error).message)); }
 };
 // The Contact Picker only exists in Chrome on Android; elsewhere people paste numbers.
 const contactsApi = (navigator as any).contacts;
 $('pickContacts').hidden = !(contactsApi && 'select' in contactsApi);
 $('pickContacts').onclick = async () => {
   try {
-    const picked: { tel?: string[] }[] = await contactsApi.select(['tel'], { multiple: true });
-    const nums = picked.flatMap(p => p.tel ?? []);
+    const picked: { email?: string[] }[] = await contactsApi.select(['email'], { multiple: true });
+    const nums = picked.flatMap(p => p.email ?? []);
     const ta = $<HTMLTextAreaElement>('numbersIn');
     ta.value = [ta.value.trim(), ...nums].filter(Boolean).join('\n');
     $('findBtn').click();
@@ -887,8 +887,6 @@ async function onAuth(s: boolean) {
   renderAcct();
   myName = await cloud.myName().catch(() => '');
   $<HTMLInputElement>('nameIn').value = myName;
-  const phone = cloud.me()?.phone ?? '';
-  $<HTMLInputElement>('ccIn').value = phone.startsWith('1') ? '1' : phone.slice(0, 2) || '1';
   renderAcct();
   if (!myName) { $('acctModal').hidden = false; $('nameIn').focus(); syncNote('Add your name so friends know it’s you.'); }
   try {
