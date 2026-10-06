@@ -19,7 +19,8 @@ Built for photos from a Sony Cyber-shot DSC-V1, and it works with any camera.
 - **Retro look.** Early digicam, warm film or black and white, plus an optional date stamp in the corner.
 - **Poster.** Download a printable PNG of a story or all your photos, string included.
 - **Friends feed.** A "Friends" tab in the left panel lists photos the people you follow chose to share, newest first. Like them, tap a name to see a profile, or press "Show on map" to fly to the spot and light up that story's string.
-- **Accounts and friends (optional).** Sign in with your email and a code we send you. Your photos are saved to your account and come back on any device. Pick a name, and optionally a username. You are invisible to search until you turn on "Let people find me by username". Everyone gets a private invite link and QR code that works even when search is off, and friends can also be found by email. Follow people to see the stories they chose to share on your map in blue string. Likes are real and shared. You can block and report people.
+- **Been & Bucket.** A "Been" tab tracks countries you've visited (from photo GPS or marked by hand) and lights them on the map. A "Bucket" tab is a wishlist of places; nearby photos can tick items off automatically.
+- **Accounts and friends (optional).** Sign in with your email and a 6-digit code. Your photos are saved to your account and come back on any device. Pick a name, and optionally a username. You are invisible to search until you turn on "Let people find me by username". Everyone gets a private invite link and QR code that works even when search is off, and friends can also be found by email. Follow people to see the stories they chose to share on your map in blue string. Likes are real and shared. You can block and report people.
 - **Backup.** Export to a file and import it again.
 
 ## How it works
@@ -33,8 +34,8 @@ Everything runs in the browser. Photos are shrunk on upload and saved in the bro
 You need [Node.js](https://nodejs.org).
 
 ```bash
-git clone https://github.com/aosmannn/wayframe.git
-cd wayframe
+git clone https://github.com/aosmannn/cameraboard.git
+cd cameraboard
 npm install
 npm run dev
 ```
@@ -99,7 +100,7 @@ How privacy works:
 All in `public/data`, loaded as the map needs it. All public domain.
 
 | File | What | Source |
-| --- | --- | --- |
+| --- | --- |
 | `world-atlas` package | Country shapes | Natural Earth 1:50m |
 | `admin1.json` | 4,596 states, provinces and regions worldwide | Natural Earth 1:10m admin-1, simplified with [mapshaper](https://github.com/mbloch/mapshaper) (`-simplify 6% keep-shapes`) |
 | `cities.json` | 7,342 cities with state, country and population | Natural Earth populated places |
