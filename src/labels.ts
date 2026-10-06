@@ -28,7 +28,12 @@ export class Labels {
 
   set(kind: Kind, items: Item[]) { this.items[kind] = items; this.schedule(); }
   setColors(c: LabelColors) { this.colors = c; this.schedule(); }
-  private schedule() { cancelAnimationFrame(this.raf); this.raf = requestAnimationFrame(() => this.draw()); }
+  /** One redraw per frame. Never cancel a pending one: during a fly-to the map fires events every frame,
+   *  and cancelling would starve the redraw until the flight ends. */
+  private schedule() {
+    if (this.raf) return;
+    this.raf = requestAnimationFrame(() => { this.raf = 0; this.draw(); });
+  }
 
   private draw() {
     const { map, ctx, canvas } = this;

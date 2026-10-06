@@ -17,7 +17,8 @@ export interface Card {
   lat: number | null;
   lng: number | null;
   place: string;
-  trip: string;         // trip / album name, '' = none
+  trip: string;         // name of the story this photo belongs to, '' = none
+  seq: number;          // position in its story (strings run in this order)
   pinColor: string;     // map pin border colour, '' = default
   pinIcon: string;      // emoji badge on the map pin, '' = none
   cover: boolean;       // the photo shown on the pin when several share a place

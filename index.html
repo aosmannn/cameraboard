@@ -2,26 +2,30 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Wayframe</title>
 </head>
 <body>
-<header class="bar">
-  <div class="brand"><span class="dot"></span>Wayframe</div>
-  <nav class="seg" aria-label="View">
-    <button id="vMap" class="on">Map</button>
-    <button id="vBoard">Board</button>
-    <button id="vStats">Stats</button>
-  </nav>
-  <div class="searchbox">
-    <input id="q" type="search" placeholder="Search photos" aria-label="Search photos">
-    <button id="filterBtn" title="Filters">Filters <span id="filterCount" class="badge" hidden></span></button>
+<div id="map"></div>
+<div class="map-grain" aria-hidden="true"></div>
+
+<header class="top">
+  <div class="top-left">
+    <div class="brand">Wayframe</div>
+    <label class="search">
+      <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="8.5" cy="8.5" r="5.5"/><path d="M13 13l4 4"/></svg>
+      <input id="q" type="search" placeholder="Search photos and places" aria-label="Search photos and places">
+    </label>
   </div>
-  <div class="actions">
-    <button id="addBtn" class="btn primary">+ Add photos</button>
+  <div class="top-right">
+    <button id="addBtn" class="btn primary"><span class="add-long">Add photos</span><span class="add-short">Add</span></button>
     <details class="menu">
-      <summary class="btn ghost" aria-label="More">⋯</summary>
+      <summary class="btn icon" aria-label="More options">
+        <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="4" cy="10" r="1.6"/><circle cx="10" cy="10" r="1.6"/><circle cx="16" cy="10" r="1.6"/></svg>
+      </summary>
       <div class="menu-list">
+        <label class="menu-row">Map style <select id="themeSel"></select></label>
+        <button id="posterBtn">Make a poster</button>
         <button id="exportBtn">Export backup</button>
         <label>Import backup<input id="importFile" type="file" accept="application/json" hidden></label>
       </div>
@@ -29,115 +33,111 @@
   </div>
 </header>
 
-<section id="filters" class="filters" hidden>
-  <label>Trip <select id="fTrip"></select></label>
-  <label>Camera <select id="fCamera"></select></label>
-  <label>Country <select id="fCountry"></select></label>
-  <label>From <input id="fFrom" type="date"></label>
-  <label>To <input id="fTo" type="date"></label>
-  <button id="fClear" class="btn small">Clear all</button>
+<aside id="stories" class="stories">
+  <div class="st-head">
+    <h2>Stories</h2>
+    <button id="newStory" class="btn small">New story</button>
+    <button id="storiesHide" class="x2" aria-label="Hide stories">✕</button>
+  </div>
+  <form id="newStoryForm" class="new-story" hidden>
+    <input id="newStoryName" placeholder="Name it, e.g. Summer in Spain" aria-label="Story name" autocomplete="off">
+    <button class="btn small primary">Start</button>
+  </form>
+  <div id="storyList" class="story-list"></div>
+</aside>
+<button id="storiesShow" class="stories-show" hidden>Stories</button>
+
+<div id="connectBar" class="banner" hidden>
+  <span id="connectText"></span>
+  <button id="connectDone" class="btn small primary">Done</button>
+</div>
+<div id="pinBanner" class="banner" hidden>
+  <span id="pinText">Click the map to place this photo</span>
+  <button id="pinCancel" class="btn small">Cancel</button>
+</div>
+
+<div id="empty" class="empty-state" hidden>
+  <h2>Pin your first photo</h2>
+  <p>Add photos, put them where they were taken, then string them together into a story.</p>
+  <button class="btn primary" id="emptyAdd">Add photos</button>
+</div>
+
+<div id="playCard" class="playcard" hidden>
+  <img id="pcImg" alt="">
+  <div class="pc-text">
+    <b id="pcTitle"></b>
+    <span id="pcWhere"></span>
+    <span id="pcCount"></span>
+  </div>
+  <div class="pc-ctl">
+    <button id="pcPrev" aria-label="Previous stop">‹</button>
+    <button id="pcPause" aria-label="Pause">❚❚</button>
+    <button id="pcNext" aria-label="Next stop">›</button>
+    <button id="pcStop" aria-label="Stop">✕</button>
+  </div>
+</div>
+
+<section id="tray" class="tray" hidden>
+  <div class="tray-head">
+    <b id="trayTitle"></b>
+    <button id="trayToggle" class="x2" aria-label="Collapse">–</button>
+  </div>
+  <div id="trayList" class="tray-list"></div>
 </section>
-
-<main>
-  <section id="mapView" class="view">
-    <div id="map"></div>
-    <div id="mapTools" class="tools">
-      <button id="playBtn" title="Fly through your photos in date order">Play</button>
-      <span class="sep"></span>
-      <select id="themeSel" aria-label="Map theme"></select>
-      <span class="sep"></span>
-      <button id="hlBtn" title="Light up countries you have photographed"></button>
-      <span class="sep"></span>
-      <button id="posterBtn" title="Make a printable poster">Poster</button>
-    </div>
-    <div id="empty" class="empty-state" hidden>
-      <h2>Your map is empty</h2>
-      <p>Add a photo from your Sony DSC-V1, then place it on the map.</p>
-      <button class="btn primary" id="emptyAdd">+ Add photos</button>
-    </div>
-    <div id="pinBanner" class="banner" hidden>
-      <span id="pinText">Click the map to place this photo</span>
-      <button id="pinCancel" class="btn small">Cancel</button>
-    </div>
-    <div id="playCard" class="playcard" hidden>
-      <img id="pcImg" alt="">
-      <div class="pc-text">
-        <b id="pcTitle"></b>
-        <span id="pcWhere"></span>
-        <span id="pcCount" class="hint"></span>
-      </div>
-      <div class="pc-ctl">
-        <button id="pcPrev" aria-label="Previous">⏮</button>
-        <button id="pcPause" aria-label="Pause">⏸</button>
-        <button id="pcNext" aria-label="Next">⏭</button>
-        <button id="pcStop" aria-label="Stop">✕</button>
-      </div>
-    </div>
-    <div id="strip" class="strip" aria-label="All photos"></div>
-    <aside id="queue" class="queue" hidden>
-      <div class="q-head"><h2>Place me</h2><button class="x2" id="qClose" aria-label="Close">✕</button></div>
-      <p class="hint">Photos with no location, grouped by day. Place a whole day at once.</p>
-      <div id="qList"></div>
-    </aside>
-  </section>
-
-  <section id="boardView" class="view" hidden>
-    <div id="board" class="board"></div>
-  </section>
-
-  <section id="statsView" class="view stats" hidden></section>
-</main>
 
 <aside id="drawer" class="drawer" hidden>
   <button class="x" id="dClose" aria-label="Close">✕</button>
-  <button class="photo" id="photoBtn" aria-label="View full size"><img id="dImg" alt=""><span class="zoomtag">⤢ Zoom</span><span id="dStamp" class="stamp" hidden></span></button>
-  <div id="stack" class="stack" hidden>
-    <button id="stPrev" class="btn small" aria-label="Previous photo here">‹</button>
-    <span id="stText"></span>
-    <button id="stNext" class="btn small" aria-label="Next photo here">›</button>
+  <div class="d-photo">
+    <button class="photo" id="photoBtn" aria-label="View full size"><img id="dImg" alt=""><span id="dStamp" class="stamp" hidden></span></button>
   </div>
   <div class="body">
-    <input id="fTitle" class="title" placeholder="Give this photo a title">
+    <input id="fTitle" class="title" placeholder="Name this photo" aria-label="Photo title">
+    <p id="dMeta" class="d-meta"></p>
+    <div id="dStory" class="d-story" hidden>
+      <button id="dsPrev" aria-label="Previous stop">‹</button>
+      <span id="dsText"></span>
+      <button id="dsNext" aria-label="Next stop">›</button>
+    </div>
+    <div id="stack" class="d-story" hidden>
+      <button id="stPrev" aria-label="Previous photo here">‹</button>
+      <span id="stText"></span>
+      <button id="stNext" aria-label="Next photo here">›</button>
+    </div>
     <div class="row">
       <button id="likeBtn" class="like">♡ <span id="likeCount">0</span></button>
       <span class="grow"></span>
-      <button id="replaceBtn" class="btn small">Replace</button>
-      <button id="deleteBtn" class="btn small danger">Remove</button>
+      <button id="replaceBtn" class="btn small ghost">Replace</button>
+      <button id="deleteBtn" class="btn small ghost danger">Remove</button>
     </div>
 
-    <div id="shotOn" class="shoton"></div>
+    <label class="lab" for="fStory">What happened here</label>
+    <textarea id="fStory" rows="4" placeholder="Who was there, what you did, why this shot."></textarea>
 
-    <h3>Story</h3>
-    <textarea id="fStory" rows="4" placeholder="What was happening? Who was there? Why this shot?"></textarea>
-
-    <h3>Trip</h3>
-    <input id="fTripName" list="tripList" class="plain" placeholder="e.g. Portugal 2026">
+    <label class="lab" for="fTripName">Story</label>
+    <input id="fTripName" list="tripList" class="plain" placeholder="Add to a story" autocomplete="off">
     <datalist id="tripList"></datalist>
 
-    <h3>Location</h3>
-    <div class="search">
-      <input id="fPlace" list="placeList" placeholder="Search a city, e.g. Lisbon" autocomplete="off">
+    <label class="lab" for="fPlace">Where</label>
+    <div class="place-row">
+      <input id="fPlace" list="placeList" class="plain" placeholder="Search a city, e.g. Barcelona" autocomplete="off">
       <datalist id="placeList"></datalist>
       <button id="placeBtn" class="btn small">Find</button>
     </div>
     <div class="row">
       <button id="pinBtn" class="btn small">Pin on map</button>
-      <button id="exactBtn" class="btn small">Zoom to exact spot</button>
+      <button id="exactBtn" class="btn small">Zoom in</button>
       <button id="clearLoc" class="btn small ghost">Clear</button>
     </div>
     <p id="locNote" class="hint"></p>
 
-    <details class="fold">
-      <summary>Pin style</summary>
-      <div id="swatches" class="swatches"></div>
-      <div id="icons" class="icons"></div>
-      <label class="check"><input id="coverBox" type="checkbox"> Use as the cover photo for this place</label>
-    </details>
+    <div id="shotOn" class="shoton"></div>
 
     <details class="fold">
-      <summary>Photo look</summary>
+      <summary>Pin colour and photo look</summary>
+      <div id="swatches" class="swatches"></div>
+      <label class="check"><input id="coverBox" type="checkbox"> Show this photo on top when others share the spot</label>
       <div class="row">
-        <select id="lookSel" class="plain sel">
+        <select id="lookSel" class="plain sel" aria-label="Photo look">
           <option value="none">Original</option>
           <option value="digicam">Early digicam</option>
           <option value="film">Warm film</option>
@@ -148,10 +148,8 @@
     </details>
 
     <details class="fold">
-      <summary>Date and file details</summary>
-      <label class="field">Date taken
-        <input id="fDate" type="datetime-local">
-      </label>
+      <summary>Date and file</summary>
+      <label class="field">Date taken <input id="fDate" type="datetime-local" class="plain"></label>
       <dl id="meta" class="meta"></dl>
     </details>
   </div>
@@ -161,8 +159,8 @@
   <button class="x" id="vwClose" aria-label="Close">✕</button>
   <img id="vwImg" alt="" draggable="false">
   <div class="zoom-ctl">
-    <button id="zIn" aria-label="Zoom in">＋</button>
-    <button id="zOut" aria-label="Zoom out">－</button>
+    <button id="zIn" aria-label="Zoom in">+</button>
+    <button id="zOut" aria-label="Zoom out">−</button>
     <button id="zReset" aria-label="Fit">⟲</button>
   </div>
   <p class="hint">Scroll or pinch to zoom · drag to pan · double-click to zoom in</p>
@@ -172,12 +170,11 @@
   <div class="modal-box">
     <div class="m-head">
       <h2>Poster</h2>
-      <input id="posterTitle" class="plain" placeholder="Poster title" value="My travels">
+      <input id="posterTitle" class="plain" placeholder="Poster title" value="My travels" aria-label="Poster title">
       <button id="posterSave" class="btn primary">Download PNG</button>
       <button id="posterClose" class="btn">Close</button>
     </div>
     <canvas id="posterCv"></canvas>
-    <p class="hint">Uses the photos that match your current filters.</p>
   </div>
 </div>
 

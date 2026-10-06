@@ -1,13 +1,13 @@
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-import 'leaflet.markercluster';
-import 'leaflet.markercluster/dist/MarkerCluster.css';
 import '@fontsource/dm-sans/400.css';
 import '@fontsource/dm-sans/500.css';
 import '@fontsource/dm-sans/700.css';
 import '@fontsource/caveat/500.css';
 import '@fontsource/caveat/700.css';
 import '@fontsource/vt323/400.css';
+import '@fontsource/instrument-serif/400.css';
+import '@fontsource/instrument-serif/400-italic.css';
 import './style.css';
 import type { Card, Look } from './types';
 import { openStore, loadCards, saveCards } from './storage';
@@ -15,29 +15,34 @@ import { blankCard, fillCard, normalize, cameraName, dayOf, timeOf, stampText, p
 import { drawWorld, countryAt, THEMES, type ThemeName } from './world';
 import { loadCities, searchPlaces, nameAt } from './atlas';
 import { initViewer, openViewer, closeViewer, viewerIsOpen } from './viewer';
-import { filters, matches, activeCount, clearFilters } from './filters';
-import { renderStats } from './stats';
 import { renderPoster } from './poster';
 
-const SLOTS = 12;
-const COLORS = ['', '#e4572e', '#2f7dd1', '#2e9e5b', '#e8b422', '#8e44ad', '#111111'];
-const ICONS = ['', '❤️', '⭐', '🏖️', '🍜', '⛰️', '🏛️', '🎉', '📷'];
+const PIN_COLORS = ['', '#2f6fd1', '#2e9e5b', '#e8b422', '#8e44ad', '#1d1d1d'];
+const YARN = '#b3242c';
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
 const wide = () => window.matchMedia('(min-width:801px)').matches;
 const lsGet = (k: string) => { try { return localStorage.getItem(k); } catch { return null; } };
 const lsSet = (k: string, v: string) => { try { localStorage.setItem(k, v); } catch { /* storage blocked */ } };
+const el = <K extends keyof HTMLElementTagNameMap>(tag: K, cls = '', text = '') => {
+  const e = document.createElement(tag); if (cls) e.className = cls; if (text) e.textContent = text; return e;
+};
 
 let cards: Card[] = [];
 let cur: Card | null = null;
 let pinTargets: Card[] = [];
 let pickTarget: Card | null = null;
-let highlight = lsGet('cb-hl') !== '0';
-let view: 'map' | 'board' | 'stats' = 'map';
+let activeStory: string | null = null;     // story shown on its own, the rest faded
+let connecting: string | null = null;      // story that clicks on photos add to
+let query = '';
 
 const save = () => saveCards(cards);
 let saveT: number;
 const saveSoon = () => { clearTimeout(saveT); saveT = window.setTimeout(save, 400); };
 const placed = (c: Card) => !!c.img && c.lat != null && c.lng != null;
+const byDate = (a: Card, b: Card) => (timeOf(a) || Infinity) - (timeOf(b) || Infinity);
+const fmtDate = (c: Card, opts: Intl.DateTimeFormatOptions = { day: 'numeric', month: 'short', year: 'numeric' }) =>
+  c.date ? new Date(c.date).toLocaleDateString(undefined, opts) : '';
+const placeName = (c: Card) => (c.place || '').split(',')[0].replace(/^Near /, '').trim();
 
 const fTitle = $<HTMLInputElement>('fTitle');
 const fStory = $<HTMLTextAreaElement>('fStory');
@@ -54,31 +59,56 @@ function countryOf(c: Card): string | null {
   if (!countryCache.has(k)) countryCache.set(k, countryAt(c.lat, c.lng));
   return countryCache.get(k)!;
 }
-const visible = (c: Card) => !!c.img && matches(c, countryOf(c));
+function visible(c: Card) {
+  if (!c.img) return false;
+  if (!query) return true;
+  const hay = [c.title, c.story, c.place, c.trip, cameraName(c), countryOf(c) ?? ''].join(' ').toLowerCase();
+  return query.toLowerCase().split(/\s+/).every(w => hay.includes(w));
+}
 const visiblePlaced = () => cards.filter(c => placed(c) && visible(c));
-const byDate = (a: Card, b: Card) => (timeOf(a) || Infinity) - (timeOf(b) || Infinity);
-
-/** Photos at the same place as `c`, oldest first. */
+/** Photos at the same spot as `c`, oldest first. */
 const stackOf = (c: Card) => placed(c) ? visiblePlaced().filter(x => placeKey(x) === placeKey(c)).sort(byDate) : [c];
 
-// ---------- map ----------
-const themeName = ((): ThemeName => { const t = lsGet('cb-theme'); return t && t in THEMES ? t as ThemeName : 'classic'; })();
-const map = L.map('map', { zoomControl: false, minZoom: 2, maxZoom: 16, preferCanvas: true,
-  maxBounds: [[-60, -180], [84, 180]], maxBoundsViscosity: 1 }).setView([25, 10], 2);
-L.control.zoom({ position: 'topleft' }).addTo(map);
-const world = drawWorld(map, themeName);
-map.attributionControl.setPrefix('').addAttribution('Map: Natural Earth');
+// ---------- stories: photos joined by string, in order ----------
+interface Story { name: string; cards: Card[] }
+function stories(): Story[] {
+  const m = new Map<string, Card[]>();
+  for (const c of cards) if (c.img && c.trip) (m.get(c.trip) ?? m.set(c.trip, []).get(c.trip)!).push(c);
+  return [...m.entries()]
+    .map(([name, cs]) => ({ name, cards: cs.sort((a, b) => a.seq - b.seq || byDate(a, b)) }))
+    .sort((a, b) => byDate(a.cards[0], b.cards[0]));
+}
+const storyOf = (name: string) => stories().find(s => s.name === name)?.cards ?? [];
+function addToStory(c: Card, name: string) {
+  if (c.trip === name) return;
+  const rest = storyOf(name);
+  c.trip = name; c.seq = rest.length ? Math.max(...rest.map(x => x.seq)) + 1 : 1;
+}
+function renumber(name: string, list: Card[]) { list.forEach((c, i) => { c.trip = name; c.seq = i + 1; }); }
 
-const cluster = L.markerClusterGroup({
-  showCoverageOnHover: false, maxClusterRadius: 50,
-  iconCreateFunction: c => L.divIcon({ html: `<div class="cl">${c.getChildCount()}</div>`, className: '', iconSize: [44, 44] })
-});
-map.addLayer(cluster);
-/** Zoomed in far, pins show the photo in their head. */
-const DEEP = 12;
-map.on('zoom zoomend', () => map.getContainer().classList.toggle('deep', map.getZoom() >= DEEP));
+// ---------- map ----------
+const themeName = ((): ThemeName => { const t = lsGet('wf-theme'); return t && t in THEMES ? t as ThemeName : 'paper'; })();
+const map = L.map('map', { zoomControl: false, minZoom: 2, maxZoom: 16, preferCanvas: true,
+  maxBounds: [[-70, -220], [85, 220]], maxBoundsViscosity: 0.8 }).setView([30, 10], 2);
+L.control.zoom({ position: 'bottomright' }).addTo(map);
+const world = drawWorld(map, themeName);
+map.attributionControl.setPrefix('').addAttribution('Natural Earth');
+
+map.createPane('stringPane').style.zIndex = '620';
+map.getPane('stringPane')!.style.pointerEvents = 'none';
+const stringRenderer = L.svg({ pane: 'stringPane' });
+const strings = L.layerGroup().addTo(map);
+// keep the string drawn while the map flies between stops (same reason as the countries in world.ts)
+map.on('zoom', () => { if ((map as any)._flyToFrame) (stringRenderer as any)._reset(); });
+const photos = L.layerGroup().addTo(map);
 const markers = new Map<string, L.Marker>();
-let focusCard: () => Card | null = () => cur;   // card whose pin is highlighted (playback overrides)
+
+/** Polaroids shrink when zoomed out so the board doesn't turn into a pile. */
+function sizeClass() {
+  const z = map.getZoom(), c = map.getContainer().classList;
+  c.toggle('z-far', z < 3.5); c.toggle('z-mid', z >= 3.5 && z < 6); c.toggle('z-near', z >= 6);
+}
+map.on('zoom zoomend', sizeClass); sizeClass();
 
 map.on('click', async e => {
   if (!pinTargets.length) return;
@@ -87,183 +117,294 @@ map.on('click', async e => {
   stopPinning(); render(); locNote();
   const name = await reverse(e.latlng.lat, e.latlng.lng) || 'Dropped pin';
   for (const c of targets) c.place = name;
-  if (cur && targets.includes(cur)) fPlace.value = name;
-  save(); renderQueue();
+  if (cur && targets.includes(cur)) { fPlace.value = name; drawMeta(cur); }
+  save(); renderStories();
 });
 
-const SVG_NS = 'http://www.w3.org/2000/svg';
-/** A map pin. Zoomed in far enough, the pin's head shows the photo itself. */
-function pinElement(rep: Card, n: number): HTMLElement {
-  const el = document.createElement('div');
-  el.className = 'mk';
-  if (rep.pinColor) el.style.setProperty('--pc', rep.pinColor);
-  const svg = document.createElementNS(SVG_NS, 'svg');
-  svg.setAttribute('viewBox', '0 0 34 44');
-  const path = document.createElementNS(SVG_NS, 'path');
-  path.setAttribute('d', 'M17 1C8.7 1 2 7.7 2 16c0 11 15 27 15 27s15-16 15-27C32 7.7 25.3 1 17 1z');
-  svg.append(path); el.append(svg);
-  const inner = document.createElement('span');
-  inner.className = rep.pinIcon ? 'mk-ic' : 'mk-dot'; inner.textContent = rep.pinIcon; el.append(inner);
-  const ph = new Image(); ph.src = rep.img!; ph.alt = ''; ph.className = 'mk-ph'; el.append(ph);
-  if (n > 1) { const s = document.createElement('span'); s.className = 'mk-n'; s.textContent = String(n); el.append(s); }
-  return el;
-}
-
-/** The picture that pops up when you hover a pin. */
-function previewElement(rep: Card, n: number): HTMLElement {
-  const box = document.createElement('div');
-  const im = new Image(); im.src = rep.img!; im.alt = ''; im.className = 'look-' + rep.look;
-  const t = document.createElement('b'); t.textContent = rep.title || 'Untitled';
-  const s = document.createElement('small');
-  s.textContent = [rep.place, n > 1 ? `${n} photos here` : ''].filter(Boolean).join(' · ');
-  box.append(im, t, s); return box;
+/** A polaroid hanging from a push pin. The pin's point is the photo's exact location. */
+function polaroid(rep: Card, n: number): HTMLElement {
+  const box = el('div', 'pol');
+  box.style.setProperty('--rot', rep.rot + 'deg');
+  if (rep.pinColor) box.style.setProperty('--pc', rep.pinColor);
+  if (n > 1) box.classList.add('stacked');
+  const frame = el('div', 'pol-frame');
+  const im = new Image(); im.src = rep.img!; im.alt = rep.title; im.className = 'look-' + rep.look; im.draggable = false;
+  frame.append(im, el('span', 'pol-cap', rep.title || placeName(rep) || 'Untitled'));
+  box.append(frame, el('i', 'pushpin'));
+  if (n > 1) box.append(el('span', 'pol-n', String(n)));
+  return box;
 }
 
 function renderMap() {
-  cluster.clearLayers(); markers.clear();
+  photos.clearLayers(); markers.clear();
   const groups = new Map<string, Card[]>();
   for (const c of visiblePlaced()) { const k = placeKey(c); (groups.get(k) ?? groups.set(k, []).get(k)!).push(c); }
+  const focus = focusCard();
   groups.forEach((g, k) => {
     g.sort(byDate);
     const rep = g.find(c => c.cover) ?? g[0];
-    const el = pinElement(rep, g.length);
-    const f = focusCard();
-    if (f && placed(f) && placeKey(f) === k) el.classList.add('sel');
+    const box = polaroid(rep, g.length);
+    const inStory = !activeStory || g.some(c => c.trip === activeStory);
+    if (!inStory) box.classList.add('dim');
+    if (focus && placed(focus) && placeKey(focus) === k) box.classList.add('sel');
     const m = L.marker([rep.lat!, rep.lng!], {
-      icon: L.divIcon({ html: el, className: '', iconSize: [34, 44], iconAnchor: [17, 44] }) });
-    m.bindTooltip(previewElement(rep, g.length), { direction: 'top', offset: [0, -44], opacity: 1, className: 'ptip' });
-    m.on('click', () => openCard(rep));
-    markers.set(k, m); cluster.addLayer(m);
+      icon: L.divIcon({ html: box, className: 'pol-icon', iconSize: [0, 0], iconAnchor: [0, 0] }),
+      zIndexOffset: inStory ? 100 : 0, title: rep.title || 'Photo'
+    });
+    m.on('click', () => {
+      if (connecting) {
+        const c = g.find(x => x.trip !== connecting) ?? rep;
+        addToStory(c, connecting); save(); render(); connectText(); return;
+      }
+      openCard(rep);
+    });
+    markers.set(k, m); photos.addLayer(m);
   });
   $('empty').hidden = cards.some(c => c.img);
 }
 function markSelected() {
   const f = focusCard(), key = f && placed(f) ? placeKey(f) : '';
   markers.forEach((m, k) => {
-    const e = m.getElement();
-    if (e && e.firstElementChild) e.firstElementChild.classList.toggle('sel', k === key);
+    m.getElement()?.querySelector('.pol')?.classList.toggle('sel', k === key);
+    m.setZIndexOffset(k === key ? 1000 : 100);
   });
 }
-function fitAll() {
-  const pts = visiblePlaced().map(c => [c.lat!, c.lng!] as L.LatLngTuple);
-  if (pts.length) map.fitBounds(pts, { padding: [80, 80], maxZoom: 6 });
+
+/** Red string between two stops, sagging a little like real yarn. */
+function yarn(a: Card, b: Card): L.LatLng[] {
+  const Z = 4;
+  let lng2 = b.lng!;
+  if (lng2 - a.lng! > 180) lng2 -= 360; else if (a.lng! - lng2 > 180) lng2 += 360;
+  const p1 = map.project([a.lat!, a.lng!], Z), p2 = map.project([b.lat!, lng2], Z);
+  const mid = p1.add(p2).divideBy(2), d = p1.distanceTo(p2);
+  const ctrl = L.point(mid.x, mid.y + Math.min(d * 0.2, 160));
+  const out: L.LatLng[] = [];
+  for (let i = 0; i <= 40; i++) {
+    const t = i / 40, u = 1 - t;
+    out.push(map.unproject(L.point(u * u * p1.x + 2 * u * t * ctrl.x + t * t * p2.x, u * u * p1.y + 2 * u * t * ctrl.y + t * t * p2.y), Z));
+  }
+  return out;
+}
+function renderStrings() {
+  strings.clearLayers();
+  for (const s of stories()) {
+    let list = s.cards.filter(c => placed(c) && visible(c));
+    if (pl.on && pl.story === s.name) list = list.slice(0, pl.i + 1);
+    const dim = !!activeStory && activeStory !== s.name;
+    const opacity = dim ? 0.18 : 0.95;
+    for (let i = 1; i < list.length; i++) {
+      if (placeKey(list[i - 1]) === placeKey(list[i])) continue;
+      const pts = yarn(list[i - 1], list[i]);
+      L.polyline(pts, { renderer: stringRenderer, color: '#000', weight: 3.5, opacity: opacity * 0.16, interactive: false, className: 'yarn-shadow' }).addTo(strings);
+      L.polyline(pts, { renderer: stringRenderer, color: YARN, weight: 2.2, opacity, interactive: false, lineCap: 'round' }).addTo(strings);
+    }
+    for (const c of list) {
+      L.circleMarker([c.lat!, c.lng!], { renderer: stringRenderer, radius: 3, color: '#6e1217', weight: 1,
+        fillColor: YARN, fillOpacity: dim ? 0.2 : 1, opacity: dim ? 0.2 : 1, interactive: false }).addTo(strings);
+    }
+  }
+}
+
+function mapPadding() {
+  const left = !$('stories').hidden && wide() ? 340 : 0;
+  const right = !$('drawer').hidden && wide() ? 410 : 0;
+  const bottom = !$('drawer').hidden && !wide() ? window.innerHeight * 0.62 : (!$('tray').hidden ? 160 : 60);
+  return { paddingTopLeft: L.point(left + 60, 110), paddingBottomRight: L.point(right + 60, bottom) };
+}
+function fitCards(list: Card[], maxZoom = 6) {
+  const pts = list.filter(placed).map(c => [c.lat!, c.lng!] as L.LatLngTuple);
+  if (pts.length) map.flyToBounds(L.latLngBounds(pts), { ...mapPadding(), maxZoom, duration: 1 });
 }
 function flyTo(c: Card, zoom = 8) {
-  const pad = wide() ? { paddingBottomRight: L.point(420, 0) } : { paddingBottomRight: L.point(0, window.innerHeight * 0.7) };
-  map.flyToBounds(L.latLngBounds([[c.lat!, c.lng!]]), { ...pad, maxZoom: Math.max(map.getZoom(), zoom), duration: 1.2 });
-  map.once('moveend', () => { const m = markers.get(placeKey(c)); if (m) cluster.zoomToShowLayer(m, markSelected); });
+  map.flyToBounds(L.latLngBounds([[c.lat!, c.lng!]]), { ...mapPadding(), maxZoom: Math.max(map.getZoom(), zoom), duration: 1.1 });
 }
 
-function renderStrip() {
-  const s = $('strip'); s.innerHTML = '';
-  const unplaced = cards.filter(c => c.img && !placed(c));
-  if (unplaced.length) {
-    const b = document.createElement('button');
-    b.className = 'chip queue-chip'; b.textContent = `Place me (${unplaced.length})`;
-    b.onclick = () => openQueue(); s.append(b);
+// ---------- stories panel ----------
+function routeText(list: Card[]) {
+  const names: string[] = [];
+  for (const c of list.filter(placed)) { const n = placeName(c); if (n && n !== names[names.length - 1]) names.push(n); }
+  return names.join(' → ');
+}
+function renderStories() {
+  const box = $('storyList'); box.innerHTML = '';
+  const all = stories();
+  if (!all.length) {
+    const p = el('div', 'st-empty');
+    p.append(el('b', '', 'Tell the story of a trip.'),
+      el('p', '', 'Start a story, then click your photos on the map in the order you went. A red string joins them, like a board on the wall.'));
+    box.append(p);
   }
-  for (const c of cards.filter(visible)) {
-    const b = document.createElement('button');
-    b.className = 'chip' + (placed(c) ? '' : ' unplaced') + (cur && cur.id === c.id ? ' on' : '');
-    const im = new Image(); im.src = c.img!; im.alt = ''; im.className = 'look-' + c.look;
-    const t = document.createElement('small'); t.textContent = placed(c) ? (c.title || 'Untitled') : 'Place me';
-    b.append(im, t); b.onclick = () => openCard(c); s.append(b);
+  for (const s of all) {
+    const on = activeStory === s.name;
+    const item = el('article', 'story' + (on ? ' on' : ''));
+    const head = el('button', 'st-title');
+    const first = s.cards[0], last = s.cards[s.cards.length - 1];
+    const when = [fmtDate(first, { month: 'short', year: 'numeric' }), fmtDate(last, { month: 'short', year: 'numeric' })]
+      .filter((v, i, a) => v && a.indexOf(v) === i).join(' – ');
+    head.append(el('span', 'st-name', s.name), el('span', 'st-sub', `${s.cards.length} ${s.cards.length === 1 ? 'stop' : 'stops'}${when ? ' · ' + when : ''}`));
+    head.onclick = () => selectStory(on ? null : s.name);
+    item.append(head);
+    const route = routeText(s.cards);
+    if (route) item.append(el('p', 'st-route', route));
+    const thumbs = el('div', 'st-thumbs');
+    s.cards.slice(0, 7).forEach(c => { const im = new Image(); im.src = c.img!; im.alt = ''; im.className = 'look-' + c.look; thumbs.append(im); });
+    item.append(thumbs);
+    const actions = el('div', 'st-actions');
+    const play = el('button', 'btn small primary', 'Play'); play.onclick = () => playStory(s.name);
+    const add = el('button', 'btn small', connecting === s.name ? 'Adding…' : 'Add stops'); add.onclick = () => startConnect(s.name);
+    actions.append(play, add);
+    item.append(actions);
+    if (on) item.append(storyEditor(s));
+    box.append(item);
   }
 }
+function storyEditor(s: Story): HTMLElement {
+  const wrap = el('div', 'st-edit');
+  const ol = el('ol', 'st-stops');
+  s.cards.forEach((c, i) => {
+    const li = el('li');
+    const im = new Image(); im.src = c.img!; im.alt = '';
+    const txt = el('button', 'stop-txt');
+    txt.append(el('b', '', c.title || 'Untitled'), el('span', '', [placeName(c) || 'Not on the map', fmtDate(c)].filter(Boolean).join(' · ')));
+    txt.onclick = () => openCard(c);
+    const move = (d: number) => {
+      const list = [...s.cards]; const j = i + d; if (j < 0 || j >= list.length) return;
+      [list[i], list[j]] = [list[j], list[i]]; renumber(s.name, list); save(); render();
+    };
+    const up = el('button', 'mini', '↑'); up.setAttribute('aria-label', 'Move earlier'); up.onclick = () => move(-1); up.disabled = i === 0;
+    const down = el('button', 'mini', '↓'); down.setAttribute('aria-label', 'Move later'); down.onclick = () => move(1); down.disabled = i === s.cards.length - 1;
+    const rm = el('button', 'mini', '✕'); rm.setAttribute('aria-label', 'Take out of this story');
+    rm.onclick = () => { c.trip = ''; c.seq = 0; renumber(s.name, s.cards.filter(x => x !== c)); save(); render(); };
+    li.append(el('span', 'stop-n', String(i + 1)), im, txt, up, down, rm);
+    ol.append(li);
+  });
+  const foot = el('div', 'st-foot');
+  const rename = el('button', 'linkbtn', 'Rename');
+  rename.onclick = () => {
+    const input = el('input', 'plain') as HTMLInputElement; input.value = s.name; input.setAttribute('aria-label', 'Story name');
+    foot.replaceChildren(input); input.focus(); input.select();
+    let done = false;
+    const finish = () => {
+      if (done) return; done = true;
+      const v = input.value.trim();
+      if (v && v !== s.name) { s.cards.forEach(c => { c.trip = v; }); activeStory = v; save(); }
+      render();
+    };
+    input.onkeydown = e => { if (e.key === 'Enter') finish(); if (e.key === 'Escape') { done = true; render(); } };
+    input.onblur = finish;
+  };
+  const del = el('button', 'linkbtn danger', 'Delete story');
+  del.onclick = () => {
+    if (del.dataset.sure) { s.cards.forEach(c => { c.trip = ''; c.seq = 0; }); activeStory = null; save(); render(); return; }
+    del.dataset.sure = '1'; del.textContent = 'Photos stay. Delete the story?';
+  };
+  foot.append(rename, del);
+  wrap.append(ol, foot);
+  return wrap;
+}
+function selectStory(name: string | null) {
+  activeStory = name;
+  render();
+  if (name) fitCards(storyOf(name), 7);
+}
 
-// ---------- board view ----------
-function renderBoard() {
-  const board = $('board'); board.innerHTML = '';
-  const filtering = activeCount() > 0;
+$('newStory').onclick = () => { const f = $('newStoryForm'); f.hidden = !f.hidden; if (!f.hidden) $('newStoryName').focus(); };
+$('newStoryForm').onsubmit = e => {
+  e.preventDefault();
+  const name = $<HTMLInputElement>('newStoryName').value.trim(); if (!name) return;
+  $<HTMLInputElement>('newStoryName').value = ''; $('newStoryForm').hidden = true;
+  if (cur) { addToStory(cur, name); save(); }
+  startConnect(name);
+};
+$('storiesHide').onclick = () => { $('stories').hidden = true; $('storiesShow').hidden = false; lsSet('wf-stories', '0'); };
+$('storiesShow').onclick = () => { $('stories').hidden = false; $('storiesShow').hidden = true; lsSet('wf-stories', '1'); };
+
+function connectText() {
+  if (!connecting) return;
+  const n = storyOf(connecting).length;
+  $('connectText').textContent = `Click photos in the order you went to add them to “${connecting}”. ${n} ${n === 1 ? 'stop' : 'stops'} so far.`;
+}
+function startConnect(name: string) {
+  stopPlay(); stopPinning();
+  connecting = name; activeStory = name;
+  closeDrawerQuiet();
+  document.body.classList.add('connecting');
+  $('connectBar').hidden = false; connectText(); render();
+}
+function stopConnect() {
+  if (!connecting) return;
+  connecting = null; document.body.classList.remove('connecting'); $('connectBar').hidden = true; render();
+}
+$('connectDone').onclick = stopConnect;
+
+// ---------- loose photos (not on the map yet), a day at a time ----------
+const DAY = 864e5;
+function nearestPlaced(group: Card[]): Card | null {
+  const t = timeOf(group[0]); if (!t) return null;
+  let best: Card | null = null, bd = 5 * DAY;
   for (const c of cards) {
-    if (c.img ? !visible(c) : filtering) continue;
-    const el = document.createElement('article');
-    el.className = 'card' + (c.img ? '' : ' blank');
-    el.tabIndex = 0;
-    el.style.setProperty('--rot', c.rot + 'deg'); el.style.setProperty('--pin', c.pin);
-    el.innerHTML = '<i class="pin"></i><div class="thumb"></div><div class="cap"><span></span><span class="lk"></span></div>';
-    const th = el.querySelector('.thumb')!;
-    if (c.img) {
-      const im = new Image(); im.src = c.img; im.alt = c.title; im.className = 'look-' + c.look; th.append(im);
-      if (c.stamp && c.date) { const s = document.createElement('span'); s.className = 'stamp'; s.textContent = stampText(c); th.append(s); }
-    } else th.innerHTML = '<div><b>＋</b>Add a photo</div>';
-    const [t, lk] = el.querySelectorAll('.cap span');
-    t.textContent = c.img ? (c.title || 'Untitled') : '';
-    lk.textContent = c.img && c.likes ? '♥ ' + c.likes : '';
-    const act = () => c.img ? openCard(c) : pick(c);
-    el.onclick = act; el.onkeydown = e => { if (e.key === 'Enter') act(); };
-    board.append(el);
+    if (!placed(c) || !timeOf(c)) continue;
+    const d = Math.abs(timeOf(c) - t);
+    if (d <= bd) { bd = d; best = c; }
   }
+  return best;
 }
+let trayOpen = true;
+function renderTray() {
+  const loose = cards.filter(c => c.img && !placed(c));
+  $('tray').hidden = !loose.length;
+  if (!loose.length) return;
+  $('trayTitle').textContent = `${loose.length} ${loose.length === 1 ? 'photo isn’t' : 'photos aren’t'} on the map yet`;
+  $('trayToggle').textContent = trayOpen ? '–' : '+';
+  const list = $('trayList'); list.innerHTML = ''; list.hidden = !trayOpen;
+  const days = new Map<string, Card[]>();
+  for (const c of loose) { const d = dayOf(c); (days.get(d) ?? days.set(d, []).get(d)!).push(c); }
+  [...days.entries()].sort(([a], [b]) => a.localeCompare(b)).forEach(([day, group]) => {
+    const g = el('div', 'tray-group');
+    const thumbs = el('div', 'tray-thumbs');
+    group.slice(0, 5).forEach(c => {
+      const b = el('button', 'tray-photo'); b.setAttribute('aria-label', 'Open ' + (c.title || 'photo'));
+      const im = new Image(); im.src = c.img!; im.alt = ''; im.className = 'look-' + c.look; b.append(im);
+      b.onclick = () => openCard(c); thumbs.append(b);
+    });
+    const label = el('span', 'tray-day', day ? new Date(day + 'T12:00').toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' }) : 'No date');
+    const row = el('div', 'tray-actions');
+    const near = nearestPlaced(group);
+    if (near) {
+      const b = el('button', 'btn small primary', `Put at ${placeName(near) || 'nearest photo'}`);
+      b.title = 'Taken around the same time as ' + (near.title || 'another photo');
+      b.onclick = async () => {
+        for (const c of group) { c.lat = near.lat; c.lng = near.lng; c.place = near.place; if (!c.trip && near.trip) addToStory(c, near.trip); }
+        await save(); render();
+      };
+      row.append(b);
+    }
+    const pin = el('button', 'btn small', group.length > 1 ? `Pin all ${group.length}` : 'Pin on map');
+    pin.onclick = () => startPinning(group);
+    row.append(pin);
+    g.append(thumbs, label, row); list.append(g);
+  });
+}
+$('trayToggle').onclick = () => { trayOpen = !trayOpen; renderTray(); };
 
 // ---------- everything that depends on the cards ----------
-function visitedSet(): Set<string> {
-  return new Set(cards.filter(c => c.img).map(countryOf).filter((x): x is string => !!x));
-}
-function refreshChrome() {
-  const v = visitedSet();
-  world.setVisited(highlight ? v : null);
-  const h = $('hlBtn'); h.textContent = `${v.size} ${v.size === 1 ? 'country' : 'countries'}`; h.classList.toggle('on', highlight);
-  // filter menus and trip suggestions
-  const fill = (id: string, label: string, vals: string[], cur: string) => {
-    const s = $<HTMLSelectElement>(id); s.innerHTML = '';
-    s.append(new Option(label, ''));
-    [...new Set(vals)].sort().forEach(v => s.append(new Option(v, v)));
-    s.value = cur;
-  };
-  const imgs = cards.filter(c => c.img);
-  fill('fTrip', 'All trips', imgs.map(c => c.trip).filter(Boolean), filters.trip);
-  fill('fCamera', 'All cameras', imgs.map(cameraName), filters.camera);
-  fill('fCountry', 'All countries', imgs.map(countryOf).filter((x): x is string => !!x), filters.country);
-  const dl = $('tripList'); dl.innerHTML = '';
-  [...new Set(imgs.map(c => c.trip).filter(Boolean))].forEach(t => dl.append(new Option(t)));
-  const n = activeCount(), badge = $('filterCount');
-  badge.hidden = !n; badge.textContent = String(n);
-}
 function render() {
-  renderMap(); renderStrip(); renderBoard(); refreshChrome();
-  if (view === 'stats') renderStats($('statsView'), cards, countryOf);
+  renderMap(); renderStrings(); renderStories(); renderTray();
+  const dl = $('tripList'); dl.innerHTML = '';
+  stories().forEach(s => dl.append(new Option(s.name)));
 }
-
-// ---------- views ----------
-function setView(v: 'map' | 'board' | 'stats') {
-  view = v;
-  $('mapView').hidden = v !== 'map'; $('boardView').hidden = v !== 'board'; $('statsView').hidden = v !== 'stats';
-  $('vMap').classList.toggle('on', v === 'map'); $('vBoard').classList.toggle('on', v === 'board'); $('vStats').classList.toggle('on', v === 'stats');
-  if (v === 'map') setTimeout(() => map.invalidateSize(), 0);
-  if (v === 'stats') renderStats($('statsView'), cards, countryOf);
-  if (v !== 'map') stopPlay();
-  lsSet('cb-view', v);
-}
-$('vMap').onclick = () => setView('map');
-$('vBoard').onclick = () => setView('board');
-$('vStats').onclick = () => setView('stats');
-
-// ---------- search + filters ----------
 const q = $<HTMLInputElement>('q');
-q.oninput = () => { filters.q = q.value.trim(); render(); };
-$('filterBtn').onclick = () => { const f = $('filters'); f.hidden = !f.hidden; setBarHeight(); };
-const bindSel = (id: string, key: 'trip' | 'camera' | 'country') =>
-  $<HTMLSelectElement>(id).onchange = e => { filters[key] = (e.target as HTMLSelectElement).value; render(); fitAll(); };
-bindSel('fTrip', 'trip'); bindSel('fCamera', 'camera'); bindSel('fCountry', 'country');
-$<HTMLInputElement>('fFrom').onchange = e => { filters.from = (e.target as HTMLInputElement).value; render(); };
-$<HTMLInputElement>('fTo').onchange = e => { filters.to = (e.target as HTMLInputElement).value; render(); };
-$('fClear').onclick = () => {
-  clearFilters(); q.value = '';
-  $<HTMLInputElement>('fFrom').value = ''; $<HTMLInputElement>('fTo').value = '';
-  render();
-};
-function setBarHeight() {
-  const h = document.querySelector<HTMLElement>('.bar')!.offsetHeight + ($('filters').hidden ? 0 : $('filters').offsetHeight);
-  document.documentElement.style.setProperty('--bar', h + 'px');
-}
+q.oninput = () => { query = q.value.trim(); render(); };
 
-// ---------- map tools: theme, highlight ----------
+// ---------- map style ----------
 const themeSel = $<HTMLSelectElement>('themeSel');
-for (const [k, t] of Object.entries(THEMES)) themeSel.append(new Option(t.name + ' map', k));
+for (const [k, t] of Object.entries(THEMES)) themeSel.append(new Option(t.name, k));
 themeSel.value = themeName;
-themeSel.onchange = () => { world.setTheme(themeSel.value as ThemeName); lsSet('cb-theme', themeSel.value); };
-$('hlBtn').onclick = () => { highlight = !highlight; lsSet('cb-hl', highlight ? '1' : '0'); refreshChrome(); };
+themeSel.onchange = () => { world.setTheme(themeSel.value as ThemeName); lsSet('wf-theme', themeSel.value); };
+document.addEventListener('click', e => {
+  const m = document.querySelector<HTMLDetailsElement>('.menu');
+  if (m?.open && !m.contains(e.target as Node)) m.open = false;
+});
 
 // ---------- upload ----------
 function pick(c: Card | null) { pickTarget = c; picker.multiple = !c; picker.value = ''; picker.click(); }
@@ -273,86 +414,93 @@ picker.onchange = async () => {
   const files = [...(picker.files ?? [])]; if (!files.length) return;
   const made: Card[] = [];
   for (const f of files) {
-    let c = pickTarget || cards.find(x => !x.img);
+    let c = pickTarget;
     if (!c) { c = blankCard(cards.length); cards.push(c); }
-    try { await fillCard(c, f); made.push(c); } catch { alert(`Could not read ${f.name}`); }
+    try {
+      await fillCard(c, f);
+      if (placed(c) && (!c.place || c.place === 'From photo GPS')) { await loadCities(); c.place = nameAt(c.lat!, c.lng!) ?? c.place; }
+      made.push(c);
+    } catch {
+      alert(`Could not read ${f.name}`);
+      if (!c.img) cards.splice(cards.indexOf(c), 1);
+    }
   }
   await save(); render();
   if (made.length === 1) openCard(made[0]);
-  else if (made.length) fitAll();
+  else if (made.length) fitCards(made);
 };
 
-// ---------- drawer ----------
+// ---------- photo panel ----------
 function buildSwatches() {
   const sw = $('swatches'); sw.innerHTML = '';
-  COLORS.forEach(col => {
-    const b = document.createElement('button');
-    b.className = 'sw' + (cur && cur.pinColor === col ? ' on' : ''); b.title = col || 'Default';
-    b.style.background = col || 'conic-gradient(#fff 0 50%,#ccc 0)'; b.setAttribute('aria-label', 'Pin colour ' + (col || 'default'));
-    b.onclick = () => { if (!cur) return; cur.pinColor = col; save(); renderMap(); buildSwatches(); };
+  PIN_COLORS.forEach(col => {
+    const b = el('button', 'sw' + (cur && cur.pinColor === col ? ' on' : ''));
+    b.style.background = col || 'radial-gradient(circle at 35% 30%,#ff8a7a,#c8372d 60%)';
+    b.setAttribute('aria-label', 'Pin colour ' + (col || 'red'));
+    b.onclick = () => { if (!cur) return; cur.pinColor = col; save(); renderMap(); markSelected(); buildSwatches(); };
     sw.append(b);
-  });
-  const ic = $('icons'); ic.innerHTML = '';
-  ICONS.forEach(i => {
-    const b = document.createElement('button');
-    b.className = 'ic' + (cur && cur.pinIcon === i ? ' on' : ''); b.textContent = i || '∅'; b.setAttribute('aria-label', 'Pin icon ' + (i || 'none'));
-    b.onclick = () => { if (!cur) return; cur.pinIcon = i; save(); renderMap(); buildSwatches(); };
-    ic.append(b);
   });
 }
 function drawLookAndStamp(c: Card) {
-  const dImg = $<HTMLImageElement>('dImg'); dImg.className = 'look-' + c.look;
+  $<HTMLImageElement>('dImg').className = 'look-' + c.look;
   const st = $('dStamp'); st.hidden = !(c.stamp && c.date); st.textContent = stampText(c);
+}
+function drawMeta(c: Card) {
+  $('dMeta').textContent = [c.place || 'Not on the map yet', fmtDate(c)].filter(Boolean).join(' · ');
 }
 function drawShotOn(c: Card) {
   const m = c.meta || {}, box = $('shotOn'); box.innerHTML = '';
-  const lab = document.createElement('span'); lab.className = 'so-label'; lab.textContent = 'Shot on';
-  const cam = document.createElement('b'); cam.className = 'so-cam'; cam.textContent = cameraName(c);
-  box.append(lab, cam);
+  box.append(el('span', 'so-label', 'Shot on'), el('b', 'so-cam', cameraName(c)));
   const chips = [m.exposure, m.aperture, m.iso ? 'ISO ' + m.iso : '', m.focal].filter(Boolean) as string[];
-  if (chips.length) {
-    const row = document.createElement('div'); row.className = 'so-chips';
-    chips.forEach(t => { const s = document.createElement('span'); s.textContent = t; row.append(s); });
-    box.append(row);
-  }
+  if (chips.length) { const row = el('div', 'so-chips'); chips.forEach(t => row.append(el('span', '', t))); box.append(row); }
 }
-function drawStack(c: Card) {
-  const st = stackOf(c), i = st.findIndex(x => x.id === c.id);
+function drawStoryNav(c: Card) {
+  const list = c.trip ? storyOf(c.trip) : [];
+  const i = list.indexOf(c);
+  $('dStory').hidden = i < 0;
+  if (i >= 0) $('dsText').textContent = `Stop ${i + 1} of ${list.length} · ${c.trip}`;
+  const st = stackOf(c), j = st.findIndex(x => x.id === c.id);
   $('stack').hidden = st.length < 2;
-  $('stText').textContent = `Photo ${i + 1} of ${st.length} at this place`;
+  $('stText').textContent = `Photo ${j + 1} of ${st.length} at this spot`;
 }
 
 function openCard(c: Card, fly = true) {
-  stopPlay();
-  cur = c; stopPinning();
+  stopPlay(); stopPinning();
+  cur = c;
   $('drawer').hidden = false;
   const dImg = $<HTMLImageElement>('dImg'); dImg.src = c.img!; dImg.alt = c.title;
+  $('photoBtn').style.setProperty('--rot', (c.rot / 2) + 'deg');
   fTitle.value = c.title; fStory.value = c.story; fDate.value = c.date; fPlace.value = c.place || '';
   fTripName.value = c.trip;
   $<HTMLInputElement>('coverBox').checked = c.cover;
   $<HTMLSelectElement>('lookSel').value = c.look; $<HTMLInputElement>('stampBox').checked = c.stamp;
-  drawLike(); locNote(); buildSwatches(); drawLookAndStamp(c); drawShotOn(c); drawStack(c);
+  drawLike(); locNote(); buildSwatches(); drawLookAndStamp(c); drawShotOn(c); drawStoryNav(c); drawMeta(c);
   const m = c.meta || {};
-  const rows: [string, string | number | undefined][] = [['Size', m.size], ['File', m.file]];
   const meta = $('meta'); meta.innerHTML = '';
-  for (const [k, v] of rows) {
-    if (!v) continue;
-    const dt = document.createElement('dt'), dd = document.createElement('dd');
-    dt.textContent = k; dd.textContent = String(v); meta.append(dt, dd);
+  for (const [k, v] of [['Size', m.size], ['File', m.file]] as [string, string | undefined][]) {
+    if (v) meta.append(el('dt', '', k), el('dd', '', v));
   }
-  markSelected(); renderStrip();
-  if (fly && placed(c) && view === 'map') flyTo(c);
+  markSelected();
+  if (fly && placed(c)) flyTo(c);
 }
-function closeDrawer() { cur = null; stopPinning(); $('drawer').hidden = true; markSelected(); renderStrip(); save(); renderBoard(); }
+function closeDrawerQuiet() { cur = null; $('drawer').hidden = true; markSelected(); }
+function closeDrawer() { closeDrawerQuiet(); save(); }
 $('dClose').onclick = closeDrawer;
 
-const step = (d: number) => {
+const stepIn = (list: Card[], d: number) => {
   if (!cur) return;
-  const st = stackOf(cur), i = st.findIndex(x => x.id === cur!.id);
-  openCard(st[(i + d + st.length) % st.length], false);
+  const i = list.indexOf(cur); if (i < 0) return;
+  openCard(list[(i + d + list.length) % list.length]);
 };
-$('stPrev').onclick = () => step(-1);
-$('stNext').onclick = () => step(1);
+$('dsPrev').onclick = () => cur && stepIn(storyOf(cur.trip), -1);
+$('dsNext').onclick = () => cur && stepIn(storyOf(cur.trip), 1);
+const stackStep = (d: number) => {
+  if (!cur) return;
+  const s = stackOf(cur), i = s.findIndex(x => x.id === cur!.id);
+  openCard(s[(i + d + s.length) % s.length], false);
+};
+$('stPrev').onclick = () => stackStep(-1);
+$('stNext').onclick = () => stackStep(1);
 
 function drawLike() {
   if (!cur) return;
@@ -363,25 +511,29 @@ function drawLike() {
 $('likeBtn').onclick = async () => {
   if (!cur) return;
   cur.liked = !cur.liked; cur.likes = Math.max(0, cur.likes + (cur.liked ? 1 : -1));
-  drawLike(); await save(); renderBoard();
+  drawLike(); await save();
 };
-fTitle.oninput = () => { if (cur) { cur.title = fTitle.value; saveSoon(); renderStrip(); } };
-fTitle.onchange = () => { renderMap(); renderBoard(); };
+fTitle.oninput = () => { if (cur) { cur.title = fTitle.value; saveSoon(); } };
+fTitle.onchange = () => { render(); markSelected(); };
 fStory.oninput = () => { if (cur) { cur.story = fStory.value; saveSoon(); } };
-fDate.oninput = () => { if (cur) { cur.date = fDate.value; saveSoon(); drawLookAndStamp(cur); } };
-fTripName.oninput = () => { if (cur) { cur.trip = fTripName.value.trim(); saveSoon(); } };
-fTripName.onchange = () => { render(); };
+fDate.oninput = () => { if (cur) { cur.date = fDate.value; saveSoon(); drawLookAndStamp(cur); drawMeta(cur); } };
+fTripName.onchange = () => {
+  if (!cur) return;
+  const v = fTripName.value.trim();
+  if (!v) { const old = cur.trip; cur.trip = ''; cur.seq = 0; if (old) renumber(old, storyOf(old)); } else addToStory(cur, v);
+  save(); render(); drawStoryNav(cur); markSelected();
+};
 $<HTMLInputElement>('coverBox').onchange = e => {
   if (!cur) return;
   const on = (e.target as HTMLInputElement).checked;
   if (on && placed(cur)) cards.filter(c => placed(c) && placeKey(c) === placeKey(cur!)).forEach(c => { c.cover = false; });
-  cur.cover = on; save(); renderMap();
+  cur.cover = on; save(); renderMap(); markSelected();
 };
 $<HTMLSelectElement>('lookSel').onchange = e => {
-  if (!cur) return; cur.look = (e.target as HTMLSelectElement).value as Look; save(); drawLookAndStamp(cur); renderBoard(); renderStrip();
+  if (!cur) return; cur.look = (e.target as HTMLSelectElement).value as Look; save(); drawLookAndStamp(cur); render(); markSelected();
 };
 $<HTMLInputElement>('stampBox').onchange = e => {
-  if (!cur) return; cur.stamp = (e.target as HTMLInputElement).checked; save(); drawLookAndStamp(cur); renderBoard();
+  if (!cur) return; cur.stamp = (e.target as HTMLInputElement).checked; save(); drawLookAndStamp(cur);
 };
 
 $('replaceBtn').onclick = () => pick(cur);
@@ -393,15 +545,17 @@ del.onclick = async () => {
     setTimeout(() => { delete del.dataset.sure; del.textContent = 'Remove'; }, 3000); return;
   }
   delete del.dataset.sure; del.textContent = 'Remove';
-  const i = cards.indexOf(cur); cards[i] = blankCard(i); cur = null;
+  const old = cur.trip;
+  cards.splice(cards.indexOf(cur), 1); cur = null;
+  if (old) renumber(old, storyOf(old));
   $('drawer').hidden = true; await save(); render();
 };
 
 // ---------- location ----------
 function locNote() {
   if (!cur) return;
-  $('locNote').textContent = placed(cur) ? `Pinned at ${cur.lat!.toFixed(3)}, ${cur.lng!.toFixed(3)}`
-    : 'No location yet. The DSC-V1 has no GPS, so search a place or pin it on the map.';
+  $('locNote').textContent = placed(cur) ? `Pinned at ${cur.lat!.toFixed(4)}, ${cur.lng!.toFixed(4)}`
+    : 'The DSC-V1 has no GPS. Search a city, or pin it on the map yourself.';
 }
 /** Names a point from the map's own city list, so nothing is sent to an outside service. */
 async function reverse(lat: number, lng: number): Promise<string> {
@@ -416,118 +570,75 @@ async function findPlace() {
   const h = hits.find(x => x.label === text) ?? hits[0];
   if (!h) { $('locNote').textContent = 'No city found with that name. Try another spelling, or pin it on the map.'; return; }
   c.lat = h.lat; c.lng = h.lng; c.place = h.short; fPlace.value = h.short;
-  save(); render(); locNote(); drawStack(c);
-  if (view !== 'map') setView('map');
+  save(); render(); locNote(); drawStoryNav(c); drawMeta(c); markSelected();
   flyTo(c);
 }
+$('placeBtn').onclick = findPlace;
+fPlace.onkeydown = e => { if (e.key === 'Enter') findPlace(); };
 fPlace.oninput = async () => {
   await loadCities();
   const dl = $('placeList'); dl.innerHTML = '';
   searchPlaces(fPlace.value, 6).forEach(p => dl.append(new Option(p.label)));
 };
-$('placeBtn').onclick = findPlace;
-fPlace.onkeydown = e => { if (e.key === 'Enter') findPlace(); };
 
 function startPinning(targets: Card[]) {
-  setView('map'); pinTargets = targets; document.body.classList.add('pinning');
-  $('pinText').textContent = targets.length > 1 ? `Click the map to place ${targets.length} photos` : 'Click the map to place this photo';
-  $('pinBanner').hidden = false; $('queue').hidden = true; $('mapTools').hidden = true;
+  stopConnect();
+  pinTargets = targets; document.body.classList.add('pinning');
+  $('pinText').textContent = targets.length > 1 ? `Click the map where these ${targets.length} photos were taken` : 'Click the map where this photo was taken';
+  $('pinBanner').hidden = false;
   if (!wide()) $('drawer').hidden = true;
 }
 function stopPinning() {
-  pinTargets = []; document.body.classList.remove('pinning'); $('pinBanner').hidden = true; $('mapTools').hidden = false;
+  if (!pinTargets.length && $('pinBanner').hidden) return;
+  pinTargets = []; document.body.classList.remove('pinning'); $('pinBanner').hidden = true;
   if (cur) $('drawer').hidden = false;
 }
 $('pinBtn').onclick = () => { if (cur) startPinning([cur]); };
 $('pinCancel').onclick = stopPinning;
-$('exactBtn').onclick = () => { if (cur && placed(cur)) { if (view !== 'map') setView('map'); flyTo(cur, 14); } };
+$('exactBtn').onclick = () => { if (cur && placed(cur)) flyTo(cur, 13); };
 $('clearLoc').onclick = () => {
   if (!cur) return;
   cur.lat = cur.lng = null; cur.place = ''; fPlace.value = '';
-  render(); locNote(); drawStack(cur); save();
+  render(); locNote(); drawStoryNav(cur); drawMeta(cur); save();
 };
 
-// ---------- "Place me" queue: photos without a location, a day at a time ----------
-const DAY = 864e5;
-function nearestPlaced(group: Card[]): Card | null {
-  const t = timeOf(group[0]); if (!t) return null;
-  let best: Card | null = null, bd = 5 * DAY;
-  for (const c of cards) {
-    if (!placed(c) || !timeOf(c)) continue;
-    const d = Math.abs(timeOf(c) - t);
-    if (d <= bd) { bd = d; best = c; }
-  }
-  return best;
-}
-function renderQueue() {
-  const list = $('qList'); list.innerHTML = '';
-  const days = new Map<string, Card[]>();
-  for (const c of cards.filter(c => c.img && !placed(c))) { const d = dayOf(c); (days.get(d) ?? days.set(d, []).get(d)!).push(c); }
-  if (!days.size) { const p = document.createElement('p'); p.className = 'hint'; p.textContent = 'Every photo is on the map.'; list.append(p); return; }
-  [...days.entries()].sort(([a], [b]) => a.localeCompare(b)).forEach(([day, group]) => {
-    const box = document.createElement('div'); box.className = 'q-group';
-    const head = document.createElement('b');
-    head.textContent = (day ? new Date(day + 'T12:00').toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' }) : 'No date')
-      + ` · ${group.length} photo${group.length > 1 ? 's' : ''}`;
-    const thumbs = document.createElement('div'); thumbs.className = 'q-thumbs';
-    group.slice(0, 6).forEach(c => { const im = new Image(); im.src = c.img!; im.alt = c.title; im.onclick = () => openCard(c); thumbs.append(im); });
-    box.append(head, thumbs);
-    const near = nearestPlaced(group);
-    const row = document.createElement('div'); row.className = 'row';
-    if (near) {
-      const b = document.createElement('button'); b.className = 'btn small primary';
-      b.textContent = `Place all at ${near.place || 'the nearest photo'}`;
-      b.title = 'Nearest in time: ' + (near.title || 'Untitled');
-      b.onclick = async () => {
-        for (const c of group) { c.lat = near.lat; c.lng = near.lng; c.place = near.place; if (!c.trip) c.trip = near.trip; }
-        await save(); render(); renderQueue();
-      };
-      row.append(b);
-    }
-    const pin = document.createElement('button'); pin.className = 'btn small'; pin.textContent = 'Pin on map…';
-    pin.onclick = () => startPinning(group);
-    row.append(pin); box.append(row); list.append(box);
-  });
-}
-function openQueue() { renderQueue(); $('queue').hidden = false; }
-$('qClose').onclick = () => { $('queue').hidden = true; };
-
-// ---------- timeline playback ----------
-const pl = { list: [] as Card[], i: 0, timer: 0, paused: false, on: false };
+// ---------- playing a story: the string draws itself stop by stop ----------
+const pl = { story: '', list: [] as Card[], i: 0, timer: 0, paused: false, on: false };
+let focusCard: () => Card | null = () => cur;
 function stopPlay() {
   if (!pl.on) return;
-  clearTimeout(pl.timer); pl.on = false; $('playCard').hidden = true; $('playBtn').textContent = 'Play';
-  focusCard = () => cur; markSelected();
+  clearTimeout(pl.timer); pl.on = false; $('playCard').hidden = true;
+  focusCard = () => cur; renderStrings(); markSelected();
 }
 function playStep(i: number) {
   if (i >= pl.list.length) { stopPlay(); return; }
   pl.i = Math.max(0, i); clearTimeout(pl.timer);
   const c = pl.list[pl.i];
   focusCard = () => c;
-  ($('pcImg') as HTMLImageElement).src = c.img!; $('pcImg').className = 'look-' + c.look;
+  const img = $<HTMLImageElement>('pcImg'); img.src = c.img!; img.className = 'look-' + c.look;
   $('pcTitle').textContent = c.title || 'Untitled';
-  $('pcWhere').textContent = [c.place, c.date ? new Date(c.date).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' }) : ''].filter(Boolean).join(' · ');
-  $('pcCount').textContent = `${pl.i + 1} of ${pl.list.length}`;
-  map.flyTo([c.lat!, c.lng!], 7, { duration: 2.2 });
-  map.once('moveend', () => { const m = markers.get(placeKey(c)); if (m) cluster.zoomToShowLayer(m, markSelected); markSelected(); });
-  markSelected();
-  if (!pl.paused) pl.timer = window.setTimeout(() => playStep(pl.i + 1), 4800);
+  $('pcWhere').textContent = [placeName(c), fmtDate(c)].filter(Boolean).join(' · ');
+  $('pcCount').textContent = `Stop ${pl.i + 1} of ${pl.list.length} · ${pl.story}`;
+  const prev = pl.list[pl.i - 1];
+  const far = prev ? map.distance([prev.lat!, prev.lng!], [c.lat!, c.lng!]) : 0;
+  map.flyTo([c.lat!, c.lng!], far > 3e6 ? 4 : far > 6e5 ? 5 : 7, { duration: 2.4 });
+  renderStrings(); markSelected();
+  if (!pl.paused) pl.timer = window.setTimeout(() => playStep(pl.i + 1), 5000);
 }
-function startPlay() {
-  const list = visiblePlaced().sort(byDate);
-  if (!list.length) { alert('Place at least one photo on the map first.'); return; }
-  closeDrawerQuiet();
-  Object.assign(pl, { list, i: 0, paused: false, on: true });
-  $('playCard').hidden = false; $('playBtn').textContent = 'Stop'; $('pcPause').textContent = '⏸';
+function playStory(name: string) {
+  const list = storyOf(name).filter(placed);
+  if (!list.length) return;
+  stopConnect(); closeDrawerQuiet();
+  activeStory = name; render();
+  Object.assign(pl, { story: name, list, i: 0, paused: false, on: true });
+  $('playCard').hidden = false; $('pcPause').textContent = '❚❚';
   playStep(0);
 }
-function closeDrawerQuiet() { cur = null; $('drawer').hidden = true; renderStrip(); }
-$('playBtn').onclick = () => pl.on ? stopPlay() : startPlay();
 $('pcStop').onclick = stopPlay;
 $('pcPrev').onclick = () => playStep(Math.max(0, pl.i - 1));
 $('pcNext').onclick = () => playStep(pl.i + 1);
 $('pcPause').onclick = () => {
-  pl.paused = !pl.paused; $('pcPause').textContent = pl.paused ? '▶' : '⏸';
+  pl.paused = !pl.paused; $('pcPause').textContent = pl.paused ? '▶' : '❚❚';
   clearTimeout(pl.timer); if (!pl.paused) pl.timer = window.setTimeout(() => playStep(pl.i + 1), 1500);
 };
 
@@ -536,10 +647,15 @@ const posterCv = $<HTMLCanvasElement>('posterCv');
 const posterTitle = $<HTMLInputElement>('posterTitle');
 let posterT: number;
 function drawPoster() {
-  renderPoster(posterCv, cards.filter(visible), posterTitle.value.trim(), themeSel.value as ThemeName,
-    highlight ? visitedSet() : null, visitedSet().size);
+  const list = activeStory ? storyOf(activeStory) : cards.filter(visible);
+  const countries = new Set(list.map(countryOf).filter(Boolean)).size;
+  renderPoster(posterCv, list, posterTitle.value.trim(), themeSel.value as ThemeName, null, countries);
 }
-$('posterBtn').onclick = () => { $('posterModal').hidden = false; drawPoster(); };
+$('posterBtn').onclick = () => {
+  (document.querySelector('.menu') as HTMLDetailsElement).open = false;
+  if (activeStory) posterTitle.value = activeStory;
+  $('posterModal').hidden = false; drawPoster();
+};
 posterTitle.oninput = () => { clearTimeout(posterT); posterT = window.setTimeout(drawPoster, 300); };
 $('posterClose').onclick = () => { $('posterModal').hidden = true; };
 $('posterSave').onclick = () => {
@@ -550,7 +666,7 @@ $('posterSave').onclick = () => {
   }, 'image/png');
 };
 
-// ---------- viewer ----------
+// ---------- viewer + keys ----------
 initViewer();
 $('photoBtn').onclick = () => { if (cur?.img) openViewer(cur.img, 'look-' + cur.look); };
 document.addEventListener('keydown', e => {
@@ -558,9 +674,10 @@ document.addEventListener('keydown', e => {
   if (!$('posterModal').hidden) $('posterModal').hidden = true;
   else if (viewerIsOpen()) closeViewer();
   else if (pinTargets.length) stopPinning();
+  else if (connecting) stopConnect();
   else if (pl.on) stopPlay();
-  else if (!$('queue').hidden) $('queue').hidden = true;
   else if (!$('drawer').hidden) closeDrawer();
+  else if (activeStory) selectStory(null);
 });
 
 // ---------- export / import ----------
@@ -573,19 +690,18 @@ $<HTMLInputElement>('importFile').onchange = async e => {
   const f = (e.target as HTMLInputElement).files?.[0]; if (!f) return;
   try {
     const d = JSON.parse(await f.text()); if (!Array.isArray(d)) throw 0;
-    cards = d.map(normalize); await save(); render(); fitAll();
+    cards = d.map(normalize).filter(c => c.img); await save(); render(); fitCards(cards);
   } catch { alert('That file is not a Wayframe export.'); }
 };
 
 // ---------- start ----------
 (async () => {
-  setBarHeight();
-  window.addEventListener('resize', setBarHeight);
+  if (lsGet('wf-stories') === '0' || !wide()) { $('stories').hidden = true; $('storiesShow').hidden = false; }
   await openStore();
   const saved = await loadCards();
-  cards = saved ? saved.map(normalize) : Array.from({ length: SLOTS }, (_, i) => blankCard(i));
-  render(); fitAll();
+  // older boards kept empty placeholder cards; the map has no use for them
+  cards = (saved ?? []).map(normalize).filter(c => c.img);
+  render();
+  fitCards(cards, 5);
   document.fonts.ready.then(() => map.fire('moveend'));
-  const v = lsGet('cb-view');
-  setView(v === 'board' || v === 'stats' ? v : 'map');
 })();
