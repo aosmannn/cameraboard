@@ -11,9 +11,9 @@ Built for photos from a Sony Cyber-shot DSC-V1, and it works with any camera.
 ## What it does
 
 - **A map we draw ourselves, from our own data.** No map service is used. Zoomed out you see every country in its own colour on a blue ocean, with country names, big cities and seas. Zoom in and states and provinces appear for the whole world, then more cities, and counties across the US, each with names that never overlap.
-- **Jump to the exact spot.** Opening a photo flies to its location, and "Zoom to exact spot" goes in as close as the map data allows. The pin always sits at the exact coordinates.
+- **Jump to the exact spot.** Opening a photo flies to its location, and "Zoom to exact spot" goes in much closer (you can zoom to level 16). The pin always sits at the exact coordinates.
 - **Works offline.** Place search and naming a pin both use the built-in list of 7,300 cities, so nothing is sent anywhere.
-- **Photo pins.** Each photo is a small picture pin. Photos close together group into a numbered circle that splits apart as you zoom.
+- **Real map pins.** Each place gets a pin, with a count when several photos share it. Hover a pin to see its picture, click it to open the card, and zoom in close and the pin's head shows the photo itself. Nearby pins group into a numbered circle that splits apart as you zoom.
 - **Cards with the full story.** Click a pin to open its card: the photo, a title, a like button, the story behind the shot, the date, camera details and where it was taken.
 - **Zoom into the photo.** Open any photo at full size, then scroll or pinch to zoom and drag to pan.
 - **Board view.** Switch tabs to see the same photos as polaroids pinned to a cork board.

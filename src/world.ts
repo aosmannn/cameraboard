@@ -226,7 +226,7 @@ export function drawWorld(map: L.Map, initial: ThemeName): World {
     states = L.geoJSON(fc1, { pane: 'statePane', renderer: L.canvas({ pane: 'statePane' }), interactive: false, style: stateStyle } as L.GeoJSONOptions);
     labels.set('state', fc1.features.filter((f: any) => f.properties.lc && f.properties.name).map((f: any) => ({
       text: f.properties.name, lat: f.properties.lc[0], lng: f.properties.lc[1],
-      min: areaZoom(f.properties.area, [60, 12, 3, 0.6]) + 1, max: 9 })));
+      min: areaZoom(f.properties.area, [60, 12, 3, 0.6]) + 1, max: 12 })));
     sync();
   });
   // ---- US counties, from zoom 7.5 ----
@@ -242,7 +242,7 @@ export function drawWorld(map: L.Map, initial: ThemeName): World {
         if (a > ba) { ba = a; big = p[0]; }
       }
       const xs = big!.map(c => c[0]), ys = big!.map(c => c[1]);
-      return { text: f.properties.name, lat: (Math.min(...ys) + Math.max(...ys)) / 2, lng: (Math.min(...xs) + Math.max(...xs)) / 2, min: 9, max: 10 };
+      return { text: f.properties.name, lat: (Math.min(...ys) + Math.max(...ys)) / 2, lng: (Math.min(...xs) + Math.max(...xs)) / 2, min: 9, max: 16 };
     }));
     sync();
   });
