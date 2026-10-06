@@ -187,6 +187,16 @@ $$;
 revoke all on function public.public_profile(uuid, text, text) from public, anon;
 grant execute on function public.public_profile(uuid, text, text) to authenticated;
 
+-- What a visitor who isn't signed in sees when they open someone's invite link: just a first name or
+-- display name, nothing else. The invite code is random, so it can't be guessed.
+create or replace function public.invite_preview(code text)
+returns table (display_name text)
+language sql stable security definer set search_path = '' as $$
+  select p.display_name from public.profiles p where p.invite_code = trim(code) limit 1;
+$$;
+revoke all on function public.invite_preview(text) from public;
+grant execute on function public.invite_preview(text) to anon, authenticated;
+
 -- People you both follow, shown only when the other person is discoverable.
 create or replace function public.mutual_follows(uid uuid)
 returns table (id uuid, display_name text, username text)

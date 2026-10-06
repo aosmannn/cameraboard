@@ -83,6 +83,12 @@ One-time setup in the Supabase dashboard:
 4. **Redirect address:** Authentication → URL Configuration → set Site URL to your live site, and add `https://YOUR-SITE/app.html` (and `http://localhost:5173/app.html`) under Redirect URLs.
 5. **More than a few emails an hour:** Supabase's built-in email sender is limited. For real use, add a free sender such as Resend under Project Settings → Authentication → SMTP.
 
+Sharing the site with people:
+
+- **Vercel must not ask visitors to sign in to Vercel.** In the Vercel project: Settings → Deployment Protection → turn **Vercel Authentication** off (or set it to protect only preview deployments). Branch and preview addresses like `cameraboard-xxxx-yourteam.vercel.app` are protected by default, which is what shows "Log in to Vercel".
+- **Use one public address for invite links.** Set `VITE_PUBLIC_URL` to your production address (for example `https://cameraboard-xi.vercel.app`) under Vercel → Settings → Environment Variables, then redeploy. Invite links and QR codes then always use it, even if you copy them from a preview page.
+- **What a visitor sees without signing in:** the app itself (they can add photos and make stories on their own device), and on an invite link, the name of the person who invited them. Photos and stories are only visible to people who sign in and follow.
+
 How privacy works:
 
 - Every table has row level security. You see your own photos, plus photos that people you follow marked as shared.

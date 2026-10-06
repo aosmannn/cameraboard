@@ -261,7 +261,7 @@ export function drawWorld(map: L.Map, initial: ThemeName): World {
     if (!(map as any)._flyToFrame) return;
     if (states && map.hasLayer(states)) map.removeLayer(states);
     if (counties && map.hasLayer(counties)) map.removeLayer(counties);
-    (countryRenderer as any)._reset();
+    const r = countryRenderer as any; if (r._map) r._reset();
   });
 
   const restyle = () => {

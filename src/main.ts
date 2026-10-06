@@ -137,7 +137,7 @@ map.getPane('stringPane')!.style.pointerEvents = 'none';
 const stringRenderer = L.svg({ pane: 'stringPane' });
 const strings = L.layerGroup().addTo(map);
 // keep the string drawn while the map flies between stops (same reason as the countries in world.ts)
-map.on('zoom', () => { if ((map as any)._flyToFrame) (stringRenderer as any)._reset(); });
+map.on('zoom', () => { const r = stringRenderer as any; if ((map as any)._flyToFrame && r._map) r._reset(); });
 const photos = L.layerGroup().addTo(map);
 const markers = new Map<string, L.Marker>();
 
@@ -1086,6 +1086,16 @@ async function refreshFriends() {
 }
 /** An invite link like /app.html?add=CODE opens that person's profile once you're signed in. */
 let pendingAdd = new URLSearchParams(location.search).get('add');
+/** Visitors who aren't signed in see who invited them, and can use the app as a guest. */
+async function showInviteBanner() {
+  if (!pendingAdd || signedIn || !cloud.cloudEnabled) return;
+  const name = await cloud.invitePreview(pendingAdd).catch(() => null);
+  if (!name || signedIn) return;
+  $('inviteText').textContent = `${name} invited you to Wayframe. Sign in to follow them and see what they share.`;
+  $('inviteBanner').hidden = false;
+}
+$('inviteSignIn').onclick = () => { $('inviteBanner').hidden = true; openAcct(); };
+$('inviteDismiss').onclick = () => { $('inviteBanner').hidden = true; };
 async function onAuth(s: boolean) {
   signedIn = s;
   if (!s) {
@@ -1093,7 +1103,7 @@ async function onAuth(s: boolean) {
     $('phoneForm').hidden = false; $('codeForm').hidden = true;
     renderAcct(); render(); return;
   }
-  $('acctModal').hidden = true;
+  $('acctModal').hidden = true; $('inviteBanner').hidden = true;
   renderAcct();
   me = await cloud.myProfile().catch(() => null);
   fillProfileForm(); renderAcct(); renderInvite();
@@ -1138,5 +1148,5 @@ setInterval(() => { if (signedIn) refreshFriends(); }, 45 * 60 * 1000);   // sig
   fitCards(cards, 5);
   document.fonts.ready.then(() => map.fire('moveend'));
   renderAcct();
-  cloud.initAuth(onAuth).catch(err => console.warn('Sign-in unavailable', err));
+  cloud.initAuth(onAuth).then(showInviteBanner).catch(err => console.warn('Sign-in unavailable', err));
 })();

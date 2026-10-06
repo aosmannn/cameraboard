@@ -368,3 +368,6 @@ h3.first { margin-top: 12px !important; }
 .post-story { margin: 8px 0 0; font-size: 14px; line-height: 1.45; }
 .post-actions { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 10px; }
 .wide-btn { width: 100%; }
+
+.invite-banner { top: 76px; z-index: 40; max-width: min(640px, calc(100% - 32px)); border-radius: 18px; padding: 12px 12px 12px 18px; }
+.invite-banner span { line-height: 1.35; }
