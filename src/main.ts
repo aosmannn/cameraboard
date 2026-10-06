@@ -63,7 +63,7 @@ const stackOf = (c: Card) => placed(c) ? visiblePlaced().filter(x => placeKey(x)
 
 // ---------- map ----------
 const themeName = ((): ThemeName => { const t = lsGet('cb-theme'); return t && t in THEMES ? t as ThemeName : 'classic'; })();
-const map = L.map('map', { zoomControl: false, minZoom: 2, maxZoom: 10, preferCanvas: true,
+const map = L.map('map', { zoomControl: false, minZoom: 2, maxZoom: 16, preferCanvas: true,
   maxBounds: [[-60, -180], [84, 180]], maxBoundsViscosity: 1 }).setView([25, 10], 2);
 L.control.zoom({ position: 'topleft' }).addTo(map);
 const world = drawWorld(map, themeName);
@@ -74,6 +74,9 @@ const cluster = L.markerClusterGroup({
   iconCreateFunction: c => L.divIcon({ html: `<div class="cl">${c.getChildCount()}</div>`, className: '', iconSize: [44, 44] })
 });
 map.addLayer(cluster);
+/** Zoomed in far, pins show the photo in their head. */
+const DEEP = 12;
+map.on('zoom zoomend', () => map.getContainer().classList.toggle('deep', map.getZoom() >= DEEP));
 const markers = new Map<string, L.Marker>();
 let focusCard: () => Card | null = () => cur;   // card whose pin is highlighted (playback overrides)
 
@@ -88,15 +91,32 @@ map.on('click', async e => {
   save(); renderQueue();
 });
 
+const SVG_NS = 'http://www.w3.org/2000/svg';
+/** A map pin. Zoomed in far enough, the pin's head shows the photo itself. */
 function pinElement(rep: Card, n: number): HTMLElement {
   const el = document.createElement('div');
   el.className = 'mk';
   if (rep.pinColor) el.style.setProperty('--pc', rep.pinColor);
-  const im = new Image(); im.src = rep.img!; im.alt = rep.title;
-  el.append(im, document.createElement('i'));
-  if (rep.pinIcon) { const s = document.createElement('span'); s.className = 'mk-ic'; s.textContent = rep.pinIcon; el.append(s); }
+  const svg = document.createElementNS(SVG_NS, 'svg');
+  svg.setAttribute('viewBox', '0 0 34 44');
+  const path = document.createElementNS(SVG_NS, 'path');
+  path.setAttribute('d', 'M17 1C8.7 1 2 7.7 2 16c0 11 15 27 15 27s15-16 15-27C32 7.7 25.3 1 17 1z');
+  svg.append(path); el.append(svg);
+  const inner = document.createElement('span');
+  inner.className = rep.pinIcon ? 'mk-ic' : 'mk-dot'; inner.textContent = rep.pinIcon; el.append(inner);
+  const ph = new Image(); ph.src = rep.img!; ph.alt = ''; ph.className = 'mk-ph'; el.append(ph);
   if (n > 1) { const s = document.createElement('span'); s.className = 'mk-n'; s.textContent = String(n); el.append(s); }
   return el;
+}
+
+/** The picture that pops up when you hover a pin. */
+function previewElement(rep: Card, n: number): HTMLElement {
+  const box = document.createElement('div');
+  const im = new Image(); im.src = rep.img!; im.alt = ''; im.className = 'look-' + rep.look;
+  const t = document.createElement('b'); t.textContent = rep.title || 'Untitled';
+  const s = document.createElement('small');
+  s.textContent = [rep.place, n > 1 ? `${n} photos here` : ''].filter(Boolean).join(' · ');
+  box.append(im, t, s); return box;
 }
 
 function renderMap() {
@@ -110,7 +130,8 @@ function renderMap() {
     const f = focusCard();
     if (f && placed(f) && placeKey(f) === k) el.classList.add('sel');
     const m = L.marker([rep.lat!, rep.lng!], {
-      icon: L.divIcon({ html: el, className: '', iconSize: [56, 66], iconAnchor: [28, 66] }), title: rep.title });
+      icon: L.divIcon({ html: el, className: '', iconSize: [34, 44], iconAnchor: [17, 44] }) });
+    m.bindTooltip(previewElement(rep, g.length), { direction: 'top', offset: [0, -44], opacity: 1, className: 'ptip' });
     m.on('click', () => openCard(rep));
     markers.set(k, m); cluster.addLayer(m);
   });
@@ -419,7 +440,7 @@ function stopPinning() {
 }
 $('pinBtn').onclick = () => { if (cur) startPinning([cur]); };
 $('pinCancel').onclick = stopPinning;
-$('exactBtn').onclick = () => { if (cur && placed(cur)) { if (view !== 'map') setView('map'); flyTo(cur, 10); } };
+$('exactBtn').onclick = () => { if (cur && placed(cur)) { if (view !== 'map') setView('map'); flyTo(cur, 14); } };
 $('clearLoc').onclick = () => {
   if (!cur) return;
   cur.lat = cur.lng = null; cur.place = ''; fPlace.value = '';
