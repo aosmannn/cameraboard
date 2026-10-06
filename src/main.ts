@@ -12,7 +12,7 @@ import './style.css';
 import type { Card, Look } from './types';
 import { openStore, loadCards, saveCards } from './storage';
 import { blankCard, fillCard, normalize, cameraName, dayOf, timeOf, stampText, placeKey } from './photo';
-import { drawWorld, countryAt, THEMES, type ThemeName } from './world';
+import { drawWorld, countryAt, countryBounds, THEMES, type ThemeName } from './world';
 import { loadCities, searchPlaces, nameAt } from './atlas';
 import { initViewer, openViewer, closeViewer, viewerIsOpen } from './viewer';
 import { renderPoster } from './poster';
@@ -68,6 +68,7 @@ const placeName = (c: Card) => (c.place || '').split(',')[0].replace(/^Near /, '
 const fTitle = $<HTMLInputElement>('fTitle');
 const fStory = $<HTMLTextAreaElement>('fStory');
 const fDate = $<HTMLInputElement>('fDate');
+const fCamera = $<HTMLInputElement>('fCamera');
 const fPlace = $<HTMLInputElement>('fPlace');
 const fTripName = $<HTMLInputElement>('fTripName');
 const picker = $<HTMLInputElement>('picker');
@@ -148,8 +149,28 @@ function sizeClass() {
 }
 map.on('zoom zoomend', sizeClass); sizeClass();
 
+/** Click a country to outline it; click it again, the sea, or press Esc to clear. */
+let pickedCountry: string | null = null;
+function selectCountry(name: string | null) {
+  pickedCountry = name; world.highlight(name);
+  const chip = $('countryChip'); chip.hidden = !name;
+  if (!name) return;
+  const n = mapCards().filter(c => countryOf(c) === name).length;
+  $('countryText').textContent = `${name} · ${n} ${n === 1 ? 'photo' : 'photos'}`;
+}
+$('countryClear').onclick = () => selectCountry(null);
+$('countryFit').onclick = () => {
+  const b = pickedCountry && countryBounds(pickedCountry);
+  if (b) map.flyToBounds(b, { ...mapPadding(), maxZoom: 8, duration: 1 });
+};
+
 map.on('click', async e => {
-  if (!pinTargets.length) return;
+  if (!pinTargets.length) {
+    if (connecting || pl.on) return;
+    const hit = countryAt(e.latlng.lat, e.latlng.lng, true);
+    selectCountry(hit && hit !== pickedCountry ? hit : null);
+    return;
+  }
   const targets = pinTargets;
   for (const c of targets) { c.lat = e.latlng.lat; c.lng = e.latlng.lng; }
   stopPinning(); render(); locNote();
@@ -519,6 +540,7 @@ $('trayToggle').onclick = () => { trayOpen = !trayOpen; renderTray(); };
 // ---------- everything that depends on the cards ----------
 function render() {
   renderMap(); renderStrings(); renderStories(); renderFeed(); renderTray();
+  if (pickedCountry) selectCountry(pickedCountry);
   const dl = $('tripList'); dl.innerHTML = '';
   stories().forEach(s => dl.append(new Option(s.name)));
 }
@@ -606,7 +628,7 @@ function openCard(c: Card, fly = true) {
   const dImg = $<HTMLImageElement>('dImg'); dImg.src = c.img!; dImg.alt = c.title;
   $('photoBtn').style.setProperty('--rot', (c.rot / 2) + 'deg');
   fTitle.value = c.title; fStory.value = c.story; fDate.value = c.date; fPlace.value = c.place || '';
-  fTripName.value = c.trip;
+  fTripName.value = c.trip; fCamera.value = c.meta?.camera ?? '';
   $<HTMLInputElement>('coverBox').checked = c.cover;
   $<HTMLSelectElement>('lookSel').value = c.look; $<HTMLInputElement>('stampBox').checked = c.stamp;
   drawLike(); locNote(); buildSwatches(); drawLookAndStamp(c); drawShotOn(c); drawStoryNav(c); drawMeta(c);
@@ -664,6 +686,15 @@ fTitle.oninput = () => { if (cur) { cur.title = fTitle.value; saveSoon(); } };
 fTitle.onchange = () => { render(); markSelected(); };
 fStory.oninput = () => { if (cur) { cur.story = fStory.value; saveSoon(); } };
 fDate.oninput = () => { if (cur) { cur.date = fDate.value; saveSoon(); drawLookAndStamp(cur); drawMeta(cur); } };
+/** Photos sent through chat apps lose their camera details, so the camera can be typed in. */
+fCamera.oninput = () => {
+  if (!cur) return;
+  cur.meta = { ...(cur.meta || {}), camera: fCamera.value.trim() }; saveSoon(); drawShotOn(cur);
+};
+fCamera.onfocus = () => {
+  const dl = $('cameraList'); dl.innerHTML = '';
+  [...new Set(cards.map(cameraName).filter(n => n !== 'Unknown camera'))].forEach(n => dl.append(new Option(n)));
+};
 fTripName.onchange = () => {
   if (!cur) return;
   const v = fTripName.value.trim();
@@ -703,7 +734,7 @@ del.onclick = async () => {
 function locNote() {
   if (!cur) return;
   $('locNote').textContent = placed(cur) ? `Pinned at ${cur.lat!.toFixed(4)}, ${cur.lng!.toFixed(4)}`
-    : 'The DSC-V1 has no GPS. Search a city, or pin it on the map yourself.';
+    : 'This photo has no GPS. Search a city, or pin it on the map yourself.';
 }
 /** Names a point from the map's own city list, so nothing is sent to an outside service. */
 async function reverse(lat: number, lng: number): Promise<string> {
@@ -825,6 +856,7 @@ document.addEventListener('keydown', e => {
   else if (!$('posterModal').hidden) $('posterModal').hidden = true;
   else if (viewerIsOpen()) closeViewer();
   else if (pinTargets.length) stopPinning();
+  else if (pickedCountry) selectCountry(null);
   else if (connecting) stopConnect();
   else if (pl.on) stopPlay();
   else if (!$('drawer').hidden) closeDrawer();

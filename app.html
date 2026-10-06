@@ -57,6 +57,11 @@
   <button id="inviteSignIn" class="btn small primary">Sign in to follow</button>
   <button id="inviteDismiss" class="btn small" aria-label="Dismiss">✕</button>
 </div>
+<div id="countryChip" class="banner country-chip" hidden>
+  <span id="countryText"></span>
+  <button id="countryFit" class="btn small">Zoom to fit</button>
+  <button id="countryClear" class="btn small" aria-label="Clear">✕</button>
+</div>
 <div id="connectBar" class="banner" hidden>
   <span id="connectText"></span>
   <button id="connectDone" class="btn small primary">Done</button>
@@ -161,8 +166,10 @@
     </details>
 
     <details class="fold">
-      <summary>Date and file</summary>
-      <label class="field">Date taken <input id="fDate" type="datetime-local" class="plain"></label>
+      <summary>Camera, date and file</summary>
+      <label class="field">Camera <input id="fCamera" list="cameraList" class="plain" placeholder="e.g. Sony Cyber-shot DSC-V1" autocomplete="off"></label>
+      <datalist id="cameraList"></datalist>
+            <label class="field">Date taken <input id="fDate" type="datetime-local" class="plain"></label>
       <dl id="meta" class="meta"></dl>
     </details>
     </div>
