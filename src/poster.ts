@@ -56,6 +56,21 @@ export async function renderPoster(cv: HTMLCanvasElement, cards: Card[], title: 
     }
   }
 
+  // red string between the stops of each story, under the polaroids
+  const byStory = new Map<string, Card[]>();
+  for (const c of cards) if (c.trip && c.img && c.lat != null) (byStory.get(c.trip) ?? byStory.set(c.trip, []).get(c.trip)!).push(c);
+  ctx.save(); ctx.lineCap = 'round'; ctx.strokeStyle = '#b3242c'; ctx.lineWidth = 5;
+  ctx.shadowColor = 'rgba(0,0,0,.25)'; ctx.shadowOffsetY = 4; ctx.shadowBlur = 4;
+  for (const list of byStory.values()) {
+    list.sort((a, b) => a.seq - b.seq);
+    for (let i = 1; i < list.length; i++) {
+      const ax = px(list[i - 1].lng!), ay = py(list[i - 1].lat!), bx = px(list[i].lng!), by = py(list[i].lat!);
+      const sag = Math.min(Math.hypot(bx - ax, by - ay) * 0.2, 260);
+      ctx.beginPath(); ctx.moveTo(ax, ay); ctx.quadraticCurveTo((ax + bx) / 2, (ay + by) / 2 + sag, bx, by); ctx.stroke();
+    }
+  }
+  ctx.restore();
+
   const imgs = await Promise.all(spots.map(s => loadImg(s.rep.img!)));
   ctx.lineWidth = 3; ctx.strokeStyle = '#e4572e';
   for (const s of spots) {

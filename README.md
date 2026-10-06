@@ -10,28 +10,15 @@ Built for photos from a Sony Cyber-shot DSC-V1, and it works with any camera.
 
 ## What it does
 
-- **A map we draw ourselves, from our own data.** No map service is used. Zoomed out you see every country in its own colour on a blue ocean, with country names, big cities and seas. Zoom in and states and provinces appear for the whole world, then more cities, and counties across the US, each with names that never overlap.
-- **Jump to the exact spot.** Opening a photo flies to its location, and "Zoom to exact spot" goes in much closer (you can zoom to level 16). The pin always sits at the exact coordinates.
-- **Works offline.** Place search and naming a pin both use the built-in list of 7,300 cities, so nothing is sent anywhere.
-- **Real map pins.** Each place gets a pin, with a count when several photos share it. Hover a pin to see its picture, click it to open the card, and zoom in close and the pin's head shows the photo itself. Nearby pins group into a numbered circle that splits apart as you zoom.
-- **Cards with the full story.** Click a pin to open its card: the photo, a title, a like button, the story behind the shot, the date, camera details and where it was taken.
-- **Zoom into the photo.** Open any photo at full size, then scroll or pinch to zoom and drag to pan.
-- **Board view.** Switch tabs to see the same photos as polaroids pinned to a cork board.
-- **Reads your photo details.** Date, exposure, aperture, ISO and focal length come from the photo's EXIF data. GPS is used when the photo has it.
-- **Easy placing.** The DSC-V1 has no GPS, so search a city (suggestions appear as you type) or click "Pin on map" and click where the photo was taken.
-- **Add many at once.** Pick several photos and they fill the board.
-- **Timeline playback.** Press play and the map flies from photo to photo in date order.
-- **Several photos per place.** Photos in the same spot share one pin with a count. Flip through them in the side panel, and choose which one is the cover.
-- **Trips.** Give photos a trip name and filter the map to one trip.
-- **Search and filters.** Find photos by words, trip, camera, country or date range. The map, board, playback and poster all follow the filters.
-- **Custom pins.** Pick a pin colour and an icon for each place.
-- **Four map themes.** Classic, Vintage, Night and Ocean.
-- **Countries photographed.** Countries you have photos in light up, with a running count and a Stats page.
-- **Shot on.** Each card shows the camera, exposure, aperture, ISO and focal length. The Stats page counts photos per camera.
-- **Retro look.** Early digicam, warm film or black and white filters, plus an optional date stamp in the corner like old digital cameras.
-- **Place me queue.** Photos with no location are listed by day. Drop a whole day on one place, or use the suggestion from the nearest photo in time.
-- **Poster export.** Download a printable PNG of your map with polaroids of your photos.
-- **Backup.** Export your board to a file and import it again.
+- **Your photos, pinned to a world map.** Every photo hangs from a push pin like a polaroid on a wall. The pin's point is the exact spot it was taken.
+- **Stories with red string.** Start a story, then click photos in the order you went. A red string joins them, so a trip reads like a board on the wall: Atlanta → Barcelona → Madrid → Chongqing. Reorder stops, rename or delete a story at any time.
+- **Play a story.** The map flies from stop to stop and the string draws itself as you go.
+- **A map we draw ourselves, from our own data.** No map service is used. Zoomed out you see countries, big cities and seas. Zoom in and states and provinces appear for the whole world, then more cities, and counties across the US, with names that never overlap. Three styles: Paper, Atlas and Night.
+- **Photo cards.** Open a photo for its title, what happened, the date, its place in the story, likes, and the camera details (model, exposure, aperture, ISO, focal length) read from the file.
+- **Photos without GPS.** The DSC-V1 has no GPS, so photos not on the map yet wait in a tray, grouped by day. Put a whole day at the place of the nearest photo in time, search a city (works offline), or click the map.
+- **Retro look.** Early digicam, warm film or black and white, plus an optional date stamp in the corner.
+- **Poster.** Download a printable PNG of a story or all your photos, string included.
+- **Backup.** Export to a file and import it again.
 
 ## How it works
 
@@ -64,14 +51,12 @@ Built with TypeScript, Vite and [Leaflet](https://leafletjs.com) (used only to m
 
 | File | Job |
 | --- | --- |
-| `src/main.ts` | The app: map, side panel, board view, upload and location flow |
+| `src/main.ts` | The app: polaroids, stories and string, photo panel, upload and location flow |
 | `src/world.ts` | The coloured world map: countries, states, counties, themes, and finding which country a point is in |
 | `src/labels.ts` | Draws place names without overlaps |
 | `src/atlas.ts` | Loads the map data; offline city search and naming |
 | `src/photo.ts` | Reads a photo: shrinks it, pulls EXIF, builds a card |
 | `src/viewer.ts` | The full-size zoom and pan viewer |
-| `src/filters.ts` | Search and filter rules |
-| `src/stats.ts` | The Stats page |
 | `src/poster.ts` | The poster image |
 | `src/storage.ts` | Saving and loading in IndexedDB |
 | `src/types.ts` | The shape of a card |
@@ -96,8 +81,8 @@ Not included: streets and buildings. That level of detail needs OpenStreetMap-si
 
 ## Roadmap
 
-- [ ] Shared board so friends see the same photos and likes (a backend such as Supabase)
-- [ ] Sign-in, so each person's likes and uploads are theirs
+- [ ] Sign up with a phone number
+- [ ] Find friends from your contacts and see their stories
 
 ## Credits
 

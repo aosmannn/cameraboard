@@ -6,19 +6,18 @@ import topo from 'world-atlas/countries-50m.json';
 import { loadAdmin1, loadCounties, loadCities } from './atlas';
 import { Labels, type Item } from './labels';
 
-export type ThemeName = 'classic' | 'vintage' | 'night' | 'ocean';
+export type ThemeName = 'paper' | 'atlas' | 'night';
 export interface Theme {
   name: string; ocean: string; border: string; sea: string; label: string; halo: string; fills: string[];
 }
 export const THEMES: Record<ThemeName, Theme> = {
-  classic: { name: 'Classic', ocean: '#bde3f6', border: '#ffffff', sea: '#3f7fb0', label: '#2b2b2b', halo: '#ffffff',
+  // a printed paper map, pinned to the board
+  paper: { name: 'Paper', ocean: '#bcd3d6', border: '#fbf6ea', sea: '#55777f', label: '#3a3226', halo: '#f7f0e1',
+    fills: ['#eadfc4', '#dccba6', '#d2dab8', '#e8cdb0', '#dbd0b8', '#c9d5c1', '#efdcbd', '#d8c7a2'] },
+  atlas: { name: 'Atlas', ocean: '#bde3f6', border: '#ffffff', sea: '#3f7fb0', label: '#2b2b2b', halo: '#ffffff',
     fills: ['#f5a9a2', '#f7d56e', '#a4d8a4', '#f3b774', '#bba8e0', '#93d2da', '#eba8cb', '#cddf90'] },
-  vintage: { name: 'Vintage', ocean: '#cfc29b', border: '#f3ead2', sea: '#7a6a45', label: '#4a3c26', halo: '#efe3c3',
-    fills: ['#dcbf90', '#cba96f', '#bdb788', '#d7ab8e', '#c3a782', '#cbb980', '#dcc59b', '#bd9f77'] },
-  night: { name: 'Night', ocean: '#10202b', border: '#0b141b', sea: '#5b8fb3', label: '#e9e7e0', halo: '#10202b',
-    fills: ['#8a5a57', '#8a7b3f', '#4f7b53', '#8a6a42', '#6a5c8c', '#4a7a80', '#85536c', '#76854a'] },
-  ocean: { name: 'Ocean', ocean: '#0e4a73', border: '#0a3b5c', sea: '#a9d8f2', label: '#0b2a40', halo: '#d7eefb',
-    fills: ['#4f9fc9', '#bfe3f6', '#2a8fbd', '#7fc8e8', '#9ad1ea', '#3a8fc0', '#a8d9ee', '#5aa9d6'] }
+  night: { name: 'Night', ocean: '#121b22', border: '#0a1015', sea: '#6d8ea3', label: '#e6e1d6', halo: '#121b22',
+    fills: ['#3b3f3a', '#423d34', '#363f3c', '#433a37', '#3c3a42', '#353f42', '#45403a', '#3e4236'] }
 };
 
 // name, lat, lng, min zoom, max zoom
@@ -166,10 +165,6 @@ const cityZoom = (pop: number) => pop >= 8e6 ? 3 : pop >= 3e6 ? 4 : pop >= 1e6 ?
 const cityFont = (pop: number) => pop >= 5e6 ? 14 : pop >= 1e6 ? 13 : 12;
 const areaZoom = (a: number, z: number[]) => a > z[0] ? 3 : a > z[1] ? 4 : a > z[2] ? 5 : a > z[3] ? 6 : 7;
 
-export interface World {
-  setTheme(t: ThemeName): void;
-  setVisited(names: Set<string> | null): void;
-}
 
 export function drawWorld(map: L.Map, initial: ThemeName): World {
   let T = THEMES[initial];
@@ -186,6 +181,7 @@ export function drawWorld(map: L.Map, initial: ThemeName): World {
     map.createPane(name).style.zIndex = String(z);
 
   // ---- countries ----
+  const countryRenderer = L.canvas({ pane: 'worldPane' });
   const style = (f?: any): L.PathOptions => {
     const lit = !visited || !visited.size || visited.has(f.properties.name);
     return { fillColor: T.fills[f.properties.ci % T.fills.length], fillOpacity: lit ? 1 : 0.5,
@@ -193,7 +189,7 @@ export function drawWorld(map: L.Map, initial: ThemeName): World {
   };
   const countryLabels: Item[] = [];
   const world: L.GeoJSON = L.geoJSON(fc, {
-    pane: 'worldPane', renderer: L.canvas({ pane: 'worldPane' }),
+    pane: 'worldPane', renderer: countryRenderer,
     filter: f => f.properties?.name !== 'Antarctica',
     style,
     onEachFeature: (f, layer) => {
@@ -259,6 +255,14 @@ export function drawWorld(map: L.Map, initial: ThemeName): World {
     want(states, z >= STATES_FROM); want(counties, z >= COUNTIES_FROM);
   }
   map.on('zoomend', sync);
+  // During a fly-to, Leaflet only scales the last drawing, so zooming out leaves blank land.
+  // Redraw the countries every frame and park the heavier state and county layers until it lands.
+  map.on('zoom', () => {
+    if (!(map as any)._flyToFrame) return;
+    if (states && map.hasLayer(states)) map.removeLayer(states);
+    if (counties && map.hasLayer(counties)) map.removeLayer(counties);
+    (countryRenderer as any)._reset();
+  });
 
   const restyle = () => {
     world.options.style = style; world.setStyle(style);
