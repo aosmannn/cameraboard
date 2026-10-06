@@ -19,6 +19,7 @@ Made for photos from old cameras with no GPS, such as point-and-shoots, early di
 - **Retro look.** Early digicam, warm film or black and white, plus an optional date stamp in the corner.
 - **Poster.** Download a printable PNG of a story or all your photos, string included.
 - **Friends feed.** A "Friends" tab in the left panel lists photos the people you follow chose to share, newest first. Like them, tap a name to see a profile, or press "Show on map" to fly to the spot and light up that story's string.
+- **You choose who sees what.** Every photo and story is Private (only you), Friends (people who follow you) or Public (anyone with your link, no account needed). The default is Private. Someone who opens your invite link can look at your public stories right away and sign in to follow you.
 - **Accounts and friends (optional).** Sign in with your email and a code we send you. Your photos are saved to your account and come back on any device. Pick a name, and optionally a username. You are invisible to search until you turn on "Let people find me by username". Everyone gets a private invite link and QR code that works even when search is off, and friends can also be found by email. Follow people to see the stories they chose to share on your map in blue string. Likes are real and shared. You can block and report people.
 - **Backup.** Export to a file and import it again.
 
@@ -87,11 +88,11 @@ Sharing the site with people:
 
 - **Vercel must not ask visitors to sign in to Vercel.** In the Vercel project: Settings → Deployment Protection → turn **Vercel Authentication** off (or set it to protect only preview deployments). Branch and preview addresses like `cameraboard-xxxx-yourteam.vercel.app` are protected by default, which is what shows "Log in to Vercel".
 - **Use one public address for invite links.** Set `VITE_PUBLIC_URL` to your production address (for example `https://cameraboard-xi.vercel.app`) under Vercel → Settings → Environment Variables, then redeploy. Invite links and QR codes then always use it, even if you copy them from a preview page.
-- **What a visitor sees without signing in:** the app itself (they can add photos and make stories on their own device), and on an invite link, the name of the person who invited them. Photos and stories are only visible to people who sign in and follow.
+- **What a visitor sees without signing in:** the app itself (they can add photos and make stories on their own device), and on an invite link, the name of the person who invited them plus that person's Public stories. Friends-only and Private photos need a sign-in and a follow.
 
 How privacy works:
 
-- Every table has row level security. You see your own photos, plus photos that people you follow marked as shared.
+- Every table has row level security. You see your own photos, plus photos that people you follow set to Friends or Public. Signed-out visitors can only fetch a person's Public photos, through their invite link, and can open only those images.
 - Nobody can be found by username unless they turned that on, and they need a username first. Searches are limited to 30 a minute.
 - Other people's profile rows can't be read directly. Names and usernames come through database functions that only reveal a username to people who chose to be discoverable.
 - Invite links use a random code, so they work without a username. Make a new link and the old one stops working.

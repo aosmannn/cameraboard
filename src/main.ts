@@ -39,6 +39,14 @@ let query = '';
 let signedIn = false;
 let friends: cloud.Person[] = [];
 let friendCards: Card[] = [];
+let extraCards: Card[] = [];                 // public photos from someone you don't follow, or a guest's view
+const ownerNames = new Map<string, string>(); // names for people we only know from their public photos
+let guestMode = false;                        // looking at someone's public stories without an account
+const VIS_TEXT: Record<Card['visibility'], string> = {
+  private: 'Only you can see it.',
+  friends: 'People who follow you can see it.',
+  public: 'Anyone with your link can see it, even without an account.'
+};
 let showFriends = lsGet('wf-friends') !== '0';
 const likeCache = new Map<string, { n: number; mine: boolean }>();
 const FRIEND_YARN = '#2f5fb3';
@@ -88,10 +96,13 @@ function visible(c: Card) {
   return query.toLowerCase().split(/\s+/).every(w => hay.includes(w));
 }
 const visiblePlaced = () => cards.filter(c => placed(c) && visible(c));
-const isFriendCard = (c: Card) => friendCards.includes(c);
-const nameOf = (id: string) => { const f = friends.find(x => x.id === id); return f ? cloud.labelOf(f) : 'A friend'; };
+/** Photos by other people that are on screen: friends' shared photos plus any public ones being viewed. */
+const others = () => (extraCards.length ? [...friendCards, ...extraCards.filter(x => !friendCards.some(f => f.id === x.id))] : friendCards);
+const isFriendCard = (c: Card) => friendCards.includes(c) || extraCards.includes(c);
+const nameOf = (id: string) => { const f = friends.find(x => x.id === id); return f ? cloud.labelOf(f) : ownerNames.get(id) || 'A friend'; };
 /** Everything on the map: your photos, plus friends' shared photos when shown. */
-const mapCards = () => [...visiblePlaced(), ...(signedIn && showFriends ? friendCards.filter(c => placed(c) && visible(c)) : [])];
+const showOthers = () => (signedIn || guestMode) && showFriends;
+const mapCards = () => [...visiblePlaced(), ...(showOthers() ? others().filter(c => placed(c) && visible(c)) : [])];
 /** Friends' photos never share a pin with yours. */
 const keyOf = (c: Card) => (isFriendCard(c) ? 'f:' + c.owner + ':' : '') + placeKey(c);
 /** Photos at the same spot as `c`, oldest first. */
@@ -109,14 +120,14 @@ function stories(): Story[] {
 const storyOf = (name: string) => stories().find(s => s.name === name)?.cards ?? [];
 /** Friends' stories, one per person and story name. */
 function friendStories(): (Story & { owner: string })[] {
-  if (!signedIn || !showFriends) return [];
+  if (!showOthers()) return [];
   const m = new Map<string, Card[]>();
-  for (const c of friendCards) if (c.trip) { const k = c.owner + '\u0000' + c.trip; (m.get(k) ?? m.set(k, []).get(k)!).push(c); }
+  for (const c of others()) if (c.trip) { const k = c.owner + '\u0000' + c.trip; (m.get(k) ?? m.set(k, []).get(k)!).push(c); }
   return [...m.values()].map(cs => ({ name: cs[0].trip, owner: cs[0].owner, cards: cs.sort((a, b) => a.seq - b.seq || byDate(a, b)) }));
 }
 /** The story a photo belongs to, yours or a friend's. */
 const storyListOf = (c: Card) => !c.trip ? [] : isFriendCard(c)
-  ? friendCards.filter(x => x.owner === c.owner && x.trip === c.trip).sort((a, b) => a.seq - b.seq || byDate(a, b))
+  ? others().filter(x => x.owner === c.owner && x.trip === c.trip).sort((a, b) => a.seq - b.seq || byDate(a, b))
   : storyOf(c.trip);
 function addToStory(c: Card, name: string) {
   if (c.trip === name) return;
@@ -221,7 +232,7 @@ function renderMap() {
     });
     markers.set(k, m); photos.addLayer(m);
   });
-  $('empty').hidden = cards.some(c => c.img);
+  $('empty').hidden = cards.some(c => c.img) || (showOthers() && others().length > 0);
 }
 function markSelected() {
   const f = focusCard(), key = f && placed(f) ? keyOf(f) : '';
@@ -321,10 +332,13 @@ function renderStories() {
     const add = el('button', 'btn small', connecting === s.name ? 'Adding…' : 'Add stops'); add.onclick = () => startConnect(s.name);
     actions.append(play, add);
     if (signedIn) {
-      const all = s.cards.every(c => c.shared);
-      const sh = el('button', 'btn small' + (all ? ' on' : ''), all ? 'Shared with friends' : 'Share with friends');
-      sh.onclick = () => { s.cards.forEach(c => { c.shared = !all; }); save(); render(); };
-      actions.append(sh);
+      const vis = el('select', 'st-vis') as HTMLSelectElement;
+      vis.setAttribute('aria-label', `Who can see ${s.name}`);
+      const levels = new Set(s.cards.map(c => c.visibility));
+      for (const [v, label] of [['private', 'Private'], ['friends', 'Friends'], ['public', 'Public']] as const) vis.append(new Option(label, v));
+      if (levels.size > 1) { vis.prepend(new Option('Mixed', 'mixed')); vis.value = 'mixed'; } else vis.value = [...levels][0];
+      vis.onchange = () => { if (vis.value === 'mixed') return; s.cards.forEach(c => { c.visibility = vis.value as Card['visibility']; }); save(); render(); };
+      actions.append(vis);
     }
     item.append(actions);
     if (on) item.append(storyEditor(s));
@@ -624,7 +638,7 @@ function openCard(c: Card, fly = true) {
   $('drawer').classList.toggle('ro', ro);
   fTitle.readOnly = ro; fStory.readOnly = ro;
   $('dOwner').hidden = !ro; $('dOwner').textContent = ro ? 'Shared by ' + nameOf(c.owner) : '';
-  $('shareRow').hidden = !signedIn || ro; $<HTMLInputElement>('shareBox').checked = c.shared;
+  $('shareRow').hidden = !signedIn || ro; $<HTMLSelectElement>('visSel').value = c.visibility; drawVis(c);
   const dImg = $<HTMLImageElement>('dImg'); dImg.src = c.img!; dImg.alt = c.title;
   $('photoBtn').style.setProperty('--rot', (c.rot / 2) + 'deg');
   fTitle.value = c.title; fStory.value = c.story; fDate.value = c.date; fPlace.value = c.place || '';
@@ -670,6 +684,7 @@ function drawLike() {
 }
 $('likeBtn').onclick = async () => {
   if (!cur) return;
+  if (isFriendCard(cur) && !signedIn) { openAcct(); return; }
   if (cloudLike(cur)) {
     const c = cur, v = { ...(likeCache.get(c.id) ?? { n: 0, mine: false }) };
     v.mine = !v.mine; v.n = Math.max(0, v.n + (v.mine ? 1 : -1)); likeCache.set(c.id, v); drawLike();
@@ -679,8 +694,18 @@ $('likeBtn').onclick = async () => {
   cur.liked = !cur.liked; cur.likes = Math.max(0, cur.likes + (cur.liked ? 1 : -1));
   drawLike(); await save();
 };
-$<HTMLInputElement>('shareBox').onchange = e => {
-  if (!cur) return; cur.shared = (e.target as HTMLInputElement).checked; save(); renderStories();
+function drawVis(c: Card) {
+  $('visHint').textContent = VIS_TEXT[c.visibility];
+  $('copyPublic').hidden = c.visibility !== 'public' || !me;
+}
+$<HTMLSelectElement>('visSel').onchange = e => {
+  if (!cur) return; cur.visibility = (e.target as HTMLSelectElement).value as Card['visibility']; save(); drawVis(cur); renderStories();
+};
+$('copyPublic').onclick = async () => {
+  if (!me) return;
+  const link = cloud.inviteLink(me.invite_code);
+  try { await navigator.clipboard.writeText(link); $('copyPublic').textContent = 'Link copied'; } catch { $('copyPublic').textContent = link; }
+  setTimeout(() => { $('copyPublic').textContent = 'Copy my public link'; }, 2500);
 };
 fTitle.oninput = () => { if (cur) { cur.title = fTitle.value; saveSoon(); } };
 fTitle.onchange = () => { render(); markSelected(); };
@@ -1061,18 +1086,33 @@ async function openProfile(who: { id?: string; handle?: string; code?: string })
   fb.onclick = async () => {
     try {
       if (followingIds().has(prof.id)) await cloud.unfollow(prof.id); else await cloud.follow(prof.id);
-      await refreshFriends(); paint(); drawProfileStories(prof, mine);
+      await refreshFriends(); paint(); void drawProfileStories(prof, mine);
     } catch (err) { $('pfStories').textContent = 'Couldn’t update that: ' + (err as Error).message; }
   };
-  drawProfileStories(prof, mine);
+  void drawProfileStories(prof, mine);
 }
-function drawProfileStories(prof: cloud.Profile, mine: boolean) {
+async function drawProfileStories(prof: cloud.Profile, mine: boolean) {
   const box = $('pfStories'); box.innerHTML = '';
-  if (!mine && !followingIds().has(prof.id)) { box.append(el('p', 'hint', `Follow ${cloud.labelOf(prof)} to see the stories they choose to share.`)); return; }
-  const list = mine
-    ? stories().filter(s => s.cards.some(c => c.shared)).map(s => ({ ...s, owner: prof.id, cards: s.cards.filter(c => c.shared) }))
-    : friendStories().filter(s => s.owner === prof.id);
-  if (!list.length) { box.append(el('p', 'hint', mine ? 'You haven’t shared a story yet. Turn on “Share with friends” on a story.' : 'Nothing shared yet.')); return; }
+  const following = followingIds().has(prof.id);
+  let list: { name: string; owner: string; cards: Card[] }[];
+  if (mine) {
+    list = stories().map(s => ({ ...s, owner: prof.id, cards: s.cards.filter(c => c.visibility !== 'private') })).filter(s => s.cards.length);
+  } else if (following) {
+    list = friendStories().filter(s => s.owner === prof.id);
+  } else {
+    // not following: only what they've made public
+    try {
+      const pub = await cloud.publicPhotos({ id: prof.id });
+      pub.owners.forEach((n, id) => ownerNames.set(id, n));
+      extraCards = [...extraCards.filter(c => c.owner !== prof.id), ...pub.cards]; render();
+      const m2 = new Map<string, Card[]>();
+      for (const c of pub.cards) if (c.trip) (m2.get(c.trip) ?? m2.set(c.trip, []).get(c.trip)!).push(c);
+      list = [...m2.entries()].map(([name, cs]) => ({ name, owner: prof.id, cards: cs.sort((a, b) => a.seq - b.seq) }));
+    } catch { list = []; }
+    if (!list.length) { box.append(el('p', 'hint', `${cloud.labelOf(prof)} hasn’t made any stories public. Follow them to see what they share with friends.`)); return; }
+    box.append(el('p', 'hint', 'Public stories. Follow to see what they share with friends too.'));
+  }
+  if (!list.length) { box.append(el('p', 'hint', mine ? 'Nothing shared yet. Set a story to Friends or Public.' : 'Nothing shared yet.')); return; }
   for (const s of list) {
     const item = el('article', 'story friend');
     item.append(el('span', 'st-name', s.name), el('span', 'st-sub', `${s.cards.length} ${s.cards.length === 1 ? 'stop' : 'stops'}`));
@@ -1118,24 +1158,43 @@ async function refreshFriends() {
 }
 /** An invite link like /app.html?add=CODE opens that person's profile once you're signed in. */
 let pendingAdd = new URLSearchParams(location.search).get('add');
-/** Visitors who aren't signed in see who invited them, and can use the app as a guest. */
+/** Visitors who aren't signed in see who invited them, can view that person's public stories, and can use the app as a guest. */
+let inviteCode: string | null = null;
 async function showInviteBanner() {
   if (!pendingAdd || signedIn || !cloud.cloudEnabled) return;
-  const name = await cloud.invitePreview(pendingAdd).catch(() => null);
+  inviteCode = pendingAdd;
+  const name = await cloud.invitePreview(inviteCode).catch(() => null);
   if (!name || signedIn) return;
-  $('inviteText').textContent = `${name} invited you to Wayframe. Sign in to follow them and see what they share.`;
+  const pub = await cloud.publicPhotos({ code: inviteCode }).catch(() => null);
+  const has = !!pub?.cards.length;
+  $('inviteText').textContent = has
+    ? `${name} invited you to Wayframe. You can look at their public stories now, or sign in to follow them.`
+    : `${name} invited you to Wayframe. Sign in to follow them and see what they share.`;
+  $('inviteView').hidden = !has;
+  $('inviteView').onclick = () => {
+    if (!pub) return;
+    pub.owners.forEach((n, id) => ownerNames.set(id, n));
+    extraCards = pub.cards; guestMode = true; $('inviteBanner').hidden = true;
+    $('guestText').textContent = `Viewing ${name}’s public stories`; $('guestBar').hidden = false;
+    $('stories').hidden = false; $('storiesShow').hidden = true;
+    render();
+    const first = friendStories()[0];
+    if (first) fitCards(first.cards, 6); else fitCards(pub.cards, 6);
+  };
   $('inviteBanner').hidden = false;
 }
+$('guestSignIn').onclick = () => { openAcct(); };
+$('guestClose').onclick = () => { guestMode = false; extraCards = []; $('guestBar').hidden = true; hl = null; render(); };
 $('inviteSignIn').onclick = () => { $('inviteBanner').hidden = true; openAcct(); };
 $('inviteDismiss').onclick = () => { $('inviteBanner').hidden = true; };
 async function onAuth(s: boolean) {
   signedIn = s;
   if (!s) {
-    me = null; friends = []; followers = []; friendCards = []; blocked = new Set(); likeCache.clear(); hl = null; setPanelTab('stories');
+    me = null; friends = []; followers = []; friendCards = []; extraCards = []; blocked = new Set(); likeCache.clear(); hl = null; setPanelTab('stories');
     $('phoneForm').hidden = false; $('codeForm').hidden = true;
     renderAcct(); render(); return;
   }
-  $('acctModal').hidden = true; $('inviteBanner').hidden = true;
+  $('acctModal').hidden = true; $('inviteBanner').hidden = true; $('guestBar').hidden = true; guestMode = false; extraCards = [];
   renderAcct();
   me = await cloud.myProfile().catch(() => null);
   fillProfileForm(); renderAcct(); renderInvite();
