@@ -18,6 +18,7 @@ Built for photos from a Sony Cyber-shot DSC-V1, and it works with any camera.
 - **Photos without GPS.** The DSC-V1 has no GPS, so photos not on the map yet wait in a tray, grouped by day. Put a whole day at the place of the nearest photo in time, search a city (works offline), or click the map.
 - **Retro look.** Early digicam, warm film or black and white, plus an optional date stamp in the corner.
 - **Poster.** Download a printable PNG of a story or all your photos, string included.
+- **Friends feed.** A "Friends" tab in the left panel lists photos the people you follow chose to share, newest first. Like them, tap a name to see a profile, or press "Show on map" to fly to the spot and light up that story's string.
 - **Accounts and friends (optional).** Sign in with your email and a 6-digit code. Your photos are saved to your account and come back on any device. Pick a name, and optionally a username. You are invisible to search until you turn on "Let people find me by username". Everyone gets a private invite link and QR code that works even when search is off, and friends can also be found by email. Follow people to see the stories they chose to share on your map in blue string. Likes are real and shared. You can block and report people.
 - **Backup.** Export to a file and import it again.
 
@@ -108,7 +109,6 @@ Not included: streets and buildings. That level of detail needs OpenStreetMap-si
 
 ## Roadmap
 
-- [ ] A feed of friends' photos
 - [ ] Comments on friends' photos
 - [ ] Approve followers before they see your shared photos
 
