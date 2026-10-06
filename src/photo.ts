@@ -5,8 +5,12 @@ export const PINS = ['#d6453d', '#2f7dd1', '#2e9e5b', '#e8b422', '#8e44ad'];
 
 export const blankCard = (i: number): Card => ({
   id: crypto.randomUUID(), rot: +(Math.random() * 6 - 3).toFixed(1), pin: PINS[i % PINS.length],
-  img: null, title: '', story: '', date: '', likes: 0, liked: false, meta: {}, lat: null, lng: null, place: ''
+  img: null, title: '', story: '', date: '', likes: 0, liked: false, meta: {}, lat: null, lng: null, place: '',
+  trip: '', pinColor: '', pinIcon: '', cover: false, look: 'none', stamp: false
 });
+
+/** Fills in fields that older saved boards don't have. */
+export const normalize = (c: Partial<Card>, i: number): Card => ({ ...blankCard(i), ...c });
 
 const fmtExposure = (t?: number) => !t ? '' : t >= 1 ? t + ' s' : '1/' + Math.round(1 / t) + ' s';
 
@@ -49,3 +53,18 @@ export async function fillCard(c: Card, f: File): Promise<void> {
   if (ex.latitude != null) { c.lat = ex.latitude; c.lng = ex.longitude; c.place = c.place || 'From photo GPS'; }
   if (!c.title) c.title = f.name.replace(/\.[^.]+$/, '');
 }
+
+export const cameraName = (c: Card) => c.meta?.camera?.trim() || 'Unknown camera';
+export const dayOf = (c: Card) => c.date ? c.date.slice(0, 10) : '';
+export const timeOf = (c: Card) => c.date ? new Date(c.date).getTime() : 0;
+
+/** Old digicams burned the date into the corner, like  '26 10 06 */
+export function stampText(c: Card): string {
+  if (!c.date) return '';
+  const d = new Date(c.date);
+  const p = (n: number) => String(n).padStart(2, '0');
+  return `'${String(d.getFullYear()).slice(2)} ${p(d.getMonth() + 1)} ${p(d.getDate())}`;
+}
+
+/** Two cards are "at the same place" when they fall in the same ~1 km grid cell. */
+export const placeKey = (c: Card) => `${c.lat!.toFixed(2)},${c.lng!.toFixed(2)}`;

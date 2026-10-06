@@ -19,7 +19,7 @@ const centre = (): [number, number] => [vw.clientWidth / 2, vw.clientHeight / 2]
 
 export const viewerIsOpen = () => !vw.hidden;
 export const closeViewer = () => { vw.hidden = true; };
-export function openViewer(src: string) { vw.hidden = false; img.src = src; if (img.complete) fit(); }
+export function openViewer(src: string, look = '') { vw.hidden = false; img.className = look; img.src = src; if (img.complete) fit(); }
 
 export function initViewer() {
   const $ = (id: string) => document.getElementById(id)!;

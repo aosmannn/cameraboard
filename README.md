@@ -18,6 +18,17 @@ Built for photos from a Sony Cyber-shot DSC-V1, and it works with any camera.
 - **Reads your photo details.** Date, exposure, aperture, ISO and focal length come from the photo's EXIF data. GPS is used when the photo has it.
 - **Easy placing.** The DSC-V1 has no GPS, so search a place name or click "Pin on map" and click where the photo was taken.
 - **Add many at once.** Pick several photos and they fill the board.
+- **Timeline playback.** Press play and the map flies from photo to photo in date order.
+- **Several photos per place.** Photos in the same spot share one pin with a count. Flip through them in the side panel, and choose which one is the cover.
+- **Trips.** Give photos a trip name and filter the map to one trip.
+- **Search and filters.** Find photos by words, trip, camera, country or date range. The map, board, playback and poster all follow the filters.
+- **Custom pins.** Pick a pin colour and an icon for each place.
+- **Four map themes.** Classic, Vintage, Night and Ocean.
+- **Countries photographed.** Countries you have photos in light up, with a running count and a Stats page.
+- **Shot on.** Each card shows the camera, exposure, aperture, ISO and focal length. The Stats page counts photos per camera.
+- **Retro look.** Early digicam, warm film or black and white filters, plus an optional date stamp in the corner like old digital cameras.
+- **Place me queue.** Photos with no location are listed by day. Drop a whole day on one place, or use the suggestion from the nearest photo in time.
+- **Poster export.** Download a printable PNG of your map with polaroids of your photos.
 - **Backup.** Export your board to a file and import it again.
 
 ## How it works
@@ -52,9 +63,12 @@ Built with TypeScript, Vite and [Leaflet](https://leafletjs.com). The world shap
 | File | Job |
 | --- | --- |
 | `src/main.ts` | The app: map, side panel, board view, upload and location flow |
-| `src/world.ts` | The coloured world map, country, city and ocean labels |
+| `src/world.ts` | The coloured world map, themes, labels, and finding which country a point is in |
 | `src/photo.ts` | Reads a photo: shrinks it, pulls EXIF, builds a card |
 | `src/viewer.ts` | The full-size zoom and pan viewer |
+| `src/filters.ts` | Search and filter rules |
+| `src/stats.ts` | The Stats page |
+| `src/poster.ts` | The poster image |
 | `src/storage.ts` | Saving and loading in IndexedDB |
 | `src/types.ts` | The shape of a card |
 | `src/style.css` | All the styling |
@@ -67,7 +81,6 @@ Don't commit to `main`. Each person works on their own branch and opens a pull r
 
 - [ ] Shared board so friends see the same photos and likes (a backend such as Supabase)
 - [ ] Sign-in, so each person's likes and uploads are theirs
-- [ ] Photo albums and trips
 - [ ] Street-level detail when zoomed in far
 
 ## Credits

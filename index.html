@@ -6,7 +6,7 @@
 <title>Cameraboard</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Caveat:wght@500;700&family=DM+Sans:wght@400;500;700&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Caveat:wght@500;700&family=DM+Sans:wght@400;500;700&family=VT323&display=swap">
 </head>
 <body>
 <header class="bar">
@@ -14,7 +14,10 @@
   <nav class="seg" aria-label="View">
     <button id="vMap" class="on">Map</button>
     <button id="vBoard">Board</button>
+    <button id="vStats">Stats</button>
   </nav>
+  <input id="q" class="search-top" type="search" placeholder="Search photos" aria-label="Search photos">
+  <button id="filterBtn" class="btn">Filters <span id="filterCount" class="badge" hidden></span></button>
   <div class="actions">
     <button id="addBtn" class="btn primary">+ Add photos</button>
     <button id="exportBtn" class="btn ghost">Export</button>
@@ -22,9 +25,24 @@
   </div>
 </header>
 
+<section id="filters" class="filters" hidden>
+  <label>Trip <select id="fTrip"></select></label>
+  <label>Camera <select id="fCamera"></select></label>
+  <label>Country <select id="fCountry"></select></label>
+  <label>From <input id="fFrom" type="date"></label>
+  <label>To <input id="fTo" type="date"></label>
+  <button id="fClear" class="btn small">Clear all</button>
+</section>
+
 <main>
   <section id="mapView" class="view">
     <div id="map"></div>
+    <div id="mapTools" class="tools">
+      <button id="playBtn" class="btn small">▶ Play timeline</button>
+      <select id="themeSel" class="btn small" aria-label="Map theme"></select>
+      <button id="hlBtn" class="btn small on" title="Light up countries you have photographed"></button>
+      <button id="posterBtn" class="btn small">🖼 Poster</button>
+    </div>
     <div id="empty" class="empty-state" hidden>
       <h2>Your map is empty</h2>
       <p>Add a photo from your Sony DSC-V1, then place it on the map.</p>
@@ -34,17 +52,43 @@
       <span id="pinText">Click the map to place this photo</span>
       <button id="pinCancel" class="btn small">Cancel</button>
     </div>
+    <div id="playCard" class="playcard" hidden>
+      <img id="pcImg" alt="">
+      <div class="pc-text">
+        <b id="pcTitle"></b>
+        <span id="pcWhere"></span>
+        <span id="pcCount" class="hint"></span>
+      </div>
+      <div class="pc-ctl">
+        <button id="pcPrev" aria-label="Previous">⏮</button>
+        <button id="pcPause" aria-label="Pause">⏸</button>
+        <button id="pcNext" aria-label="Next">⏭</button>
+        <button id="pcStop" aria-label="Stop">✕</button>
+      </div>
+    </div>
     <div id="strip" class="strip" aria-label="All photos"></div>
+    <aside id="queue" class="queue" hidden>
+      <div class="q-head"><h2>Place me</h2><button class="x2" id="qClose" aria-label="Close">✕</button></div>
+      <p class="hint">Photos with no location, grouped by day. Place a whole day at once.</p>
+      <div id="qList"></div>
+    </aside>
   </section>
 
   <section id="boardView" class="view" hidden>
     <div id="board" class="board"></div>
   </section>
+
+  <section id="statsView" class="view stats" hidden></section>
 </main>
 
 <aside id="drawer" class="drawer" hidden>
   <button class="x" id="dClose" aria-label="Close">✕</button>
-  <button class="photo" id="photoBtn" aria-label="View full size"><img id="dImg" alt=""><span>⤢ Zoom</span></button>
+  <button class="photo" id="photoBtn" aria-label="View full size"><img id="dImg" alt=""><span class="zoomtag">⤢ Zoom</span><span id="dStamp" class="stamp" hidden></span></button>
+  <div id="stack" class="stack" hidden>
+    <button id="stPrev" class="btn small" aria-label="Previous photo here">‹</button>
+    <span id="stText"></span>
+    <button id="stNext" class="btn small" aria-label="Next photo here">›</button>
+  </div>
   <div class="body">
     <input id="fTitle" class="title" placeholder="Give this photo a title">
     <div class="row">
@@ -54,8 +98,14 @@
       <button id="deleteBtn" class="btn small danger">Remove</button>
     </div>
 
+    <div id="shotOn" class="shoton"></div>
+
     <h3>Story</h3>
     <textarea id="fStory" rows="4" placeholder="What was happening? Who was there? Why this shot?"></textarea>
+
+    <h3>Trip</h3>
+    <input id="fTripName" list="tripList" class="plain" placeholder="e.g. Portugal 2026">
+    <datalist id="tripList"></datalist>
 
     <h3>Location</h3>
     <div class="search">
@@ -67,6 +117,22 @@
       <button id="clearLoc" class="btn small ghost">Clear</button>
     </div>
     <p id="locNote" class="hint"></p>
+
+    <h3>Pin style</h3>
+    <div id="swatches" class="swatches"></div>
+    <div id="icons" class="icons"></div>
+    <label class="check"><input id="coverBox" type="checkbox"> Use as the cover photo for this place</label>
+
+    <h3>Photo look</h3>
+    <div class="row">
+      <select id="lookSel" class="plain sel">
+        <option value="none">Original</option>
+        <option value="digicam">Early digicam</option>
+        <option value="film">Warm film</option>
+        <option value="bw">Black and white</option>
+      </select>
+      <label class="check"><input id="stampBox" type="checkbox"> Date stamp</label>
+    </div>
 
     <h3>Details</h3>
     <label class="field">Date taken
@@ -87,8 +153,20 @@
   <p class="hint">Scroll or pinch to zoom · drag to pan · double-click to zoom in</p>
 </div>
 
-<input id="picker" type="file" accept="image/*" hidden>
+<div id="posterModal" class="modal" hidden>
+  <div class="modal-box">
+    <div class="m-head">
+      <h2>Poster</h2>
+      <input id="posterTitle" class="plain" placeholder="Poster title" value="My travels">
+      <button id="posterSave" class="btn primary">Download PNG</button>
+      <button id="posterClose" class="btn">Close</button>
+    </div>
+    <canvas id="posterCv"></canvas>
+    <p class="hint">Uses the photos that match your current filters.</p>
+  </div>
+</div>
 
+<input id="picker" type="file" accept="image/*" hidden>
 <script type="module" src="/src/main.ts"></script>
 </body>
 </html>
