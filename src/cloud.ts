@@ -269,6 +269,9 @@ export async function publicPhotos(who: { code?: string; handle?: string; id?: s
 }
 
 // ---------- community gallery (Explore pages) ----------
+/** The gallery functions arrive with the latest database migration; say so plainly when they're missing. */
+const galleryError = (msg: string) => new Error(/schema cache|does not exist/i.test(msg)
+  ? 'The gallery isn’t set up in the database yet. The latest supabase/schema.sql needs to be run once.' : msg);
 /** Lower-case, dashes between words: the form cameras take in page addresses. */
 export const slugify = (t: string) => t.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
 
@@ -277,7 +280,7 @@ export async function explorePhotos(o: { limit?: number; offset?: number; camera
   if (!sb) return { cards: [] as Card[], owners: new Map<string, string>(), more: false };
   const limit = o.limit ?? 48;
   const { data, error } = await sb.rpc('explore_photos', { lim: limit, off: o.offset ?? 0, cam: o.camera || null, q: o.q?.trim() || null });
-  if (error) throw new Error(error.message);
+  if (error) throw galleryError(error.message);
   const rows = (data ?? []) as PublicRow[];
   return { ...(await rowsToCards(rows)), more: rows.length >= limit };
 }
@@ -285,7 +288,7 @@ export interface GalleryStory { owner: string; owner_name: string; trip: string;
 export async function exploreStories(limit = 24, offset = 0): Promise<{ stories: GalleryStory[]; more: boolean }> {
   if (!sb) return { stories: [], more: false };
   const { data, error } = await sb.rpc('explore_stories', { lim: limit, off: offset });
-  if (error) throw new Error(error.message);
+  if (error) throw galleryError(error.message);
   const rows = (data ?? []) as { owner: string; owner_name: string; trip: string; stops: number; places: string[]; cover_path: string; updated: string }[];
   const url = await signPaths(rows.map(r => r.cover_path));
   return {
@@ -297,7 +300,7 @@ export interface CameraStat { camera: string; slug: string; photos: number; peop
 export async function exploreCameras(): Promise<CameraStat[]> {
   if (!sb) return [];
   const { data, error } = await sb.rpc('explore_cameras');
-  if (error) throw new Error(error.message);
+  if (error) throw galleryError(error.message);
   const rows = (data ?? []) as { camera: string; slug: string; photos: number; people: number; cover_path: string }[];
   const url = await signPaths(rows.map(r => r.cover_path));
   return rows.map(r => ({ camera: r.camera, slug: r.slug, photos: Number(r.photos), people: Number(r.people), cover: url.get(r.cover_path) ?? '' }));
