@@ -16,6 +16,7 @@ import { drawWorld, countryAt, THEMES, type ThemeName } from './world';
 import { loadCities, searchPlaces, nameAt } from './atlas';
 import { initViewer, openViewer, closeViewer, viewerIsOpen } from './viewer';
 import { renderPoster } from './poster';
+import * as cloud from './cloud';
 
 const PIN_COLORS = ['', '#2f6fd1', '#2e9e5b', '#e8b422', '#8e44ad', '#1d1d1d'];
 const YARN = '#b3242c';
@@ -34,8 +35,26 @@ let pickTarget: Card | null = null;
 let activeStory: string | null = null;     // story shown on its own, the rest faded
 let connecting: string | null = null;      // story that clicks on photos add to
 let query = '';
+// signed-in state: your account, the people you follow, and the photos they shared with you
+let signedIn = false;
+let myName = '';
+let friends: cloud.Person[] = [];
+let friendCards: Card[] = [];
+let showFriends = lsGet('wf-friends') !== '0';
+const likeCache = new Map<string, { n: number; mine: boolean }>();
+const FRIEND_YARN = '#2f5fb3';
 
-const save = () => saveCards(cards);
+let pushT: number;
+/** Saves in the browser, and to your account a moment later when signed in. */
+const save = async () => {
+  await saveCards(cards);
+  if (signedIn) { clearTimeout(pushT); pushT = window.setTimeout(syncUp, 1500); }
+};
+async function syncUp() {
+  try { await cloud.push(cards); await saveCards(cards); syncNote('Your photos are saved to your account.'); }
+  catch (e) { syncNote('Couldn’t save to your account: ' + (e as Error).message); }
+}
+function syncNote(t: string) { const n = document.getElementById('syncNote'); if (n) n.textContent = t; }
 let saveT: number;
 const saveSoon = () => { clearTimeout(saveT); saveT = window.setTimeout(save, 400); };
 const placed = (c: Card) => !!c.img && c.lat != null && c.lng != null;
@@ -66,8 +85,14 @@ function visible(c: Card) {
   return query.toLowerCase().split(/\s+/).every(w => hay.includes(w));
 }
 const visiblePlaced = () => cards.filter(c => placed(c) && visible(c));
+const isFriendCard = (c: Card) => friendCards.includes(c);
+const nameOf = (id: string) => friends.find(f => f.id === id)?.display_name || 'A friend';
+/** Everything on the map: your photos, plus friends' shared photos when shown. */
+const mapCards = () => [...visiblePlaced(), ...(signedIn && showFriends ? friendCards.filter(c => placed(c) && visible(c)) : [])];
+/** Friends' photos never share a pin with yours. */
+const keyOf = (c: Card) => (isFriendCard(c) ? 'f:' + c.owner + ':' : '') + placeKey(c);
 /** Photos at the same spot as `c`, oldest first. */
-const stackOf = (c: Card) => placed(c) ? visiblePlaced().filter(x => placeKey(x) === placeKey(c)).sort(byDate) : [c];
+const stackOf = (c: Card) => placed(c) ? mapCards().filter(x => keyOf(x) === keyOf(c)).sort(byDate) : [c];
 
 // ---------- stories: photos joined by string, in order ----------
 interface Story { name: string; cards: Card[] }
@@ -79,6 +104,17 @@ function stories(): Story[] {
     .sort((a, b) => byDate(a.cards[0], b.cards[0]));
 }
 const storyOf = (name: string) => stories().find(s => s.name === name)?.cards ?? [];
+/** Friends' stories, one per person and story name. */
+function friendStories(): (Story & { owner: string })[] {
+  if (!signedIn || !showFriends) return [];
+  const m = new Map<string, Card[]>();
+  for (const c of friendCards) if (c.trip) { const k = c.owner + '\u0000' + c.trip; (m.get(k) ?? m.set(k, []).get(k)!).push(c); }
+  return [...m.values()].map(cs => ({ name: cs[0].trip, owner: cs[0].owner, cards: cs.sort((a, b) => a.seq - b.seq || byDate(a, b)) }));
+}
+/** The story a photo belongs to, yours or a friend's. */
+const storyListOf = (c: Card) => !c.trip ? [] : isFriendCard(c)
+  ? friendCards.filter(x => x.owner === c.owner && x.trip === c.trip).sort((a, b) => a.seq - b.seq || byDate(a, b))
+  : storyOf(c.trip);
 function addToStory(c: Card, name: string) {
   if (c.trip === name) return;
   const rest = storyOf(name);
@@ -132,27 +168,29 @@ function polaroid(rep: Card, n: number): HTMLElement {
   frame.append(im, el('span', 'pol-cap', rep.title || placeName(rep) || 'Untitled'));
   box.append(frame, el('i', 'pushpin'));
   if (n > 1) box.append(el('span', 'pol-n', String(n)));
+  if (isFriendCard(rep)) { box.classList.add('friend'); box.append(el('span', 'pol-by', nameOf(rep.owner))); }
   return box;
 }
 
 function renderMap() {
   photos.clearLayers(); markers.clear();
   const groups = new Map<string, Card[]>();
-  for (const c of visiblePlaced()) { const k = placeKey(c); (groups.get(k) ?? groups.set(k, []).get(k)!).push(c); }
+  for (const c of mapCards()) { const k = keyOf(c); (groups.get(k) ?? groups.set(k, []).get(k)!).push(c); }
   const focus = focusCard();
   groups.forEach((g, k) => {
     g.sort(byDate);
     const rep = g.find(c => c.cover) ?? g[0];
     const box = polaroid(rep, g.length);
-    const inStory = !activeStory || g.some(c => c.trip === activeStory);
+    const inStory = !activeStory || g.some(c => !isFriendCard(c) && c.trip === activeStory);
     if (!inStory) box.classList.add('dim');
-    if (focus && placed(focus) && placeKey(focus) === k) box.classList.add('sel');
+    if (focus && placed(focus) && keyOf(focus) === k) box.classList.add('sel');
     const m = L.marker([rep.lat!, rep.lng!], {
       icon: L.divIcon({ html: box, className: 'pol-icon', iconSize: [0, 0], iconAnchor: [0, 0] }),
       zIndexOffset: inStory ? 100 : 0, title: rep.title || 'Photo'
     });
     m.on('click', () => {
       if (connecting) {
+        if (isFriendCard(rep)) return;
         const c = g.find(x => x.trip !== connecting) ?? rep;
         addToStory(c, connecting); save(); render(); connectText(); return;
       }
@@ -163,7 +201,7 @@ function renderMap() {
   $('empty').hidden = cards.some(c => c.img);
 }
 function markSelected() {
-  const f = focusCard(), key = f && placed(f) ? placeKey(f) : '';
+  const f = focusCard(), key = f && placed(f) ? keyOf(f) : '';
   markers.forEach((m, k) => {
     m.getElement()?.querySelector('.pol')?.classList.toggle('sel', k === key);
     m.setZIndexOffset(k === key ? 1000 : 100);
@@ -185,23 +223,28 @@ function yarn(a: Card, b: Card): L.LatLng[] {
   }
   return out;
 }
+function drawYarn(list: Card[], color: string, dim: boolean) {
+  const opacity = dim ? 0.18 : 0.95;
+  for (let i = 1; i < list.length; i++) {
+    if (keyOf(list[i - 1]) === keyOf(list[i])) continue;
+    const pts = yarn(list[i - 1], list[i]);
+    L.polyline(pts, { renderer: stringRenderer, color: '#000', weight: 3.5, opacity: opacity * 0.16, interactive: false, className: 'yarn-shadow' }).addTo(strings);
+    L.polyline(pts, { renderer: stringRenderer, color, weight: 2.2, opacity, interactive: false, lineCap: 'round' }).addTo(strings);
+  }
+  for (const c of list) {
+    L.circleMarker([c.lat!, c.lng!], { renderer: stringRenderer, radius: 3, color: '#0006', weight: 1,
+      fillColor: color, fillOpacity: dim ? 0.2 : 1, opacity: dim ? 0.2 : 1, interactive: false }).addTo(strings);
+  }
+}
 function renderStrings() {
   strings.clearLayers();
+  const cut = (key: string, list: Card[]) => pl.on && pl.key === key ? list.slice(0, pl.i + 1) : list;
   for (const s of stories()) {
-    let list = s.cards.filter(c => placed(c) && visible(c));
-    if (pl.on && pl.story === s.name) list = list.slice(0, pl.i + 1);
-    const dim = !!activeStory && activeStory !== s.name;
-    const opacity = dim ? 0.18 : 0.95;
-    for (let i = 1; i < list.length; i++) {
-      if (placeKey(list[i - 1]) === placeKey(list[i])) continue;
-      const pts = yarn(list[i - 1], list[i]);
-      L.polyline(pts, { renderer: stringRenderer, color: '#000', weight: 3.5, opacity: opacity * 0.16, interactive: false, className: 'yarn-shadow' }).addTo(strings);
-      L.polyline(pts, { renderer: stringRenderer, color: YARN, weight: 2.2, opacity, interactive: false, lineCap: 'round' }).addTo(strings);
-    }
-    for (const c of list) {
-      L.circleMarker([c.lat!, c.lng!], { renderer: stringRenderer, radius: 3, color: '#6e1217', weight: 1,
-        fillColor: YARN, fillOpacity: dim ? 0.2 : 1, opacity: dim ? 0.2 : 1, interactive: false }).addTo(strings);
-    }
+    drawYarn(cut('own:' + s.name, s.cards.filter(c => placed(c) && visible(c))), YARN,
+      (!!activeStory && activeStory !== s.name) || (pl.on && pl.key !== 'own:' + s.name));
+  }
+  for (const s of friendStories()) {
+    drawYarn(cut('f:' + s.owner + ':' + s.name, s.cards.filter(c => placed(c) && visible(c))), FRIEND_YARN, !!activeStory || (pl.on && !pl.key.startsWith('f:' + s.owner + ':' + s.name)));
   }
 }
 
@@ -253,8 +296,29 @@ function renderStories() {
     const play = el('button', 'btn small primary', 'Play'); play.onclick = () => playStory(s.name);
     const add = el('button', 'btn small', connecting === s.name ? 'Adding…' : 'Add stops'); add.onclick = () => startConnect(s.name);
     actions.append(play, add);
+    if (signedIn) {
+      const all = s.cards.every(c => c.shared);
+      const sh = el('button', 'btn small' + (all ? ' on' : ''), all ? 'Shared with friends' : 'Share with friends');
+      sh.onclick = () => { s.cards.forEach(c => { c.shared = !all; }); save(); render(); };
+      actions.append(sh);
+    }
     item.append(actions);
     if (on) item.append(storyEditor(s));
+    box.append(item);
+  }
+  const fs = friendStories();
+  if (fs.length) box.append(el('h3', 'st-section', 'Friends’ stories'));
+  for (const s of fs) {
+    const item = el('article', 'story friend');
+    item.append(el('span', 'st-name', s.name), el('span', 'st-sub', `by ${nameOf(s.owner)} · ${s.cards.length} ${s.cards.length === 1 ? 'stop' : 'stops'}`));
+    const route = routeText(s.cards);
+    if (route) item.append(el('p', 'st-route', route));
+    const thumbs = el('div', 'st-thumbs');
+    s.cards.slice(0, 7).forEach(c => { const im = new Image(); im.src = c.img!; im.alt = ''; im.className = 'look-' + c.look; thumbs.append(im); });
+    const actions = el('div', 'st-actions');
+    const play = el('button', 'btn small friend-play', 'Play'); play.onclick = () => playList(s.cards, 'f:' + s.owner + ':' + s.name, s.name);
+    actions.append(play);
+    item.append(thumbs, actions);
     box.append(item);
   }
 }
@@ -417,6 +481,7 @@ picker.onchange = async () => {
     let c = pickTarget;
     if (!c) { c = blankCard(cards.length); cards.push(c); }
     try {
+      if (c.img) await cloud.dropImage(c);
       await fillCard(c, f);
       if (placed(c) && (!c.place || c.place === 'From photo GPS')) { await loadCities(); c.place = nameAt(c.lat!, c.lng!) ?? c.place; }
       made.push(c);
@@ -455,7 +520,7 @@ function drawShotOn(c: Card) {
   if (chips.length) { const row = el('div', 'so-chips'); chips.forEach(t => row.append(el('span', '', t))); box.append(row); }
 }
 function drawStoryNav(c: Card) {
-  const list = c.trip ? storyOf(c.trip) : [];
+  const list = storyListOf(c);
   const i = list.indexOf(c);
   $('dStory').hidden = i < 0;
   if (i >= 0) $('dsText').textContent = `Stop ${i + 1} of ${list.length} · ${c.trip}`;
@@ -468,6 +533,11 @@ function openCard(c: Card, fly = true) {
   stopPlay(); stopPinning();
   cur = c;
   $('drawer').hidden = false;
+  const ro = isFriendCard(c);   // friends' photos can be looked at and liked, not edited
+  $('drawer').classList.toggle('ro', ro);
+  fTitle.readOnly = ro; fStory.readOnly = ro;
+  $('dOwner').hidden = !ro; $('dOwner').textContent = ro ? 'Shared by ' + nameOf(c.owner) : '';
+  $('shareRow').hidden = !signedIn || ro; $<HTMLInputElement>('shareBox').checked = c.shared;
   const dImg = $<HTMLImageElement>('dImg'); dImg.src = c.img!; dImg.alt = c.title;
   $('photoBtn').style.setProperty('--rot', (c.rot / 2) + 'deg');
   fTitle.value = c.title; fStory.value = c.story; fDate.value = c.date; fPlace.value = c.place || '';
@@ -492,8 +562,8 @@ const stepIn = (list: Card[], d: number) => {
   const i = list.indexOf(cur); if (i < 0) return;
   openCard(list[(i + d + list.length) % list.length]);
 };
-$('dsPrev').onclick = () => cur && stepIn(storyOf(cur.trip), -1);
-$('dsNext').onclick = () => cur && stepIn(storyOf(cur.trip), 1);
+$('dsPrev').onclick = () => cur && stepIn(storyListOf(cur), -1);
+$('dsNext').onclick = () => cur && stepIn(storyListOf(cur), 1);
 const stackStep = (d: number) => {
   if (!cur) return;
   const s = stackOf(cur), i = s.findIndex(x => x.id === cur!.id);
@@ -502,16 +572,28 @@ const stackStep = (d: number) => {
 $('stPrev').onclick = () => stackStep(-1);
 $('stNext').onclick = () => stackStep(1);
 
+/** Signed in, likes are real and shared; otherwise they're kept in this browser. */
+const cloudLike = (c: Card) => signedIn && !!c.owner && !!c.imgPath;
 function drawLike() {
   if (!cur) return;
-  $('likeBtn').classList.toggle('on', cur.liked);
-  $('likeBtn').firstChild!.textContent = cur.liked ? '♥ ' : '♡ ';
-  $('likeCount').textContent = String(cur.likes);
+  const v = cloudLike(cur) ? likeCache.get(cur.id) ?? { n: 0, mine: false } : { n: cur.likes, mine: cur.liked };
+  $('likeBtn').classList.toggle('on', v.mine);
+  $('likeBtn').firstChild!.textContent = v.mine ? '♥ ' : '♡ ';
+  $('likeCount').textContent = String(v.n);
 }
 $('likeBtn').onclick = async () => {
   if (!cur) return;
+  if (cloudLike(cur)) {
+    const c = cur, v = { ...(likeCache.get(c.id) ?? { n: 0, mine: false }) };
+    v.mine = !v.mine; v.n = Math.max(0, v.n + (v.mine ? 1 : -1)); likeCache.set(c.id, v); drawLike();
+    cloud.setLike(c.id, v.mine).catch(() => { likeCache.set(c.id, { n: v.n + (v.mine ? -1 : 1), mine: !v.mine }); drawLike(); });
+    return;
+  }
   cur.liked = !cur.liked; cur.likes = Math.max(0, cur.likes + (cur.liked ? 1 : -1));
   drawLike(); await save();
+};
+$<HTMLInputElement>('shareBox').onchange = e => {
+  if (!cur) return; cur.shared = (e.target as HTMLInputElement).checked; save(); renderStories();
 };
 fTitle.oninput = () => { if (cur) { cur.title = fTitle.value; saveSoon(); } };
 fTitle.onchange = () => { render(); markSelected(); };
@@ -546,6 +628,7 @@ del.onclick = async () => {
   }
   delete del.dataset.sure; del.textContent = 'Remove';
   const old = cur.trip;
+  if (signedIn) cloud.removeRemote(cur).catch(() => { /* removed locally either way */ });
   cards.splice(cards.indexOf(cur), 1); cur = null;
   if (old) renumber(old, storyOf(old));
   $('drawer').hidden = true; await save(); render();
@@ -603,7 +686,7 @@ $('clearLoc').onclick = () => {
 };
 
 // ---------- playing a story: the string draws itself stop by stop ----------
-const pl = { story: '', list: [] as Card[], i: 0, timer: 0, paused: false, on: false };
+const pl = { story: '', key: '', list: [] as Card[], i: 0, timer: 0, paused: false, on: false };
 let focusCard: () => Card | null = () => cur;
 function stopPlay() {
   if (!pl.on) return;
@@ -625,12 +708,13 @@ function playStep(i: number) {
   renderStrings(); markSelected();
   if (!pl.paused) pl.timer = window.setTimeout(() => playStep(pl.i + 1), 5000);
 }
-function playStory(name: string) {
-  const list = storyOf(name).filter(placed);
+function playStory(name: string) { playList(storyOf(name), 'own:' + name, name); }
+function playList(cards0: Card[], key: string, label: string) {
+  const list = cards0.filter(placed);
   if (!list.length) return;
   stopConnect(); closeDrawerQuiet();
-  activeStory = name; render();
-  Object.assign(pl, { story: name, list, i: 0, paused: false, on: true });
+  activeStory = key.startsWith('own:') ? label : null; render();
+  Object.assign(pl, { story: label, key, list, i: 0, paused: false, on: true });
   $('playCard').hidden = false; $('pcPause').textContent = '❚❚';
   playStep(0);
 }
@@ -671,7 +755,8 @@ initViewer();
 $('photoBtn').onclick = () => { if (cur?.img) openViewer(cur.img, 'look-' + cur.look); };
 document.addEventListener('keydown', e => {
   if (e.key !== 'Escape') return;
-  if (!$('posterModal').hidden) $('posterModal').hidden = true;
+  if (!$('acctModal').hidden) $('acctModal').hidden = true;
+  else if (!$('posterModal').hidden) $('posterModal').hidden = true;
   else if (viewerIsOpen()) closeViewer();
   else if (pinTargets.length) stopPinning();
   else if (connecting) stopConnect();
@@ -694,6 +779,128 @@ $<HTMLInputElement>('importFile').onchange = async e => {
   } catch { alert('That file is not a Wayframe export.'); }
 };
 
+// ---------- account: phone sign-in, friends from contacts ----------
+const acctBtn = $('acctBtn');
+let pendingPhone = '';
+function renderAcct() {
+  acctBtn.hidden = !cloud.cloudEnabled;
+  acctBtn.textContent = signedIn ? (myName.trim()[0] || '☺').toUpperCase() : 'Sign in';
+  acctBtn.classList.toggle('avatar', signedIn);
+  acctBtn.setAttribute('aria-label', signedIn ? 'Your account' : 'Sign in');
+  $('signIn').hidden = signedIn; $('account').hidden = !signedIn;
+  const phone = cloud.me()?.phone;
+  $('acctPhone').textContent = phone ? 'Signed in as +' + phone : '';
+}
+acctBtn.onclick = () => { $('acctModal').hidden = false; if (signedIn) renderPeople(); else $('phoneIn').focus(); };
+$('acctClose').onclick = () => { $('acctModal').hidden = true; };
+const authMsg = (t: string) => { $('authMsg').textContent = t; };
+$('phoneForm').onsubmit = async e => {
+  e.preventDefault();
+  pendingPhone = $<HTMLInputElement>('phoneIn').value;
+  authMsg('Sending…');
+  try {
+    await cloud.sendCode(pendingPhone);
+    $('phoneForm').hidden = true; $('codeForm').hidden = false; $('codeIn').focus();
+    authMsg(`We texted a code to ${cloud.toE164(pendingPhone)}.`);
+  } catch (err) { authMsg('Couldn’t send the code: ' + (err as Error).message); }
+};
+$('codeForm').onsubmit = async e => {
+  e.preventDefault();
+  authMsg('Checking…');
+  try { await cloud.verifyCode(pendingPhone, $<HTMLInputElement>('codeIn').value); authMsg(''); }
+  catch (err) { authMsg('That code didn’t work: ' + (err as Error).message); }
+};
+$('codeBack').onclick = () => { $('codeForm').hidden = true; $('phoneForm').hidden = false; authMsg(''); };
+$('nameSave').onclick = async () => {
+  try { await cloud.setMyName($<HTMLInputElement>('nameIn').value); myName = $<HTMLInputElement>('nameIn').value.trim(); renderAcct(); syncNote('Name saved.'); }
+  catch (err) { syncNote('Couldn’t save your name: ' + (err as Error).message); }
+};
+$('signOutBtn').onclick = async () => { await cloud.signOut(); $('acctModal').hidden = true; };
+const showFriendsBox = $<HTMLInputElement>('showFriends');
+showFriendsBox.checked = showFriends;
+showFriendsBox.onchange = () => { showFriends = showFriendsBox.checked; lsSet('wf-friends', showFriends ? '1' : '0'); render(); };
+
+function person(p: cloud.Person, action: HTMLElement) {
+  const row = el('div', 'person');
+  row.append(el('span', 'ava', (p.display_name.trim()[0] || '?').toUpperCase()), el('span', 'p-name', p.display_name || 'No name yet'), action);
+  return row;
+}
+function renderPeople() {
+  const list = $('friendList'); list.innerHTML = '';
+  if (!friends.length) list.append(el('p', 'hint', 'You aren’t following anyone yet. Find friends below.'));
+  for (const f of friends) {
+    const b = el('button', 'linkbtn', 'Unfollow');
+    b.onclick = async () => { await cloud.unfollow(f.id); await refreshFriends(); };
+    list.append(person(f, b));
+  }
+}
+$('findBtn').onclick = async () => {
+  const lines = $<HTMLTextAreaElement>('numbersIn').value.split(/[\n,;]+/);
+  const out = $('matchList'); out.innerHTML = '';
+  try {
+    const found = await cloud.matchContacts(lines, $<HTMLInputElement>('ccIn').value.replace(/\D/g, '') || '1');
+    if (!found.length) { out.append(el('p', 'hint', 'None of those numbers use Wayframe yet. Send them the invite link.')); return; }
+    for (const p of found) {
+      const already = friends.some(f => f.id === p.id);
+      const b = el('button', 'btn small' + (already ? '' : ' primary'), already ? 'Following' : 'Follow');
+      b.onclick = async () => { await cloud.follow(p.id); b.textContent = 'Following'; b.className = 'btn small'; await refreshFriends(); };
+      out.append(person(p, b));
+    }
+  } catch (err) { out.append(el('p', 'hint', 'Couldn’t check those numbers: ' + (err as Error).message)); }
+};
+// The Contact Picker only exists in Chrome on Android; elsewhere people paste numbers.
+const contactsApi = (navigator as any).contacts;
+$('pickContacts').hidden = !(contactsApi && 'select' in contactsApi);
+$('pickContacts').onclick = async () => {
+  try {
+    const picked: { tel?: string[] }[] = await contactsApi.select(['tel'], { multiple: true });
+    const nums = picked.flatMap(p => p.tel ?? []);
+    const ta = $<HTMLTextAreaElement>('numbersIn');
+    ta.value = [ta.value.trim(), ...nums].filter(Boolean).join('\n');
+    $('findBtn').click();
+  } catch { /* closed the picker */ }
+};
+$('inviteBtn').onclick = async () => {
+  const link = location.origin;
+  try { await navigator.clipboard.writeText(link); $('inviteBtn').textContent = 'Link copied'; }
+  catch { $('inviteBtn').textContent = link; }
+  setTimeout(() => { $('inviteBtn').textContent = 'Copy invite link'; }, 2500);
+};
+
+async function refreshFriends() {
+  try {
+    friends = await cloud.following();
+    friendCards = await cloud.friendPhotos(friends.map(f => f.id));
+    const info = await cloud.likeInfo([...cards.filter(c => c.imgPath).map(c => c.id), ...friendCards.map(c => c.id)]);
+    likeCache.clear(); info.forEach((v, k) => likeCache.set(k, v));
+  } catch (err) { console.warn('Could not load friends', err); }
+  render(); renderPeople();
+  if (cur) drawLike();
+}
+async function onAuth(s: boolean) {
+  signedIn = s;
+  if (!s) {
+    myName = ''; friends = []; friendCards = []; likeCache.clear();
+    $('phoneForm').hidden = false; $('codeForm').hidden = true;
+    renderAcct(); render(); return;
+  }
+  renderAcct();
+  myName = await cloud.myName().catch(() => '');
+  $<HTMLInputElement>('nameIn').value = myName;
+  const phone = cloud.me()?.phone ?? '';
+  $<HTMLInputElement>('ccIn').value = phone.startsWith('1') ? '1' : phone.slice(0, 2) || '1';
+  renderAcct();
+  if (!myName) { $('acctModal').hidden = false; $('nameIn').focus(); syncNote('Add your name so friends know it’s you.'); }
+  try {
+    const mine = await cloud.pullMine(new Set(cards.map(c => c.id)));
+    if (mine.length) { cards.push(...mine); await saveCards(cards); }
+    await cloud.push(cards); await saveCards(cards);
+    syncNote(mine.length ? `Brought in ${mine.length} photos from your account.` : 'Your photos are saved to your account.');
+  } catch (err) { syncNote('Couldn’t sync your photos: ' + (err as Error).message); }
+  await refreshFriends();
+}
+setInterval(() => { if (signedIn) refreshFriends(); }, 45 * 60 * 1000);   // signed image links last an hour
+
 // ---------- start ----------
 (async () => {
   if (lsGet('wf-stories') === '0' || !wide()) { $('stories').hidden = true; $('storiesShow').hidden = false; }
@@ -704,4 +911,6 @@ $<HTMLInputElement>('importFile').onchange = async e => {
   render();
   fitCards(cards, 5);
   document.fonts.ready.then(() => map.fire('moveend'));
+  renderAcct();
+  cloud.initAuth(onAuth).catch(err => console.warn('Sign-in unavailable', err));
 })();

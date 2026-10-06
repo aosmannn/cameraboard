@@ -18,6 +18,7 @@ Built for photos from a Sony Cyber-shot DSC-V1, and it works with any camera.
 - **Photos without GPS.** The DSC-V1 has no GPS, so photos not on the map yet wait in a tray, grouped by day. Put a whole day at the place of the nearest photo in time, search a city (works offline), or click the map.
 - **Retro look.** Early digicam, warm film or black and white, plus an optional date stamp in the corner.
 - **Poster.** Download a printable PNG of a story or all your photos, string included.
+- **Accounts and friends (optional).** Sign in with your phone number and a texted code. Your photos are saved to your account and come back on any device. Find friends from your contacts, follow them, and their shared stories appear on your map in blue string. Likes are real and shared. Nothing is shared until you turn on "Share with friends" for a photo or a whole story.
 - **Backup.** Export to a file and import it again.
 
 ## How it works
@@ -55,6 +56,8 @@ Built with TypeScript, Vite and [Leaflet](https://leafletjs.com) (used only to m
 | `src/world.ts` | The coloured world map: countries, states, counties, themes, and finding which country a point is in |
 | `src/labels.ts` | Draws place names without overlaps |
 | `src/atlas.ts` | Loads the map data; offline city search and naming |
+| `src/cloud.ts` | Sign-in, syncing your photos, friends and likes (Supabase) |
+| `supabase/schema.sql` | Database tables, storage bucket and privacy rules |
 | `src/photo.ts` | Reads a photo: shrinks it, pulls EXIF, builds a card |
 | `src/viewer.ts` | The full-size zoom and pan viewer |
 | `src/poster.ts` | The poster image |
@@ -65,6 +68,22 @@ Built with TypeScript, Vite and [Leaflet](https://leafletjs.com) (used only to m
 ## Working together
 
 Don't commit to `main`. Each person works on their own branch and opens a pull request, then the other person reviews and merges it. Pull before you start new work so you don't overwrite each other.
+
+## Accounts setup (Supabase)
+
+The app talks to the Supabase project `psuykzkrakkdqhulrqig`. Its publishable key is built into `src/cloud.ts`; that key is public by design, and the database rules keep data private. To use a different project, set `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` (see `.env.example`).
+
+One-time setup in the Supabase dashboard:
+
+1. **Database:** SQL Editor → New query → paste all of `supabase/schema.sql` → Run. It creates the tables, the private `photos` storage bucket, and the row level security rules.
+2. **Phone sign-in:** Authentication → Sign In / Providers → Phone → turn it on and connect an SMS provider (for example Twilio).
+3. **Testing without texts:** on the same Phone page, add test numbers with fixed codes, for example `14045550123=123456`.
+
+How privacy works:
+
+- Every table has row level security. You see your own photos, plus photos that people you follow marked as shared.
+- Image files live in a private bucket and are shown through links that expire after an hour.
+- Contact matching sends one-way hashes of phone numbers to a database function that only returns people who have an account. The numbers aren't saved.
 
 ## Map data
 
@@ -81,8 +100,8 @@ Not included: streets and buildings. That level of detail needs OpenStreetMap-si
 
 ## Roadmap
 
-- [ ] Sign up with a phone number
-- [ ] Find friends from your contacts and see their stories
+- [ ] Comments on friends' photos
+- [ ] Approve followers before they see your shared photos
 
 ## Credits
 
