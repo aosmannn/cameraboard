@@ -25,14 +25,19 @@ let authDone: () => void = () => {};
 export const authReady = new Promise<void>(r => { authDone = r; });
 
 export const CONTACT_EMAIL = 'wayframe0@gmail.com';
+/** The name, set the way the hero sets its emphasis: “Way” upright, “frame” in italic red. */
+function wordmark() {
+  const w = el('span', 'wordmark', 'Way'); w.append(el('em', '', 'frame'));
+  return w;
+}
 const LINKS: [Section, string, string][] = [['explore', 'Explore', '/explore'], ['cameras', 'Cameras', '/cameras']];
 
 /** Adds the header and footer, and shows who is signed in. */
 export function mountShell(active: Section) {
   const nav = el('header', 'nav');
   const logo = el('a', 'logo'); logo.href = '/'; logo.setAttribute('aria-label', 'Wayframe home');
-  const mark = new Image(); mark.src = '/logo-mark.svg'; mark.alt = ''; mark.width = 34; mark.height = 34; mark.className = 'logo-mark';
-  logo.append(mark, 'Wayframe');
+  const mark = new Image(); mark.src = '/logo-mark.svg'; mark.alt = ''; mark.width = 40; mark.height = 40; mark.className = 'logo-mark';
+  logo.append(mark, wordmark());
   const links = el('nav'); links.id = 'siteNav'; links.setAttribute('aria-label', 'Sections');
   for (const [key, label, href] of LINKS) {
     const a = el('a', '', label); a.href = href; if (key === active) a.setAttribute('aria-current', 'page'); links.append(a);
@@ -54,7 +59,7 @@ export function mountShell(active: Section) {
   const about = el('div');
   const flogo = el('a', 'logo small'); flogo.href = '/';
   const fmark = new Image(); fmark.src = '/logo-mark.svg'; fmark.alt = ''; fmark.width = 26; fmark.height = 26; fmark.className = 'logo-mark';
-  flogo.append(fmark, 'Wayframe');
+  flogo.append(fmark, wordmark());
   about.append(flogo, el('p', '', 'Turn your photos into a map of where you’ve been. Private by default, and built for every camera you own.'));
   const col = (title: string, items: [string, string][]) => {
     const d = el('div'); d.append(el('b', '', title));

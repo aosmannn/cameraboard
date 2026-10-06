@@ -401,3 +401,4 @@ h3.first { margin-top: 12px !important; }
 
 .brand-mark { display: block; flex: none; }
 @media (max-width: 720px) { .brand-mark { width: 22px; height: 22px; } }
+.wordmark em { font-style: italic; color: var(--yarn); }

@@ -1,32 +1,30 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Wayframe camera">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Wayframe">
   <defs>
-    <clipPath id="body"><rect x="6" y="18" width="52" height="34" rx="10"/></clipPath>
-    <radialGradient id="lens" cx="40%" cy="35%" r="75%">
-      <stop offset="0" stop-color="#5b8fe0"/><stop offset=".55" stop-color="#2f5fb3"/><stop offset="1" stop-color="#1b3b78"/>
+    <clipPath id="ph"><rect x="16.5" y="15" width="31" height="29" rx="1.5"/></clipPath>
+    <radialGradient id="tack" cx="35%" cy="30%" r="75%">
+      <stop offset="0" stop-color="#ffd9d2"/><stop offset=".35" stop-color="#d33a2c"/><stop offset="1" stop-color="#7a141b"/>
     </radialGradient>
   </defs>
-  <ellipse cx="32" cy="57" rx="22" ry="3" fill="#231f19" opacity=".14"/>
-  <!-- shutter button and viewfinder -->
-  <rect x="41" y="11.5" width="10" height="8" rx="3" fill="#c8372d" stroke="#231f19" stroke-width="3"/>
-  <rect x="13" y="12.5" width="13" height="8" rx="3.5" fill="#f5efe3" stroke="#231f19" stroke-width="3"/>
-  <!-- body -->
-  <rect x="6" y="18" width="52" height="34" rx="10" fill="#fffdf8"/>
-  <g clip-path="url(#body)">
-    <rect x="6" y="18" width="52" height="11" fill="#c8372d"/>
-    <rect x="6" y="28" width="52" height="2.5" fill="#231f19" opacity=".12"/>
+  <ellipse cx="33" cy="60" rx="19" ry="2.6" fill="#231f19" opacity=".14"/>
+  <g transform="rotate(-5 32 34)">
+    <!-- the polaroid -->
+    <rect x="11" y="9.5" width="42" height="48" rx="3.5" fill="#fffdf8" stroke="#231f19" stroke-width="3"/>
+    <g clip-path="url(#ph)">
+      <rect x="16" y="14" width="32" height="31" fill="#bcd3d6"/>
+      <path d="M16 31 Q22 23 29 27 T41 25 Q46 23 48 27 V45 H16Z" fill="#eadfc4"/>
+      <path d="M16 37.5 Q24 33 30 38 T48 37 V45 H16Z" fill="#d2dab8"/>
+      <circle cx="42" cy="20.5" r="3.4" fill="#ffe29a"/>
+    </g>
+    <rect x="16.5" y="15" width="31" height="29" rx="1.5" fill="none" stroke="#231f19" stroke-opacity=".28" stroke-width="1"/>
+    <!-- the way: a red string route with a start dot and a pin at the end -->
+    <path d="M21 40 C25 31 30.5 39 34 31.5 S40.5 27 43.5 22.5" fill="none" stroke="#b3242c" stroke-width="2.6" stroke-linecap="round"/>
+    <circle cx="21" cy="40" r="2.3" fill="#fffdf8" stroke="#b3242c" stroke-width="1.8"/>
+    <path d="M43.5 14.2c-3 0-5 2.2-5 4.9 0 3.2 3.4 5.2 5 8.1 1.6-2.9 5-4.9 5-8.1 0-2.7-2-4.9-5-4.9z" fill="#b3242c" stroke="#fffdf8" stroke-width="1.2"/>
+    <circle cx="43.5" cy="19" r="1.8" fill="#fffdf8"/>
+    <!-- handwriting squiggle on the white strip -->
+    <path d="M19 51q2.6-3.6 5.2 0t5.2 0 5.2 0" fill="none" stroke="#231f19" stroke-opacity=".4" stroke-width="1.8" stroke-linecap="round"/>
+    <!-- the tack that holds it to the board -->
+    <circle cx="32" cy="9.5" r="5" fill="url(#tack)" stroke="#231f19" stroke-width="1.6"/>
+    <circle cx="30.3" cy="7.9" r="1.4" fill="#fff" opacity=".85"/>
   </g>
-  <rect x="6" y="18" width="52" height="34" rx="10" fill="none" stroke="#231f19" stroke-width="3"/>
-  <!-- flash -->
-  <rect x="43" y="21.5" width="9" height="4" rx="2" fill="#ffd37a"/>
-  <circle cx="14" cy="23.5" r="1.7" fill="#fffdf8"/>
-  <!-- lens -->
-  <circle cx="32" cy="36" r="11" fill="#231f19"/>
-  <circle cx="32" cy="36" r="8" fill="url(#lens)"/>
-  <circle cx="32" cy="36" r="3.4" fill="#142a57" opacity=".85"/>
-  <circle cx="28.4" cy="32.4" r="2.5" fill="#fff" opacity=".95"/>
-  <circle cx="35.6" cy="39.4" r="1.1" fill="#fff" opacity=".8"/>
-  <!-- cheeks and smile -->
-  <ellipse cx="13" cy="42" rx="3.2" ry="2.1" fill="#f4a6a0" opacity=".8"/>
-  <ellipse cx="51" cy="42" rx="3.2" ry="2.1" fill="#f4a6a0" opacity=".8"/>
-  <path d="M28.5 48.6q3.5 2.6 7 0" fill="none" stroke="#231f19" stroke-width="1.8" stroke-linecap="round"/>
 </svg>

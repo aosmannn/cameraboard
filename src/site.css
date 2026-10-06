@@ -204,3 +204,5 @@ img { max-width: 100%; }
 .legal p { margin-top: 10px; }
 .legal ul { margin: 10px 0 0; padding-left: 22px; display: grid; gap: 6px; }
 .legal a { color: var(--yarn); }
+
+.wordmark em { font-style: italic; color: var(--yarn); }
