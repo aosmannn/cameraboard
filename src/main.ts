@@ -575,11 +575,16 @@ document.addEventListener('click', e => {
 function pick(c: Card | null) { pickTarget = c; picker.multiple = !c; picker.value = ''; picker.click(); }
 $('addBtn').onclick = $('emptyAdd').onclick = () => pick(null);
 
-picker.onchange = async () => {
-  const files = [...(picker.files ?? [])]; if (!files.length) return;
+picker.onchange = () => addFiles([...(picker.files ?? [])], pickTarget);
+
+const isPhoto = (f: File) => f.type.startsWith('image/') || /\.(jpe?g|png|webp|gif|tiff?|heic|heif)$/i.test(f.name);
+/** Reads each photo (camera details, date, GPS), adds it to the board, then asks where any without a location were taken. */
+async function addFiles(files: File[], target: Card | null) {
+  files = files.filter(isPhoto);
+  if (!files.length) { showToast('No photos found there.'); return; }
   const made: Card[] = [];
   for (const f of files) {
-    let c = pickTarget;
+    let c = target;
     if (!c) { c = blankCard(cards.length); cards.push(c); }
     try {
       if (c.img) await cloud.dropImage(c);
@@ -587,14 +592,77 @@ picker.onchange = async () => {
       if (placed(c) && (!c.place || c.place === 'From photo GPS')) { await loadCities(); c.place = nameAt(c.lat!, c.lng!) ?? c.place; }
       made.push(c);
     } catch {
-      alert(`Could not read ${f.name}`);
+      showToast(`Couldn’t read ${f.name}`);
       if (!c.img) cards.splice(cards.indexOf(c), 1);
     }
   }
   await save(); render();
-  if (made.length === 1) openCard(made[0]);
-  else if (made.length) fitCards(made);
+  const missing = made.filter(c => !placed(c));
+  const done = () => { if (made.length === 1) openCard(made[0]); else if (made.length) fitCards(made); };
+  if (missing.length) openLocPrompt(missing, done); else done();
+}
+
+// ---- drag and drop ----
+const dropOverlay = $('dropOverlay');
+const hasFiles = (e: DragEvent) => !!e.dataTransfer && [...e.dataTransfer.types].includes('Files');
+let dragDepth = 0;
+window.addEventListener('dragenter', e => { if (hasFiles(e)) { e.preventDefault(); dragDepth++; dropOverlay.hidden = false; } });
+window.addEventListener('dragover', e => { if (hasFiles(e)) e.preventDefault(); });
+window.addEventListener('dragleave', e => { if (hasFiles(e) && --dragDepth <= 0) { dragDepth = 0; dropOverlay.hidden = true; } });
+window.addEventListener('drop', e => {
+  if (!hasFiles(e)) return;
+  e.preventDefault(); dragDepth = 0; dropOverlay.hidden = true;
+  void addFiles([...e.dataTransfer!.files], null);
+});
+
+// ---- where were these taken? ----
+const locQ = $<HTMLInputElement>('locQ');
+let locBatch: Card[] = [], locDone: () => void = () => {};
+function openLocPrompt(batch: Card[], after: () => void) {
+  locBatch = batch; locDone = after;
+  const n = batch.length;
+  $('locTitle').textContent = n === 1 ? 'Where was this taken?' : `Where were these ${n} photos taken?`;
+  $('locSub').textContent = n === 1 ? 'This photo has no GPS. Pick a city, or click the map.'
+    : 'These photos have no GPS. Put them all in one city, or click the map. You can fix single photos later.';
+  const th = $('locThumbs'); th.innerHTML = '';
+  batch.slice(0, 8).forEach(c => { const im = new Image(); im.src = c.img!; im.alt = ''; th.append(im); });
+  $('locPlace').textContent = n === 1 ? 'Put it here' : 'Put them here';
+  locQ.value = ''; $('locMsg').textContent = '';
+  const near = nearestPlaced(batch), nb = $('locNear');
+  nb.hidden = !near;
+  if (near) {
+    nb.textContent = `Same place as ${near.place || 'the closest photo in time'}`;
+    nb.onclick = () => { for (const c of batch) { c.lat = near.lat; c.lng = near.lng; c.place = near.place; } finishLoc(); };
+  }
+  $('locModal').hidden = false; locQ.focus();
+}
+async function finishLoc() { await save(); render(); $('locModal').hidden = true; locDone(); }
+locQ.oninput = async () => {
+  await loadCities();
+  const dl = $('locList'); dl.innerHTML = '';
+  searchPlaces(locQ.value, 6).forEach(p => dl.append(new Option(p.label)));
 };
+async function placeBatch() {
+  const text = locQ.value.trim(); if (!text) { $('locMsg').textContent = 'Type a city first.'; return; }
+  await loadCities();
+  const hits = searchPlaces(text, 6), h = hits.find(x => x.label === text) ?? hits[0];
+  if (!h) { $('locMsg').textContent = 'No city found with that name. Try another spelling, or click the map.'; return; }
+  for (const c of locBatch) { c.lat = h.lat; c.lng = h.lng; c.place = h.short; }
+  await finishLoc();
+}
+$('locPlace').onclick = placeBatch;
+locQ.onkeydown = e => { if (e.key === 'Enter') void placeBatch(); };
+$('locMap').onclick = () => { $('locModal').hidden = true; startPinning(locBatch); };
+$('locLater').onclick = () => { $('locModal').hidden = true; locDone(); };
+
+// ---- a small message at the bottom, optionally with Undo ----
+let toastT = 0, toastUndo: (() => void) | null = null;
+function showToast(text: string, undo?: () => void) {
+  clearTimeout(toastT); toastUndo = undo ?? null;
+  $('toastText').textContent = text; $('toastUndo').hidden = !undo; $('toast').hidden = false;
+  toastT = window.setTimeout(() => { $('toast').hidden = true; toastUndo = null; }, undo ? 10000 : 4500);
+}
+$('toastUndo').onclick = () => { const u = toastUndo; $('toast').hidden = true; toastUndo = null; u?.(); };
 
 // ---------- photo panel ----------
 function buildSwatches() {
@@ -740,20 +808,22 @@ $<HTMLInputElement>('stampBox').onchange = e => {
 };
 
 $('replaceBtn').onclick = () => pick(cur);
-const del = $('deleteBtn');
-del.onclick = async () => {
-  if (!cur) return;
-  if (!del.dataset.sure) {
-    del.dataset.sure = '1'; del.textContent = 'Really remove?';
-    setTimeout(() => { delete del.dataset.sure; del.textContent = 'Remove'; }, 3000); return;
-  }
-  delete del.dataset.sure; del.textContent = 'Remove';
-  const old = cur.trip;
-  if (signedIn) cloud.removeRemote(cur).catch(() => { /* removed locally either way */ });
-  cards.splice(cards.indexOf(cur), 1); cur = null;
-  if (old) renumber(old, storyOf(old));
-  $('drawer').hidden = true; await save(); render();
-};
+/** Removes a photo right away, keeps the panel open on a neighbouring photo, and offers Undo. */
+function removeCard(c: Card) {
+  const index = cards.indexOf(c); if (index < 0) return;
+  const list = c.trip ? storyListOf(c) : stackOf(c), at = list.indexOf(c);
+  const next = list[at + 1] ?? list[at - 1] ?? cards.slice(index + 1).concat(cards.slice(0, index)).find(x => x.img && x !== c) ?? null;
+  if (signedIn) cloud.removeRemote(c).catch(() => { /* removed on this device either way */ });
+  cards.splice(index, 1);   // story numbers keep their gaps, so Undo can put it back exactly
+  void save(); render();
+  if (next) openCard(next); else closeDrawerQuiet();
+  showToast(`Removed “${c.title || 'Untitled'}”`, () => {
+    c.imgPath = '';   // it uploads again on the next sync
+    cards.splice(Math.min(index, cards.length), 0, c);
+    void save(); render(); openCard(c);
+  });
+}
+$('deleteBtn').onclick = () => { if (cur) removeCard(cur); };
 
 // ---------- location ----------
 function locNote() {
