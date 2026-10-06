@@ -1,9 +1,19 @@
 # Cameraboard
 
-An interactive cork-board for your photos (built for a Sony Cyber-shot DSC-V1, works with any camera).
+A world map of your photos (built for a Sony Cyber-shot DSC-V1, works with any camera).
 
-- Click an empty card to upload a photo; EXIF (camera, date, exposure, ISO, GPS if present) is read automatically.
-- Click a photo to open it: scroll/pinch to zoom, drag to pan, like it, write its story, set date and location on a map.
+- **Map view:** photos are pins on a world map. Zoom in on a place, click a pin to open its card.
+- **Board view:** the same photos as polaroids on a cork board.
+- Add photos: EXIF (camera, date, exposure, ISO, GPS if present) is read automatically. The DSC-V1 has no GPS, so search a place or use "Pin on map".
+- Each card has a story, date, likes, and a full-size zoomable viewer.
 - Data is saved in your browser (IndexedDB). Use Export/Import to back up.
 
-Run: `python3 -m http.server` in this folder, then open http://localhost:8000
+## Run it
+```
+npm install
+npm run dev
+```
+Open http://localhost:5173
+
+## Working together
+Don't commit to `main`. Each person works on their own branch and opens a pull request.
