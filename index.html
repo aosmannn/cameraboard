@@ -4,65 +4,96 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Cameraboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Caveat:wght@500;700&family=DM+Sans:wght@400;500;700&display=swap">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/MarkerCluster.min.css">
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
-<header class="top">
-  <h1>📌 Cameraboard</h1>
-  <p class="sub">Shot on Sony Cyber-shot DSC-V1 · pin your photos, tell their story</p>
+<header class="bar">
+  <div class="brand"><span class="dot"></span>Cameraboard</div>
+  <nav class="seg" aria-label="View">
+    <button id="vMap" class="on">Map</button>
+    <button id="vBoard">Board</button>
+  </nav>
   <div class="actions">
-    <button id="addSlot" class="btn">+ More cards</button>
-    <button id="exportBtn" class="btn">Export</button>
-    <label class="btn">Import<input id="importFile" type="file" accept="application/json" hidden></label>
+    <button id="addBtn" class="btn primary">+ Add photos</button>
+    <button id="exportBtn" class="btn ghost">Export</button>
+    <label class="btn ghost">Import<input id="importFile" type="file" accept="application/json" hidden></label>
   </div>
 </header>
 
-<main id="board" class="board" aria-label="Photo bulletin board"></main>
+<main>
+  <section id="mapView" class="view">
+    <div id="map"></div>
+    <div id="empty" class="empty-state" hidden>
+      <h2>Your map is empty</h2>
+      <p>Add a photo from your Sony DSC-V1, then place it on the map.</p>
+      <button class="btn primary" id="emptyAdd">+ Add photos</button>
+    </div>
+    <div id="pinBanner" class="banner" hidden>
+      <span id="pinText">Click the map to place this photo</span>
+      <button id="pinCancel" class="btn small">Cancel</button>
+    </div>
+    <div id="strip" class="strip" aria-label="All photos"></div>
+  </section>
+
+  <section id="boardView" class="view" hidden>
+    <div id="board" class="board"></div>
+  </section>
+</main>
+
+<aside id="drawer" class="drawer" hidden>
+  <button class="x" id="dClose" aria-label="Close">✕</button>
+  <button class="photo" id="photoBtn" aria-label="View full size"><img id="dImg" alt=""><span>⤢ Zoom</span></button>
+  <div class="body">
+    <input id="fTitle" class="title" placeholder="Give this photo a title">
+    <div class="row">
+      <button id="likeBtn" class="like">♡ <span id="likeCount">0</span></button>
+      <span class="grow"></span>
+      <button id="replaceBtn" class="btn small">Replace</button>
+      <button id="deleteBtn" class="btn small danger">Remove</button>
+    </div>
+
+    <h3>Story</h3>
+    <textarea id="fStory" rows="4" placeholder="What was happening? Who was there? Why this shot?"></textarea>
+
+    <h3>Location</h3>
+    <div class="search">
+      <input id="fPlace" placeholder="Search a place, e.g. Lisbon">
+      <button id="placeBtn" class="btn small">Find</button>
+    </div>
+    <div class="row">
+      <button id="pinBtn" class="btn small">📍 Pin on map</button>
+      <button id="clearLoc" class="btn small ghost">Clear</button>
+    </div>
+    <p id="locNote" class="hint"></p>
+
+    <h3>Details</h3>
+    <label class="field">Date taken
+      <input id="fDate" type="datetime-local">
+    </label>
+    <dl id="meta" class="meta"></dl>
+  </div>
+</aside>
+
+<div id="viewer" class="viewer" hidden>
+  <button class="x" id="vwClose" aria-label="Close">✕</button>
+  <img id="vwImg" alt="" draggable="false">
+  <div class="zoom-ctl">
+    <button id="zIn" aria-label="Zoom in">＋</button>
+    <button id="zOut" aria-label="Zoom out">－</button>
+    <button id="zReset" aria-label="Fit">⟲</button>
+  </div>
+  <p class="hint">Scroll or pinch to zoom · drag to pan · double-click to zoom in</p>
+</div>
 
 <input id="picker" type="file" accept="image/*" hidden>
 
-<div id="lightbox" class="lightbox" hidden>
-  <div class="lb-inner">
-    <button class="lb-close" id="lbClose" aria-label="Close">✕</button>
-    <section class="lb-photo" id="lbPhoto">
-      <img id="lbImg" alt="" draggable="false">
-      <div class="zoom-ctl">
-        <button id="zIn" aria-label="Zoom in">＋</button>
-        <button id="zOut" aria-label="Zoom out">－</button>
-        <button id="zReset" aria-label="Reset zoom">⟲</button>
-      </div>
-      <p class="hint">Scroll / pinch to zoom · drag to pan</p>
-    </section>
-    <aside class="lb-info">
-      <input id="fTitle" class="title" placeholder="Give this photo a title">
-      <div class="row">
-        <button id="likeBtn" class="like">♡ <span id="likeCount">0</span></button>
-        <button id="replaceBtn" class="btn small">Replace photo</button>
-        <button id="deleteBtn" class="btn small danger">Remove</button>
-      </div>
-
-      <h3>The story</h3>
-      <textarea id="fStory" rows="5" placeholder="What was happening? Who was there? Why this shot?"></textarea>
-
-      <h3>Details</h3>
-      <dl id="meta" class="meta"></dl>
-      <label class="field">Date taken
-        <input id="fDate" type="datetime-local">
-      </label>
-
-      <h3>Location</h3>
-      <div class="search">
-        <input id="fPlace" placeholder="Search a place (e.g. Lisbon, Portugal)">
-        <button id="placeBtn" class="btn small">Find</button>
-      </div>
-      <div id="map" class="map"></div>
-      <p class="hint" id="mapHint">The DSC-V1 has no GPS — search a place or click the map to drop a pin.</p>
-    </aside>
-  </div>
-</div>
-
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/leaflet.markercluster.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/exifr@7.1.3/dist/lite.umd.js"></script>
 <script src="app.js"></script>
 </body>
