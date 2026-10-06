@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cameraboard</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="top">
+  <h1>📌 Cameraboard</h1>
+  <p class="sub">Shot on Sony Cyber-shot DSC-V1 · pin your photos, tell their story</p>
+  <div class="actions">
+    <button id="addSlot" class="btn">+ More cards</button>
+    <button id="exportBtn" class="btn">Export</button>
+    <label class="btn">Import<input id="importFile" type="file" accept="application/json" hidden></label>
+  </div>
+</header>
+
+<main id="board" class="board" aria-label="Photo bulletin board"></main>
+
+<input id="picker" type="file" accept="image/*" hidden>
+
+<div id="lightbox" class="lightbox" hidden>
+  <div class="lb-inner">
+    <button class="lb-close" id="lbClose" aria-label="Close">✕</button>
+    <section class="lb-photo" id="lbPhoto">
+      <img id="lbImg" alt="" draggable="false">
+      <div class="zoom-ctl">
+        <button id="zIn" aria-label="Zoom in">＋</button>
+        <button id="zOut" aria-label="Zoom out">－</button>
+        <button id="zReset" aria-label="Reset zoom">⟲</button>
+      </div>
+      <p class="hint">Scroll / pinch to zoom · drag to pan</p>
+    </section>
+    <aside class="lb-info">
+      <input id="fTitle" class="title" placeholder="Give this photo a title">
+      <div class="row">
+        <button id="likeBtn" class="like">♡ <span id="likeCount">0</span></button>
+        <button id="replaceBtn" class="btn small">Replace photo</button>
+        <button id="deleteBtn" class="btn small danger">Remove</button>
+      </div>
+
+      <h3>The story</h3>
+      <textarea id="fStory" rows="5" placeholder="What was happening? Who was there? Why this shot?"></textarea>
+
+      <h3>Details</h3>
+      <dl id="meta" class="meta"></dl>
+      <label class="field">Date taken
+        <input id="fDate" type="datetime-local">
+      </label>
+
+      <h3>Location</h3>
+      <div class="search">
+        <input id="fPlace" placeholder="Search a place (e.g. Lisbon, Portugal)">
+        <button id="placeBtn" class="btn small">Find</button>
+      </div>
+      <div id="map" class="map"></div>
+      <p class="hint" id="mapHint">The DSC-V1 has no GPS — search a place or click the map to drop a pin.</p>
+    </aside>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/exifr@7.1.3/dist/lite.umd.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

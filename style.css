@@ -1,0 +1,53 @@
+:root{--cork:#c19a6b;--ink:#2b2118;--paper:#fffdf7;--accent:#d6453d;font-family:"Segoe UI",system-ui,sans-serif}
+*{box-sizing:border-box}
+body{margin:0;color:var(--ink);background:#6b4a2b}
+.top{padding:20px 24px 8px;color:#fff6e6;display:flex;flex-wrap:wrap;gap:4px 20px;align-items:baseline}
+.top h1{margin:0;font-family:"Caveat","Comic Sans MS",cursive;font-size:2.2rem}
+.sub{margin:0;opacity:.8;flex:1}
+.actions{display:flex;gap:8px}
+.btn{background:var(--paper);border:1px solid #0003;border-radius:8px;padding:8px 12px;cursor:pointer;font:inherit;color:var(--ink)}
+.btn:hover{background:#fff}
+.btn.small{padding:5px 9px;font-size:.85rem}
+.btn.danger{color:var(--accent)}
+
+.board{margin:12px;padding:28px 20px 40px;min-height:80vh;border-radius:14px;
+  background:radial-gradient(#0000000f 1px,transparent 1.5px) 0 0/6px 6px,var(--cork);
+  box-shadow:inset 0 0 0 10px #8a5a2b,inset 0 0 30px #0006,0 6px 20px #0006;
+  display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:34px 26px}
+
+.card{position:relative;background:var(--paper);padding:12px 12px 10px;border-radius:3px;
+  box-shadow:0 6px 12px #0004;transform:rotate(var(--rot,0deg));transition:transform .2s,box-shadow .2s;cursor:pointer}
+.card:hover,.card:focus-visible{transform:rotate(0) scale(1.05);box-shadow:0 14px 24px #0005;z-index:2;outline:none}
+.pin{position:absolute;top:-10px;left:50%;width:18px;height:18px;margin-left:-9px;border-radius:50%;
+  background:radial-gradient(circle at 35% 30%,#fff9 0 12%,var(--pin,#d6453d) 40%,#0006 100%);box-shadow:2px 4px 4px #0005}
+.thumb{aspect-ratio:4/3;background:#e8e1d2;display:grid;place-items:center;overflow:hidden;color:#8b7d66}
+.thumb img{width:100%;height:100%;object-fit:cover;display:block}
+.empty .thumb{border:2px dashed #b8aa8f;font-size:.95rem;text-align:center;padding:8px}
+.empty .thumb b{display:block;font-size:2rem}
+.cap{display:flex;justify-content:space-between;align-items:center;margin-top:8px;font-family:"Caveat","Comic Sans MS",cursive;font-size:1.15rem;min-height:1.6em;gap:6px}
+.cap span:first-child{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cap .lk{font-family:system-ui;font-size:.8rem;color:var(--accent);white-space:nowrap}
+
+.lightbox{position:fixed;inset:0;background:#000c;z-index:10;display:grid;place-items:center;padding:12px}
+.lightbox[hidden]{display:none}
+.lb-inner{position:relative;width:min(1200px,100%);height:min(88vh,860px);background:var(--paper);border-radius:10px;overflow:hidden;display:grid;grid-template-columns:1fr 360px}
+.lb-close{position:absolute;top:8px;right:8px;z-index:3;border:0;background:#000a;color:#fff;border-radius:50%;width:32px;height:32px;cursor:pointer}
+.lb-photo{position:relative;background:#111;overflow:hidden;touch-action:none;cursor:grab}
+.lb-photo img{position:absolute;left:0;top:0;transform-origin:0 0;max-width:none;user-select:none}
+.zoom-ctl{position:absolute;left:10px;bottom:34px;display:flex;flex-direction:column;gap:6px}
+.zoom-ctl button{width:34px;height:34px;border:0;border-radius:8px;background:#fffd;cursor:pointer;font-size:1.1rem}
+.lb-photo .hint{position:absolute;left:10px;bottom:6px;margin:0;color:#fffa}
+.lb-info{padding:16px;overflow:auto}
+.lb-info h3{margin:18px 0 6px;font-size:.8rem;text-transform:uppercase;letter-spacing:.08em;color:#8b7d66}
+.title{width:100%;font:600 1.4rem "Caveat","Comic Sans MS",cursive;border:0;border-bottom:1px dashed #b8aa8f;background:none;padding:4px 0;margin-top:20px}
+.row{display:flex;gap:8px;align-items:center;margin-top:10px;flex-wrap:wrap}
+.like{border:1px solid var(--accent);background:#fff;color:var(--accent);border-radius:20px;padding:5px 14px;cursor:pointer;font-size:1rem}
+.like.on{background:var(--accent);color:#fff}
+textarea,input[type=datetime-local],.search input{width:100%;font:inherit;padding:8px;border:1px solid #d8cfba;border-radius:6px;background:#fff}
+.meta{display:grid;grid-template-columns:auto 1fr;gap:2px 12px;margin:0 0 10px;font-size:.9rem}
+.meta dt{color:#8b7d66}.meta dd{margin:0}
+.field{display:block;font-size:.85rem;color:#8b7d66}
+.search{display:flex;gap:6px}
+.map{height:220px;border-radius:8px;margin-top:8px;background:#e8e1d2}
+.hint{font-size:.8rem;color:#8b7d66}
+@media(max-width:800px){.lb-inner{grid-template-columns:1fr;grid-template-rows:45% 1fr;height:94vh}}
