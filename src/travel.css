@@ -1,4 +1,8 @@
 /* been / bucket travel panels */
+.st-tabs { flex-wrap: wrap; min-width: 0; }
+.st-tab { padding: 2px 10px 4px 0; font: 26px/1 var(--display); }
+.st-tab + .st-tab { padding-left: 2px; }
+
 .travel .tv-stat { margin: 4px 0 14px; color: var(--mute); font-size: 13.5px; line-height: 1.4; }
 .travel .tv-stat b { color: var(--ink); font-weight: 600; }
 .tv-search { width: 100%; margin-bottom: 10px; }
