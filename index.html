@@ -3,14 +3,11 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Cameraboard</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Caveat:wght@500;700&family=DM+Sans:wght@400;500;700&family=VT323&display=swap">
+<title>Wayframe</title>
 </head>
 <body>
 <header class="bar">
-  <div class="brand"><span class="dot"></span>Cameraboard</div>
+  <div class="brand"><span class="dot"></span>Wayframe</div>
   <nav class="seg" aria-label="View">
     <button id="vMap" class="on">Map</button>
     <button id="vBoard">Board</button>
@@ -119,7 +116,8 @@
 
     <h3>Location</h3>
     <div class="search">
-      <input id="fPlace" placeholder="Search a place, e.g. Lisbon">
+      <input id="fPlace" list="placeList" placeholder="Search a city, e.g. Lisbon" autocomplete="off">
+      <datalist id="placeList"></datalist>
       <button id="placeBtn" class="btn small">Find</button>
     </div>
     <div class="row">

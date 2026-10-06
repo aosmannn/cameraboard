@@ -5,6 +5,7 @@ let db: IDBDatabase;
 
 export function openStore(): Promise<void> {
   return new Promise((res, rej) => {
+    // The database keeps its original name so photos saved before the rename are still found.
     const r = indexedDB.open('cameraboard', 1);
     r.onupgradeneeded = () => r.result.createObjectStore('kv');
     r.onsuccess = () => { db = r.result; res(); };
