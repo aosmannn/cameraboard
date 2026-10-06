@@ -368,6 +368,7 @@ function storyEditor(s: Story): HTMLElement {
     const im = new Image(); im.src = c.img!; im.alt = '';
     const txt = el('button', 'stop-txt');
     txt.append(el('b', '', c.title || 'Untitled'), el('span', '', [placeName(c) || 'Not on the map', fmtDate(c)].filter(Boolean).join(' · ')));
+    const shot = shotLine(c); if (shot) txt.append(el('span', 'stop-cam', shot));
     txt.onclick = () => openCard(c);
     const move = (d: number) => {
       const list = [...s.cards]; const j = i + d; if (j < 0 || j >= list.length) return;
@@ -682,9 +683,25 @@ function drawLookAndStamp(c: Card) {
 function drawMeta(c: Card) {
   $('dMeta').textContent = [c.place || 'Not on the map yet', fmtDate(c)].filter(Boolean).join(' · ');
 }
+function shotLine(c: Card): string {
+  const m = c.meta || {};
+  return [cameraName(c), m.exposure, m.aperture, m.iso ? 'ISO ' + m.iso : '', m.focal].filter(Boolean).join(' · ');
+}
 function drawShotOn(c: Card) {
   const m = c.meta || {}, box = $('shotOn'); box.innerHTML = '';
-  box.append(el('span', 'so-label', 'Shot on'), el('b', 'so-cam', cameraName(c)));
+  if (!m.camera?.trim()) {
+    box.classList.add('empty');
+    box.append(el('span', 'so-label', 'Shot on'), el('b', 'so-cam', 'No camera info in this file'));
+    box.append(el('p', 'so-why', 'Photos sent through messages, social apps or cloud previews often lose it.'));
+    if (!guestMode && !c.owner) {
+      const add = el('button', 'btn small', 'Add the camera'); add.onclick = () => {
+        const f = fCamera.closest('details'); if (f) f.open = true;
+        fCamera.scrollIntoView({ block: 'center' }); fCamera.focus();
+      };
+      box.append(add);
+    }
+  } else box.classList.remove('empty');
+  if (m.camera?.trim()) box.append(el('span', 'so-label', 'Shot on'), el('b', 'so-cam', cameraName(c)));
   const chips = [m.exposure, m.aperture, m.iso ? 'ISO ' + m.iso : '', m.focal].filter(Boolean) as string[];
   if (chips.length) { const row = el('div', 'so-chips'); chips.forEach(t => row.append(el('span', '', t))); box.append(row); }
 }
@@ -892,6 +909,7 @@ function playStep(i: number) {
   const img = $<HTMLImageElement>('pcImg'); img.src = c.img!; img.className = 'look-' + c.look;
   $('pcTitle').textContent = c.title || 'Untitled';
   $('pcWhere').textContent = [placeName(c), fmtDate(c)].filter(Boolean).join(' · ');
+  $('pcCam').textContent = shotLine(c);
   $('pcCount').textContent = `Stop ${pl.i + 1} of ${pl.list.length} · ${pl.story}`;
   const prev = pl.list[pl.i - 1];
   const far = prev ? map.distance([prev.lat!, prev.lng!], [c.lat!, c.lng!]) : 0;
