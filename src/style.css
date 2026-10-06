@@ -94,7 +94,7 @@ button { cursor: pointer; }
 .top-left { display: flex; align-items: center; gap: 10px; min-width: 0; }
 .top-right { display: flex; align-items: center; gap: 8px; }
 .top .btn { height: 42px; box-shadow: var(--shadow); }
-.brand { font: 30px/1 var(--display); letter-spacing: -.01em; background: var(--panel); padding: 6px 16px 8px; border-radius: 12px; box-shadow: var(--shadow); }
+.brand { color: inherit; text-decoration: none; font: 30px/1 var(--display); letter-spacing: -.01em; background: var(--panel); padding: 6px 16px 8px; border-radius: 12px; box-shadow: var(--shadow); }
 .search { display: flex; align-items: center; gap: 8px; height: 42px; width: 300px; padding: 0 14px; background: var(--panel); border-radius: 12px; box-shadow: var(--shadow); }
 .search svg { width: 16px; height: 16px; flex: none; fill: none; stroke: var(--mute); stroke-width: 1.8; stroke-linecap: round; }
 .search input { flex: 1; min-width: 0; border: 0; background: none; outline: 0; }
@@ -273,7 +273,7 @@ textarea { resize: vertical; font: 500 19px/1.3 var(--hand); }
 .story.friend .st-name { display: block; font: 23px/1.1 var(--display); }
 .story.friend .st-sub { display: block; }
 .btn.friend-play { background: #2f5fb3; border-color: #2f5fb3; color: #fff; }
-.d-owner { margin: 2px 0 0; color: #2f5fb3; font-size: 13px; font-weight: 500; }
+.d-owner { display: block; margin: 2px 0 0; padding: 0; border: 0; background: none; color: #2f5fb3; font-size: 13px; font-weight: 500; text-decoration: underline; text-underline-offset: 3px; }
 @media (prefers-color-scheme: dark) { .d-owner, .story.friend .st-route { color: #7fa3e6; } }
 .drawer.ro .edit-only { display: none !important; }
 .drawer.ro .title { pointer-events: none; }
@@ -300,3 +300,39 @@ textarea { resize: vertical; font: 500 19px/1.3 var(--hand); }
 #codeBack { margin-top: 10px; }
 .drawer.ro #dStory span { color: #2f5fb3; }
 @media (prefers-color-scheme: dark) { .drawer.ro #dStory span { color: #7fa3e6; } }
+
+/* profiles and people */
+.at-row { display: flex; align-items: center; gap: 6px; }
+.at-row span { color: var(--mute); font-size: 18px; }
+.bio-in { font: 14px/1.4 var(--ui) !important; resize: vertical; }
+.tabs { display: flex; gap: 6px; margin-bottom: 10px; }
+.tab { border: 0; background: none; padding: 7px 12px; border-radius: 999px; color: var(--mute); font-weight: 500; }
+.tab span { color: var(--mute); font-weight: 400; margin-left: 2px; }
+.tab.on { background: var(--ink); color: var(--bg); }
+.tab.on span { color: inherit; opacity: .7; }
+.p-open { flex: 1; min-width: 0; display: flex; align-items: center; gap: 10px; border: 0; background: none; padding: 0; text-align: left; }
+.p-text { min-width: 0; display: flex; flex-direction: column; }
+.p-text b { font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.p-text small { color: var(--mute); }
+#matchList { margin-top: 8px; }
+.prof-head { display: flex; align-items: center; gap: 16px; }
+.ava.big { width: 64px; height: 64px; font: 30px var(--display); background: var(--ink); color: var(--bg); }
+.prof-head h2 { margin: 0; font: 34px/1.05 var(--display); }
+.bio { margin: 14px 0 0; line-height: 1.5; }
+.counts { display: flex; flex-wrap: wrap; align-items: center; gap: 18px; margin: 14px 0; color: var(--mute); }
+.counts b { color: var(--ink); font-weight: 700; }
+.pill { padding: 2px 10px; border-radius: 999px; background: var(--panel-2); font-size: 12px; }
+#pfStories .story { margin: 0 0 8px; padding: 12px; border-radius: 14px; background: var(--panel-2); }
+
+.opt { text-transform: none; letter-spacing: 0; color: var(--mute); font-weight: 400; }
+.switch { display: flex; gap: 12px; align-items: flex-start; margin-top: 14px; padding: 12px; border: 1px solid var(--line); border-radius: 12px; cursor: pointer; }
+.switch input { margin-top: 3px; }
+.switch b { display: block; font-weight: 500; }
+.switch small { display: block; color: var(--mute); font-size: 12.5px; line-height: 1.4; }
+.invite { display: flex; gap: 14px; align-items: center; }
+.invite canvas { flex: none; width: 96px; height: 96px; border-radius: 8px; background: #fff; padding: 4px; }
+.invite > div { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 8px; }
+.invite input { font-size: 12.5px; }
+.mutual { margin: 10px 0 0; color: var(--blue); font-size: 14px; }
+.safety { margin-top: 22px; padding-top: 12px; border-top: 1px solid var(--line); display: flex; flex-wrap: wrap; gap: 6px 18px; }
+.safety > div { flex-basis: 100%; }

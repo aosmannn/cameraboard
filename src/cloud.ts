@@ -1,4 +1,4 @@
-// Accounts (email code sign-in), sync and friends, through Supabase (project psuykzkrakkdqhulrqig).
+// Accounts (email code sign-in), profiles, following, sync and likes, through Supabase (project psuykzkrakkdqhulrqig).
 // The app works fully without this: if no key is configured, everything stays in the browser.
 import { createClient, type Session } from '@supabase/supabase-js';
 import type { Card } from './types';
@@ -38,16 +38,35 @@ export async function verifyCode(email: string, token: string) {
 }
 export async function signOut() { await sb?.auth.signOut(); }
 
-export async function myName(): Promise<string> {
-  const u = me(); if (!u) return '';
-  const { data } = await sb!.from('profiles').select('display_name').eq('id', u.id).maybeSingle();
-  return data?.display_name ?? '';
+/** username is null unless the person chose to be discoverable (or it's you). */
+export interface Person { id: string; display_name: string; username: string | null }
+export interface MyProfile extends Person { discoverable: boolean; invite_code: string }
+export interface Profile extends Person { discoverable: boolean }
+export const USERNAME_RE = /^[a-z0-9_]{3,20}$/;
+export const cleanUsername = (raw: string) => raw.trim().replace(/^@/, '').toLowerCase();
+/** How a person is shown: their name, or @username when they haven't set a name. */
+export const labelOf = (p: Pick<Person, 'display_name' | 'username'>) => p.display_name || (p.username ? '@' + p.username : 'Someone');
+
+export async function myProfile(): Promise<MyProfile | null> {
+  const u = me(); if (!u) return null;
+  const { data } = await sb!.from('profiles').select('id, display_name, username, discoverable, invite_code').eq('id', u.id).maybeSingle();
+  return (data as MyProfile | null) ?? null;
 }
-export async function setMyName(name: string) {
+export async function saveProfile(p: { display_name: string; username: string; discoverable: boolean }) {
   const u = me(); if (!u) return;
-  const { error } = await sb!.from('profiles').update({ display_name: name.trim().slice(0, 40) }).eq('id', u.id);
-  if (error) throw error;
+  const username = cleanUsername(p.username);
+  if (username && !USERNAME_RE.test(username)) throw new Error('Usernames are 3 to 20 letters, numbers or underscores.');
+  if (p.discoverable && !username) throw new Error('Pick a username to be discoverable.');
+  const { error } = await sb!.from('profiles').update({
+    display_name: p.display_name.trim().slice(0, 40), username: username || null, discoverable: p.discoverable && !!username
+  }).eq('id', u.id);
+  if (error) throw new Error(error.code === '23505' ? 'That username is taken. Try another.' : error.message);
 }
+export async function setInviteCode(code: string) {
+  const { error } = await sb!.from('profiles').update({ invite_code: code }).eq('id', me()!.id);
+  if (error) throw new Error(error.message);
+}
+export const inviteLink = (code: string) => `${location.origin}/app.html?add=${code}`;
 
 // ---------- your photos ----------
 interface Row {
@@ -124,29 +143,54 @@ export async function pullMine(have: Set<string>): Promise<Card[]> {
   return out;
 }
 
-// ---------- friends ----------
-export interface Person { id: string; display_name: string }
-
-/** Hashes addresses the same way the database does (sha256 of the lower-case address). */
-async function hashEmail(email: string) {
-  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(cleanEmail(email)));
-  return [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2, '0')).join('');
+// ---------- people and following ----------
+/** Search by username. Only people who turned on "discoverable" appear. */
+export async function searchPeople(q: string): Promise<Person[]> {
+  const { data, error } = await sb!.rpc('search_people', { q: cleanUsername(q) });
+  if (error) throw new Error(error.message);
+  return (data ?? []) as Person[];
 }
+/** A profile by id (people you're connected to), @username (discoverable people) or invite code (anyone). */
+export async function publicProfile(who: { id?: string; handle?: string; code?: string }): Promise<Profile | null> {
+  const { data, error } = await sb!.rpc('public_profile', {
+    uid: who.id ?? null, handle: who.handle ? cleanUsername(who.handle) : null, code: who.code ?? null
+  });
+  if (error) throw new Error(error.message);
+  return ((data ?? [])[0] as Profile | undefined) ?? null;
+}
+/** People you both follow. Empty unless the other person is discoverable. */
+export async function mutualFollows(id: string): Promise<Person[]> {
+  const { data } = await sb!.rpc('mutual_follows', { uid: id });
+  return (data ?? []) as Person[];
+}
+/** Which of these email addresses belong to Wayframe accounts. Sent as one-way hashes. */
 export async function matchContacts(emails: string[]): Promise<Person[]> {
   const ok = [...new Set(emails.map(cleanEmail).filter(e => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e)))].slice(0, 2000);
   if (!ok.length) return [];
-  const hashes = await Promise.all(ok.map(hashEmail));
+  const hashes = await Promise.all(ok.map(async e => {
+    const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(e));
+    return [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2, '0')).join('');
+  }));
   const { data, error } = await sb!.rpc('match_contacts', { hashes });
-  if (error) throw error;
-  return data as Person[];
-}
-export async function following(): Promise<Person[]> {
-  const u = me(); if (!u) return [];
-  const { data: f } = await sb!.from('follows').select('followee').eq('follower', u.id);
-  const ids = (f ?? []).map((x: any) => x.followee);
-  if (!ids.length) return [];
-  const { data } = await sb!.from('profiles').select('id, display_name').in('id', ids);
+  if (error) throw new Error(error.message);
   return (data ?? []) as Person[];
+}
+export async function blockUser(id: string) { const { error } = await sb!.rpc('block_user', { uid: id }); if (error) throw new Error(error.message); }
+export async function unblockUser(id: string) { await sb!.from('blocks').delete().eq('blocker', me()!.id).eq('blocked', id); }
+export async function blockedIds(): Promise<string[]> {
+  const { data } = await sb!.from('blocks').select('blocked').eq('blocker', me()!.id);
+  return (data ?? []).map((x: any) => x.blocked);
+}
+export async function reportUser(id: string, reason: string) {
+  const { error } = await sb!.from('reports').insert({ reported: id, reason: reason.slice(0, 500) });
+  if (error) throw new Error(error.message);
+}
+export interface Connection extends Person { i_follow: boolean; follows_me: boolean }
+/** Everyone you follow or who follows you. */
+export async function connections(): Promise<Connection[]> {
+  if (!me()) return [];
+  const { data } = await sb!.rpc('my_connections');
+  return (data ?? []) as Connection[];
 }
 export async function follow(id: string) { const { error } = await sb!.from('follows').insert({ followee: id }); if (error && error.code !== '23505') throw error; }
 export async function unfollow(id: string) { await sb!.from('follows').delete().eq('follower', me()!.id).eq('followee', id); }
