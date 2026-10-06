@@ -56,7 +56,7 @@ const stackOf = (c: Card) => placed(c) ? visiblePlaced().filter(x => placeKey(x)
 
 // ---------- map ----------
 const themeName = ((): ThemeName => { const t = lsGet('cb-theme'); return t && t in THEMES ? t as ThemeName : 'classic'; })();
-const map = L.map('map', { zoomControl: false, minZoom: 2, maxZoom: 10, preferCanvas: true,
+const map = L.map('map', { zoomControl: false, minZoom: 2, maxZoom: 19, preferCanvas: true,
   maxBounds: [[-60, -180], [84, 180]], maxBoundsViscosity: 1 }).setView([25, 10], 2);
 L.control.zoom({ position: 'topleft' }).addTo(map);
 const world = drawWorld(map, themeName);
@@ -120,9 +120,9 @@ function fitAll() {
   const pts = visiblePlaced().map(c => [c.lat!, c.lng!] as L.LatLngTuple);
   if (pts.length) map.fitBounds(pts, { padding: [80, 80], maxZoom: 6 });
 }
-function flyTo(c: Card) {
+function flyTo(c: Card, zoom = 13) {
   const pad = wide() ? { paddingBottomRight: L.point(420, 0) } : { paddingBottomRight: L.point(0, window.innerHeight * 0.7) };
-  map.flyToBounds(L.latLngBounds([[c.lat!, c.lng!]]), { ...pad, maxZoom: Math.max(map.getZoom(), 7), duration: 1 });
+  map.flyToBounds(L.latLngBounds([[c.lat!, c.lng!]]), { ...pad, maxZoom: Math.max(map.getZoom(), zoom), duration: 1.2 });
   map.once('moveend', () => { const m = markers.get(placeKey(c)); if (m) cluster.zoomToShowLayer(m, markSelected); });
 }
 
@@ -131,7 +131,7 @@ function renderStrip() {
   const unplaced = cards.filter(c => c.img && !placed(c));
   if (unplaced.length) {
     const b = document.createElement('button');
-    b.className = 'chip queue-chip'; b.textContent = `📍 Place me (${unplaced.length})`;
+    b.className = 'chip queue-chip'; b.textContent = `Place me (${unplaced.length})`;
     b.onclick = () => openQueue(); s.append(b);
   }
   for (const c of cards.filter(visible)) {
@@ -175,7 +175,7 @@ function visitedSet(): Set<string> {
 function refreshChrome() {
   const v = visitedSet();
   world.setVisited(highlight ? v : null);
-  const h = $('hlBtn'); h.textContent = `🌍 ${v.size} ${v.size === 1 ? 'country' : 'countries'}`; h.classList.toggle('on', highlight);
+  const h = $('hlBtn'); h.textContent = `${v.size} ${v.size === 1 ? 'country' : 'countries'}`; h.classList.toggle('on', highlight);
   // filter menus and trip suggestions
   const fill = (id: string, label: string, vals: string[], cur: string) => {
     const s = $<HTMLSelectElement>(id); s.innerHTML = '';
@@ -377,7 +377,7 @@ function locNote() {
 }
 async function reverse(lat: number, lng: number): Promise<string> {
   try {
-    const r = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&zoom=10&lat=${lat}&lon=${lng}`);
+    const r = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&zoom=14&lat=${lat}&lon=${lng}`);
     const j = await r.json(); return j.display_name ? j.display_name.split(',').slice(0, 2).join(',').trim() : '';
   } catch { return ''; }
 }
@@ -411,6 +411,7 @@ function stopPinning() {
 }
 $('pinBtn').onclick = () => { if (cur) startPinning([cur]); };
 $('pinCancel').onclick = stopPinning;
+$('exactBtn').onclick = () => { if (cur && placed(cur)) { if (view !== 'map') setView('map'); flyTo(cur, 17); } };
 $('clearLoc').onclick = () => {
   if (!cur) return;
   cur.lat = cur.lng = null; cur.place = ''; fPlace.value = '';
@@ -454,7 +455,7 @@ function renderQueue() {
       };
       row.append(b);
     }
-    const pin = document.createElement('button'); pin.className = 'btn small'; pin.textContent = '📍 Pin on map…';
+    const pin = document.createElement('button'); pin.className = 'btn small'; pin.textContent = 'Pin on map…';
     pin.onclick = () => startPinning(group);
     row.append(pin); box.append(row); list.append(box);
   });
@@ -466,7 +467,7 @@ $('qClose').onclick = () => { $('queue').hidden = true; };
 const pl = { list: [] as Card[], i: 0, timer: 0, paused: false, on: false };
 function stopPlay() {
   if (!pl.on) return;
-  clearTimeout(pl.timer); pl.on = false; $('playCard').hidden = true; $('playBtn').textContent = '▶ Play timeline';
+  clearTimeout(pl.timer); pl.on = false; $('playCard').hidden = true; $('playBtn').textContent = 'Play';
   focusCard = () => cur; markSelected();
 }
 function playStep(i: number) {
@@ -478,7 +479,7 @@ function playStep(i: number) {
   $('pcTitle').textContent = c.title || 'Untitled';
   $('pcWhere').textContent = [c.place, c.date ? new Date(c.date).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' }) : ''].filter(Boolean).join(' · ');
   $('pcCount').textContent = `${pl.i + 1} of ${pl.list.length}`;
-  map.flyTo([c.lat!, c.lng!], 6, { duration: 2.2 });
+  map.flyTo([c.lat!, c.lng!], 10, { duration: 2.2 });
   map.once('moveend', () => { const m = markers.get(placeKey(c)); if (m) cluster.zoomToShowLayer(m, markSelected); markSelected(); });
   markSelected();
   if (!pl.paused) pl.timer = window.setTimeout(() => playStep(pl.i + 1), 4800);
@@ -488,7 +489,7 @@ function startPlay() {
   if (!list.length) { alert('Place at least one photo on the map first.'); return; }
   closeDrawerQuiet();
   Object.assign(pl, { list, i: 0, paused: false, on: true });
-  $('playCard').hidden = false; $('playBtn').textContent = '■ Stop'; $('pcPause').textContent = '⏸';
+  $('playCard').hidden = false; $('playBtn').textContent = 'Stop'; $('pcPause').textContent = '⏸';
   playStep(0);
 }
 function closeDrawerQuiet() { cur = null; $('drawer').hidden = true; renderStrip(); }

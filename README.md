@@ -10,7 +10,8 @@ Built for photos from a Sony Cyber-shot DSC-V1, and it works with any camera.
 
 ## What it does
 
-- **A map we draw ourselves.** Every country gets its own colour on a blue ocean, with no street-map tiles. Country names, major cities and seas appear as you zoom in.
+- **A map we draw ourselves, with real detail up close.** Zoomed out, every country gets its own colour on a blue ocean, with country names, major cities and seas. Zoom in and a detailed map fades in with states, counties, cities, neighbourhoods and streets, down to the exact spot.
+- **Jump to the exact spot.** Opening a photo flies to its location, and "Zoom to exact spot" goes to street level.
 - **Photo pins.** Each photo is a small picture pin. Photos close together group into a numbered circle that splits apart as you zoom.
 - **Cards with the full story.** Click a pin to open its card: the photo, a title, a like button, the story behind the shot, the date, camera details and where it was taken.
 - **Zoom into the photo.** Open any photo at full size, then scroll or pinch to zoom and drag to pan.
@@ -81,8 +82,7 @@ Don't commit to `main`. Each person works on their own branch and opens a pull r
 
 - [ ] Shared board so friends see the same photos and likes (a backend such as Supabase)
 - [ ] Sign-in, so each person's likes and uploads are theirs
-- [ ] Street-level detail when zoomed in far
 
 ## Credits
 
-Map data © [Natural Earth](https://www.naturalearthdata.com) (public domain). Place search by [OpenStreetMap Nominatim](https://nominatim.org).
+Country shapes © [Natural Earth](https://www.naturalearthdata.com) (public domain). Detailed map © [OpenStreetMap](https://www.openstreetmap.org/copyright) contributors, tiles by [CARTO](https://carto.com/attributions). Place search by [OpenStreetMap Nominatim](https://nominatim.org).

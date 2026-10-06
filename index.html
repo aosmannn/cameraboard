@@ -16,12 +16,19 @@
     <button id="vBoard">Board</button>
     <button id="vStats">Stats</button>
   </nav>
-  <input id="q" class="search-top" type="search" placeholder="Search photos" aria-label="Search photos">
-  <button id="filterBtn" class="btn">Filters <span id="filterCount" class="badge" hidden></span></button>
+  <div class="searchbox">
+    <input id="q" type="search" placeholder="Search photos" aria-label="Search photos">
+    <button id="filterBtn" title="Filters">Filters <span id="filterCount" class="badge" hidden></span></button>
+  </div>
   <div class="actions">
     <button id="addBtn" class="btn primary">+ Add photos</button>
-    <button id="exportBtn" class="btn ghost">Export</button>
-    <label class="btn ghost">Import<input id="importFile" type="file" accept="application/json" hidden></label>
+    <details class="menu">
+      <summary class="btn ghost" aria-label="More">⋯</summary>
+      <div class="menu-list">
+        <button id="exportBtn">Export backup</button>
+        <label>Import backup<input id="importFile" type="file" accept="application/json" hidden></label>
+      </div>
+    </details>
   </div>
 </header>
 
@@ -38,10 +45,13 @@
   <section id="mapView" class="view">
     <div id="map"></div>
     <div id="mapTools" class="tools">
-      <button id="playBtn" class="btn small">▶ Play timeline</button>
-      <select id="themeSel" class="btn small" aria-label="Map theme"></select>
-      <button id="hlBtn" class="btn small on" title="Light up countries you have photographed"></button>
-      <button id="posterBtn" class="btn small">🖼 Poster</button>
+      <button id="playBtn" title="Fly through your photos in date order">Play</button>
+      <span class="sep"></span>
+      <select id="themeSel" aria-label="Map theme"></select>
+      <span class="sep"></span>
+      <button id="hlBtn" title="Light up countries you have photographed"></button>
+      <span class="sep"></span>
+      <button id="posterBtn" title="Make a printable poster">Poster</button>
     </div>
     <div id="empty" class="empty-state" hidden>
       <h2>Your map is empty</h2>
@@ -113,32 +123,39 @@
       <button id="placeBtn" class="btn small">Find</button>
     </div>
     <div class="row">
-      <button id="pinBtn" class="btn small">📍 Pin on map</button>
+      <button id="pinBtn" class="btn small">Pin on map</button>
+      <button id="exactBtn" class="btn small">Zoom to exact spot</button>
       <button id="clearLoc" class="btn small ghost">Clear</button>
     </div>
     <p id="locNote" class="hint"></p>
 
-    <h3>Pin style</h3>
-    <div id="swatches" class="swatches"></div>
-    <div id="icons" class="icons"></div>
-    <label class="check"><input id="coverBox" type="checkbox"> Use as the cover photo for this place</label>
+    <details class="fold">
+      <summary>Pin style</summary>
+      <div id="swatches" class="swatches"></div>
+      <div id="icons" class="icons"></div>
+      <label class="check"><input id="coverBox" type="checkbox"> Use as the cover photo for this place</label>
+    </details>
 
-    <h3>Photo look</h3>
-    <div class="row">
-      <select id="lookSel" class="plain sel">
-        <option value="none">Original</option>
-        <option value="digicam">Early digicam</option>
-        <option value="film">Warm film</option>
-        <option value="bw">Black and white</option>
-      </select>
-      <label class="check"><input id="stampBox" type="checkbox"> Date stamp</label>
-    </div>
+    <details class="fold">
+      <summary>Photo look</summary>
+      <div class="row">
+        <select id="lookSel" class="plain sel">
+          <option value="none">Original</option>
+          <option value="digicam">Early digicam</option>
+          <option value="film">Warm film</option>
+          <option value="bw">Black and white</option>
+        </select>
+        <label class="check"><input id="stampBox" type="checkbox"> Date stamp</label>
+      </div>
+    </details>
 
-    <h3>Details</h3>
-    <label class="field">Date taken
-      <input id="fDate" type="datetime-local">
-    </label>
-    <dl id="meta" class="meta"></dl>
+    <details class="fold">
+      <summary>Date and file details</summary>
+      <label class="field">Date taken
+        <input id="fDate" type="datetime-local">
+      </label>
+      <dl id="meta" class="meta"></dl>
+    </details>
   </div>
 </aside>
 

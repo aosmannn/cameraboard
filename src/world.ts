@@ -165,8 +165,22 @@ export interface World {
   setVisited(names: Set<string> | null): void;
 }
 
+const TILES = {
+  light: 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
+  dark: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png'
+};
+/** Zoom range over which the detailed street map fades in on top of our own world map. */
+const DETAIL_FROM = 5, DETAIL_FULL = 7.5;
+
 export function drawWorld(map: L.Map, initial: ThemeName): World {
   let T = THEMES[initial];
+  map.createPane('worldPane').style.zIndex = '150';   // below the tile pane, so detail tiles cover it
+  const tiles = L.tileLayer(initial === 'night' ? TILES.dark : TILES.light, {
+    minZoom: DETAIL_FROM, maxZoom: 19, subdomains: 'abcd', opacity: 0,
+    attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> © <a href="https://carto.com/attributions">CARTO</a>'
+  }).addTo(map);
+  const fade = () => tiles.setOpacity(Math.min(1, Math.max(0, (map.getZoom() - DETAIL_FROM) / (DETAIL_FULL - DETAIL_FROM))));
+  map.on('zoom zoomend', fade); fade();
   let visited: Set<string> | null = null;
   const root = document.documentElement.style;
   const applyChrome = () => {
@@ -189,21 +203,23 @@ export function drawWorld(map: L.Map, initial: ThemeName): World {
       color: lit && visited?.size ? '#e4572e' : T.border, weight: lit && visited?.size ? 1.6 : 0.8 };
   };
   const world: L.GeoJSON = L.geoJSON(fc, {
+    pane: 'worldPane', renderer: L.canvas({ pane: 'worldPane' }),
     filter: f => f.properties?.name !== 'Antarctica',
     style,
     onEachFeature: (f, layer) => {
       layer.on('mouseover', () => (layer as L.Path).setStyle({ weight: 2.2, color: '#fff' }));
       layer.on('mouseout', () => world.resetStyle(layer as L.Path));
       layer.bindTooltip(f.properties.name, { sticky: true, direction: 'top', className: 'ctip' });
+      layer.on('mouseover', () => { if (map.getZoom() >= DETAIL_FULL) layer.closeTooltip(); });
       const { area, lc } = f.properties;
       if (!lc) return;
       const min = area > 600 ? 2 : area > 80 ? 3 : area > 14 ? 4 : area > 3 ? 5 : 6;
-      addLabel(f.properties.name, lc, 'country', min);
+      addLabel(f.properties.name, lc, 'country', min, 6);
     }
-  }).addTo(map);
+  } as L.GeoJSONOptions).addTo(map);
   world.bringToBack();
 
-  CITIES.forEach(([n, la, lo]) => addLabel(n, [la, lo], 'city', 5));
+  CITIES.forEach(([n, la, lo]) => addLabel(n, [la, lo], 'city', 5, 6));
   SEAS.forEach(([n, la, lo, mn, mx]) => addLabel(n, [la, lo], 'sea', mn, mx));
 
   const refresh = () => {
@@ -217,7 +233,7 @@ export function drawWorld(map: L.Map, initial: ThemeName): World {
 
   const restyle = () => { world.options.style = style; world.setStyle(style); };
   return {
-    setTheme(t) { T = THEMES[t]; applyChrome(); restyle(); },
+    setTheme(t) { T = THEMES[t]; tiles.setUrl(t === 'night' ? TILES.dark : TILES.light); applyChrome(); restyle(); },
     setVisited(names) { visited = names; restyle(); }
   };
 }
