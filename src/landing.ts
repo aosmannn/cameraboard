@@ -8,12 +8,12 @@ mountShell('home');
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
 
 // ---------- illustrated sample photos (the demo ships no real photos) ----------
-interface Look { sky: [string, string]; sun: string; ground: string; far: string; shape: 'city' | 'hills' | 'harbour' | 'towers' }
+interface Look { sky: [string, string]; sun: string; ground: string; far: string; shape: 'city' | 'hills' | 'harbor' | 'towers' }
 const svg = (l: Look) => {
   const shapes = {
     city: '<rect x="60" y="250" width="70" height="130" fill="@f"/><rect x="140" y="200" width="60" height="180" fill="@f"/><rect x="210" y="270" width="90" height="110" fill="@f"/><rect x="310" y="220" width="55" height="160" fill="@f"/><rect x="380" y="260" width="100" height="120" fill="@f"/><rect x="495" y="190" width="60" height="190" fill="@f"/>',
     hills: '<path d="M0 330 Q120 220 240 300 T520 280 T640 330 V380 H0Z" fill="@f"/>',
-    harbour: '<path d="M0 340 H640 V480 H0Z" fill="@g"/><rect x="90" y="270" width="8" height="70" fill="@f"/><path d="M98 270 L160 335 H98Z" fill="@f"/><rect x="380" y="290" width="150" height="50" fill="@f"/>',
+    harbor: '<path d="M0 340 H640 V480 H0Z" fill="@g"/><rect x="90" y="270" width="8" height="70" fill="@f"/><path d="M98 270 L160 335 H98Z" fill="@f"/><rect x="380" y="290" width="150" height="50" fill="@f"/>',
     towers: '<path d="M80 380 L100 160 L120 380Z" fill="@f"/><path d="M180 380 L200 110 L220 380Z" fill="@f"/><path d="M290 380 L315 190 L340 380Z" fill="@f"/><path d="M400 380 L420 140 L440 380Z" fill="@f"/><path d="M500 380 L520 220 L540 380Z" fill="@f"/>'
   }[l.shape].replace(/@f/g, l.far).replace(/@g/g, l.ground);
   const out = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 480"><defs><linearGradient id="s" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${l.sky[0]}"/><stop offset="1" stop-color="${l.sky[1]}"/></linearGradient></defs><rect width="640" height="480" fill="url(#s)"/><circle cx="470" cy="150" r="46" fill="${l.sun}"/>${shapes}<rect y="370" width="640" height="110" fill="${l.ground}"/></svg>`;
@@ -24,7 +24,7 @@ const SCENES: Record<string, Look> = {
   barcelona: { sky: ['#f7b27a', '#fde5b8'], sun: '#fff5c9', ground: '#b78a62', far: '#d9a06a', shape: 'towers' },
   madrid: { sky: ['#1d2457', '#5a3a77'], sun: '#f3e7b8', ground: '#c4953f', far: '#2a2a55', shape: 'city' },
   chongqing: { sky: ['#a63a3a', '#f0a561'], sun: '#ffd37a', ground: '#7a3a2a', far: '#4a2323', shape: 'city' },
-  harbour: { sky: ['#f4a259', '#f9d9a8'], sun: '#fff2c8', ground: '#35607a', far: '#1f3a4d', shape: 'harbour' }
+  harbor: { sky: ['#f4a259', '#f9d9a8'], sun: '#fff2c8', ground: '#35607a', far: '#1f3a4d', shape: 'harbor' }
 };
 
 // ---------- the demo board ----------
@@ -134,7 +134,7 @@ $('playDemo').onclick = () => {
 
 // ---------- old-camera demo ----------
 const lookImg = $<HTMLImageElement>('lookImg');
-lookImg.src = svg(SCENES.harbour);
+lookImg.src = svg(SCENES.harbor);
 document.querySelectorAll<HTMLButtonElement>('.chips .chip').forEach(b => {
   b.onclick = () => {
     document.querySelectorAll('.chips .chip').forEach(c => c.classList.remove('on')); b.classList.add('on');

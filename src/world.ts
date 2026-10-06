@@ -1,4 +1,4 @@
-// Draws our own coloured political world map (no street-map tiles).
+// Draws our own colored political world map (no street-map tiles).
 // Country shapes: Natural Earth via the world-atlas package.
 import L from 'leaflet';
 import { feature, neighbors } from 'topojson-client';
@@ -38,7 +38,7 @@ interface Poly { bbox: [number, number, number, number]; rings: Ring[] }
 const geoms = topo.objects.countries.geometries;
 const fc: any = feature(topo, topo.objects.countries);
 {
-  // greedy colouring so neighbouring countries get different colours
+  // greedy coloring so neighboring countries get different colors
   const nb = neighbors(geoms);
   const col: number[] = [];
   geoms.forEach((_: unknown, i: number) => {
@@ -170,7 +170,7 @@ export interface World {
 
 const SEA_ZOOM_MAX = 7;
 
-// ---- colour helpers: states get a slightly different shade of their country's colour ----
+// ---- color helpers: states get a slightly different shade of their country's color ----
 const hash = (s: string | null) => { s = s ?? ''; let h = 0; for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0; return Math.abs(h); };
 function shade(hex: string, amt: number) {
   const n = parseInt(hex.slice(1), 16), t = amt < 0 ? 0 : 255, p = Math.abs(amt);

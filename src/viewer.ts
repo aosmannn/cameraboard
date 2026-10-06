@@ -15,7 +15,7 @@ function zoomAt(f: number, cx: number, cy: number) {
   const ns = Math.min(z.min * 12, Math.max(z.min, z.s * f)), r = ns / z.s;
   z.x = cx - (cx - z.x) * r; z.y = cy - (cy - z.y) * r; z.s = ns; apply();
 }
-const centre = (): [number, number] => [vw.clientWidth / 2, vw.clientHeight / 2];
+const center = (): [number, number] => [vw.clientWidth / 2, vw.clientHeight / 2];
 
 export const viewerIsOpen = () => !vw.hidden;
 export const closeViewer = () => { vw.hidden = true; };
@@ -24,8 +24,8 @@ export function openViewer(src: string, look = '') { vw.hidden = false; img.clas
 export function initViewer() {
   const $ = (id: string) => document.getElementById(id)!;
   vw.addEventListener('wheel', e => { e.preventDefault(); zoomAt(e.deltaY < 0 ? 1.15 : 1 / 1.15, e.clientX, e.clientY); }, { passive: false });
-  $('zIn').onclick = () => zoomAt(1.4, ...centre());
-  $('zOut').onclick = () => zoomAt(1 / 1.4, ...centre());
+  $('zIn').onclick = () => zoomAt(1.4, ...center());
+  $('zOut').onclick = () => zoomAt(1 / 1.4, ...center());
   $('zReset').onclick = fit;
   $('vwClose').onclick = closeViewer;
   img.onload = fit;

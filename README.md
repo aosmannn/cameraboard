@@ -56,7 +56,7 @@ Built with TypeScript, Vite and [Leaflet](https://leafletjs.com) (used only to m
 | --- | --- |
 | `index.html`, `src/landing.ts` | The landing page with the interactive demo |
 | `app.html`, `src/main.ts` | The app: polaroids, stories and string, photo panel, upload and location flow |
-| `src/world.ts` | The coloured world map: countries, states, counties, themes, and finding which country a point is in |
+| `src/world.ts` | The colored world map: countries, states, counties, themes, and finding which country a point is in |
 | `src/labels.ts` | Draws place names without overlaps |
 | `src/atlas.ts` | Loads the map data; offline city search and naming |
 | `src/cloud.ts` | Sign-in, syncing your photos, friends and likes (Supabase) |

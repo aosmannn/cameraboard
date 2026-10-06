@@ -6,7 +6,7 @@ export interface PhotoMeta {
 export interface Card {
   id: string;
   rot: number;          // tilt on the cork board, degrees
-  pin: string;          // pin colour on the cork board
+  pin: string;          // pin color on the cork board
   img: string | null;   // data URL, null = empty placeholder
   title: string;
   story: string;
@@ -19,7 +19,7 @@ export interface Card {
   place: string;
   trip: string;         // name of the story this photo belongs to, '' = none
   seq: number;          // position in its story (strings run in this order)
-  pinColor: string;     // map pin border colour, '' = default
+  pinColor: string;     // map pin border color, '' = default
   pinIcon: string;      // emoji badge on the map pin, '' = none
   cover: boolean;       // the photo shown on the pin when several share a place
   look: Look;           // retro photo filter

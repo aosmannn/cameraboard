@@ -293,7 +293,7 @@ export async function exploreStories(limit = 24, offset = 0): Promise<{ stories:
   const url = await signPaths(rows.map(r => r.cover_path));
   return {
     more: rows.length >= limit,
-    stories: rows.map(r => ({ owner: r.owner, owner_name: r.owner_name || 'A traveller', trip: r.trip, stops: Number(r.stops), places: r.places ?? [], cover: url.get(r.cover_path) ?? '', updated: r.updated }))
+    stories: rows.map(r => ({ owner: r.owner, owner_name: r.owner_name || 'A traveler', trip: r.trip, stops: Number(r.stops), places: r.places ?? [], cover: url.get(r.cover_path) ?? '', updated: r.updated }))
   };
 }
 export interface CameraStat { camera: string; slug: string; photos: number; people: number; cover: string }

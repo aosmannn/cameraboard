@@ -27,7 +27,7 @@ async function main() {
   if (!card && !photos.cards.length) return missing('That person may not exist, or has nothing public. Check the link.');
   const cards = photos.cards;
   const id = card?.id ?? cards[0]?.owner ?? '';
-  const name = card?.display_name || photos.owners.get(id) || (card?.username ? '@' + card.username : 'A traveller');
+  const name = card?.display_name || photos.owners.get(id) || (card?.username ? '@' + card.username : 'A traveler');
   setTitle(name);
   await authReady;
 

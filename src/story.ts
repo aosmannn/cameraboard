@@ -21,7 +21,7 @@ async function main() {
   const r = await cloud.publicPhotos(isUuid(key) ? { id: key } : { code: key });
   const cards = r.cards.filter(c => c.trip === trip).sort((a, b) => a.seq - b.seq || a.date.localeCompare(b.date));
   if (!cards.length) return missing('It may have been made private, renamed or taken down. Only photos set to Public show up here.');
-  const owner = cards[0].owner, ownerName = r.owners.get(owner) ?? 'A traveller';
+  const owner = cards[0].owner, ownerName = r.owners.get(owner) ?? 'A traveler';
   const owners = r.owners;
   setTitle(trip);
 

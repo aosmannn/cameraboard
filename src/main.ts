@@ -681,7 +681,7 @@ function buildSwatches() {
   PIN_COLORS.forEach(col => {
     const b = el('button', 'sw' + (cur && cur.pinColor === col ? ' on' : ''));
     b.style.background = col || 'radial-gradient(circle at 35% 30%,#ff8a7a,#c8372d 60%)';
-    b.setAttribute('aria-label', 'Pin colour ' + (col || 'red'));
+    b.setAttribute('aria-label', 'Pin color ' + (col || 'red'));
     b.onclick = () => { if (!cur) return; cur.pinColor = col; save(); renderMap(); markSelected(); buildSwatches(); };
     sw.append(b);
   });
@@ -835,7 +835,7 @@ $<HTMLInputElement>('stampBox').onchange = e => {
 };
 
 $('replaceBtn').onclick = () => pick(cur);
-/** Removes a photo right away, keeps the panel open on a neighbouring photo, and offers Undo. */
+/** Removes a photo right away, keeps the panel open on a neighboring photo, and offers Undo. */
 function removeCard(c: Card) {
   const index = cards.indexOf(c); if (index < 0) return;
   const list = c.trip ? storyListOf(c) : stackOf(c), at = list.indexOf(c);
@@ -1304,7 +1304,7 @@ async function onAuth(s: boolean) {
   renderAcct();
   me = await cloud.myProfile().catch(() => null);
   fillProfileForm(); renderAcct(); renderInvite();
-  if (!me?.display_name) { openAcct(); $('nameIn').focus(); syncNote('Add your name so friends recognise you. A username is optional.'); }
+  if (!me?.display_name) { openAcct(); $('nameIn').focus(); syncNote('Add your name so friends recognize you. A username is optional.'); }
   try {
     const mine = await cloud.pullMine(new Set(cards.map(c => c.id)));
     if (mine.length) { cards.push(...mine); await saveCards(cards); }
