@@ -288,7 +288,7 @@ textarea { resize: vertical; font: 500 19px/1.3 var(--hand); }
 .acct-box .sub { margin: 6px 0 4px; color: var(--mute); }
 .m-close { position: absolute; top: 14px; right: 14px; }
 .wide { width: 100%; height: 44px; margin-top: 12px; }
-.code { font: 30px/1.2 var(--mono); letter-spacing: .4em; text-align: center; }
+.code { font: 28px/1.2 var(--mono); letter-spacing: .3em; text-align: center; }
 .nums { margin-top: 8px; font: 14px/1.45 var(--ui) !important; }
 .cc { display: flex; align-items: center; gap: 8px; }
 .cc input { width: 64px; margin: 0; }

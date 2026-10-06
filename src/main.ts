@@ -874,13 +874,13 @@ $('phoneForm').onsubmit = async e => {
   try {
     await cloud.sendCode(pendingEmail);
     $('phoneForm').hidden = true; $('codeForm').hidden = false; $('codeIn').focus();
-    authMsg(`We emailed a 6-digit code to ${cloud.cleanEmail(pendingEmail)}. Type it here.`);
+    authMsg(`We emailed a sign-in code to ${cloud.cleanEmail(pendingEmail)}. Type it here.`);
   } catch (err) { authMsg('Couldn’t send the code: ' + (err as Error).message); }
 };
 $('codeForm').onsubmit = async e => {
   e.preventDefault();
   authMsg('Checking…');
-  try { await cloud.verifyCode(pendingEmail, $<HTMLInputElement>('codeIn').value); authMsg(''); }
+  try { await cloud.verifyCode(pendingEmail, $<HTMLInputElement>('codeIn').value.replace(/\D/g, '')); authMsg(''); }
   catch (err) { authMsg('That code didn’t work. It may have expired, so ask for a new one. (' + (err as Error).message + ')'); }
 };
 $('codeBack').onclick = () => { $('codeForm').hidden = true; $('phoneForm').hidden = false; authMsg(''); };
@@ -1122,7 +1122,7 @@ setInterval(() => { if (signedIn) refreshFriends(); }, 45 * 60 * 1000);   // sig
   setTimeout(() => {
     $('acctModal').hidden = false; $('phoneIn').focus();
     authMsg(hash.get('error_code') === 'otp_expired'
-      ? 'That email link expired or was already used. Enter your email again and type the 6-digit code instead.'
+      ? 'That email link expired or was already used. Enter your email again and type the code instead.'
       : 'Sign-in didn’t work. Try again.');
   }, 300);
 })();
