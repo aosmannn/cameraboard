@@ -216,8 +216,11 @@
       <h2>Poster</h2>
       <input id="posterTitle" class="plain" placeholder="Poster title" value="My travels" aria-label="Poster title">
       <button id="posterSave" class="btn primary">Download PNG</button>
+      <select id="posterStoryPick" class="field" aria-label="Story for the GIF" hidden></select>
+      <button id="posterGif" class="btn" hidden>Download GIF</button>
       <button id="posterClose" class="btn">Close</button>
     </div>
+    <p id="posterNote" class="hint" hidden></p>
     <canvas id="posterCv"></canvas>
   </div>
 </div>

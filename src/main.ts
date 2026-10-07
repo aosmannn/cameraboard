@@ -15,7 +15,7 @@ import { blankCard, fillCard, normalize, cameraName, dayOf, timeOf, stampText, p
 import { drawWorld, countryAt, countryBounds, THEMES, type ThemeName } from './world';
 import { loadCities, searchPlaces, nameAt, type Place } from './atlas';
 import { initViewer, openViewer, closeViewer, viewerIsOpen } from './viewer';
-import { renderPoster } from './poster';
+import { renderPoster, renderStoryGif } from './poster';
 import * as cloud from './cloud';
 
 const PIN_COLORS = ['', '#2f6fd1', '#2e9e5b', '#e8b422', '#8e44ad', '#1d1d1d'];
@@ -1077,25 +1077,53 @@ $('pcPause').onclick = () => {
 // ---------- poster ----------
 const posterCv = $<HTMLCanvasElement>('posterCv');
 const posterTitle = $<HTMLInputElement>('posterTitle');
+const posterPick = $<HTMLSelectElement>('posterStoryPick'), posterGif = $<HTMLButtonElement>('posterGif'), posterNote = $('posterNote');
 let posterT: number;
+/** "@username" on the poster; falls back to the display name, and to nothing when signed out. */
+const posterHandle = () => (me?.username ? '@' + me.username : me?.display_name || '');
+const countriesOf = (list: Card[]) => new Set(list.map(countryOf).filter(Boolean)).size;
+const mappedStories = () => stories().filter(s => s.cards.filter(placed).length >= 2);
 function drawPoster() {
   const list = activeStory ? storyOf(activeStory) : cards.filter(visible);
-  const countries = new Set(list.map(countryOf).filter(Boolean)).size;
-  renderPoster(posterCv, list, posterTitle.value.trim(), themeSel.value as ThemeName, null, countries);
+  void renderPoster(posterCv, list, posterTitle.value.trim(), themeSel.value as ThemeName, null, countriesOf(list), { handle: posterHandle() });
+}
+/** The GIF button shows when there's a story to animate; with several and none chosen, a picker appears. */
+function setupGifControls() {
+  const list = mappedStories();
+  posterGif.hidden = !list.length;
+  posterPick.hidden = !list.length || !!activeStory || list.length < 2;
+  posterPick.innerHTML = '';
+  for (const s of list) { const o = el('option', '', s.name); o.value = s.name; posterPick.append(o); }
+  if (activeStory && list.some(s => s.name === activeStory)) posterPick.value = activeStory;
 }
 $('posterBtn').onclick = () => {
   (document.querySelector('.menu') as HTMLDetailsElement).open = false;
   if (activeStory) posterTitle.value = activeStory;
+  setupGifControls(); posterNote.hidden = true;
   $('posterModal').hidden = false; drawPoster();
 };
 posterTitle.oninput = () => { clearTimeout(posterT); posterT = window.setTimeout(drawPoster, 300); };
 $('posterClose').onclick = () => { $('posterModal').hidden = true; };
+const saveBlob = (b: Blob, name: string) => {
+  const a = document.createElement('a'); a.href = URL.createObjectURL(b); a.download = name; a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+};
+const fileSlug = (t: string) => t.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'story';
 $('posterSave').onclick = () => {
-  posterCv.toBlob(b => {
-    if (!b) return;
-    const a = document.createElement('a'); a.href = URL.createObjectURL(b); a.download = 'wayframe-poster.png'; a.click();
-    setTimeout(() => URL.revokeObjectURL(a.href), 2000);
-  }, 'image/png');
+  posterCv.toBlob(b => { if (b) saveBlob(b, 'wayframe-poster.png'); }, 'image/png');
+};
+posterGif.onclick = async () => {
+  const name = posterPick.hidden ? (activeStory && mappedStories().some(s => s.name === activeStory) ? activeStory : mappedStories()[0]?.name) : posterPick.value;
+  const list = name ? storyOf(name).filter(placed) : [];
+  if (!list.length) return;
+  posterGif.disabled = true; posterNote.hidden = false;
+  try {
+    const blob = await renderStoryGif(list, posterTitle.value.trim() || name!, themeSel.value as ThemeName, countriesOf(list), { handle: posterHandle() },
+      (d, t) => { posterNote.textContent = `Making your GIF… ${Math.round((d / t) * 100)}%`; });
+    saveBlob(blob, `wayframe-${fileSlug(name!)}.gif`);
+    posterNote.textContent = `Saved ${(blob.size / 1048576).toFixed(1)} MB GIF. It plays the route stop by stop.`;
+  } catch (err) { posterNote.textContent = 'Couldn’t make the GIF: ' + (err as Error).message; }
+  finally { posterGif.disabled = false; drawPoster(); }
 };
 
 // ---------- viewer + keys ----------

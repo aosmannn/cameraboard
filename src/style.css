@@ -506,3 +506,20 @@ h3.first { margin-top: 12px !important; }
 .pill { padding: 2px 10px; border-radius: 999px; background: var(--panel-2); color: var(--mute); font-size: 12.5px; font-weight: 600; }
 .pw-row { display: flex; gap: 8px; align-items: center; } .pw-row .plain { flex: 1; }
 #phoneForm .linkbtn { display: block; margin: 10px 0 0; }
+
+/* ---- phones: two header rows so nothing sits on top of the buttons; banners use the full width ---- */
+@media (max-width: 800px) {
+  .top { flex-wrap: wrap; row-gap: 8px; align-items: center; }
+  .top-left { display: contents; }
+  .brand { order: 1; }
+  .top-right { order: 2; margin-left: auto; flex: none; }
+  .search-wrap { order: 3; flex: 1 0 100%; min-width: 0; }
+  .search { width: 100%; }
+  body .stories-show { top: 112px; }
+  body .banner, body .invite-banner, body .country-chip {
+    top: 112px; left: 12px; right: 12px; transform: none; max-width: none; width: auto;
+    flex-wrap: wrap; border-radius: 18px; padding: 12px 12px 12px 16px; row-gap: 8px;
+  }
+  .banner > span, .invite-banner > span { flex: 1 1 100%; min-width: 0; overflow-wrap: anywhere; line-height: 1.35; }
+  .banner .btn { flex: none; }
+}
