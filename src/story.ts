@@ -42,7 +42,9 @@ async function main() {
   const play = el('button', 'btn primary', 'Play the route'); play.type = 'button';
   const share = el('button', 'btn', 'Copy link'); share.type = 'button';
   share.onclick = async () => {
-    try { await navigator.clipboard.writeText(location.href); share.textContent = 'Link copied'; } catch { share.textContent = location.href; }
+    const link = `${location.origin}${location.pathname}?t=${encodeURIComponent(trip)}&play=1`;
+    if (navigator.share) { try { await navigator.share({ title: trip, text: `${trip} on Wayframe`, url: link }); return; } catch (e) { if ((e as Error).name === 'AbortError') return; } }
+    try { await navigator.clipboard.writeText(link); share.textContent = 'Link copied'; } catch { share.textContent = link; }
     setTimeout(() => { share.textContent = 'Copy link'; }, 2500);
   };
   const make = el('a', 'btn', 'Make your own'); make.href = '/app.html';
@@ -94,5 +96,6 @@ async function main() {
       () => { playing = false; play.textContent = 'Play the route'; });
   };
   play.hidden = !map;
+  if (map && new URLSearchParams(location.search).get('play') === '1') setTimeout(() => { if (!playing) play.click(); }, 1200);   // a shared link starts the route by itself
 }
 main().catch(err => missing('Couldn’t load it: ' + (err as Error).message));

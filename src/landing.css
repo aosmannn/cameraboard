@@ -117,3 +117,26 @@ section { padding-inline: var(--gutter); }
 .more-link { margin-top: 16px; }
 .more-link a { color: var(--yarn); font-weight: 500; text-decoration: none; }
 .more-link a:hover { text-decoration: underline; }
+
+/* live numbers, a real story, and the travel tracker */
+.live { margin-top: 10px; font-weight: 500; color: var(--ink); }
+.featured { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); gap: 40px; align-items: center; padding-block: 70px; border-top: 1px solid var(--line); }
+.featured h2 { font-size: clamp(34px, 4.4vw, 56px); line-height: 1.05; }
+.featured .route { margin: 14px 0 22px; }
+.featured-map { position: relative; aspect-ratio: 1400 / 760; border-radius: 18px; overflow: hidden; background: #bcd3d6; box-shadow: var(--shadow); }
+.travel { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 56px; align-items: center; padding-block: 80px; border-top: 1px solid var(--line); }
+.travel h2 { font-size: clamp(32px, 4vw, 50px); line-height: 1.06; }
+.travel-copy p { margin-top: 16px; color: var(--mute); font-size: 17px; max-width: 34em; }
+.travel-copy .btn { margin-top: 22px; }
+.travel-card { padding: 22px; background: var(--panel); border-radius: 22px; box-shadow: var(--shadow); }
+.tc-stat { display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap; font-size: 17px; }
+.tc-stat b { font: 56px/1 var(--display); }
+.tc-stat small { color: var(--mute); }
+.tc-bar { height: 9px; border-radius: 99px; background: var(--panel-2); overflow: hidden; margin: 10px 0 16px; }
+.tc-bar i { display: block; width: 7%; min-width: 24px; height: 100%; background: var(--accent); border-radius: inherit; }
+.tc-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.tc-list li { display: flex; justify-content: space-between; gap: 10px; padding: 10px 12px; border-radius: 12px; background: var(--panel-2); }
+.tc-list li.done span { text-decoration: line-through; color: var(--mute); }
+.tc-list small { color: var(--mute); white-space: nowrap; }
+.features:has(article:nth-child(4)) { grid-template-columns: repeat(3, minmax(0, 1fr)); row-gap: 36px; }
+@media (max-width: 900px) { .featured, .travel { grid-template-columns: minmax(0, 1fr); gap: 32px; } }

@@ -94,7 +94,8 @@ export async function setInviteCode(code: string) {
 const SITE = (import.meta.env.VITE_PUBLIC_URL as string | undefined)?.replace(/\/$/, '') || '';
 export const inviteLink = (code: string) => `${SITE || location.origin}/app.html?add=${code}`;
 /** The page that tells one story: the public photos under that story name. */
-export const storyLink = (ownerId: string, trip: string) => `${SITE || location.origin}/s/${ownerId}?t=${encodeURIComponent(trip)}`;
+/** A story's page. With play=1 it opens already playing the route. */
+export const storyLink = (ownerId: string, trip: string, play = true) => `${SITE || location.origin}/s/${ownerId}?t=${encodeURIComponent(trip)}${play ? '&play=1' : ''}`;
 /** The name behind an invite link. Works without signing in. */
 export async function invitePreview(code: string): Promise<string | null> {
   if (!sb) return null;

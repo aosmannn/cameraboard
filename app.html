@@ -38,6 +38,7 @@
         <a href="/explore">Explore the gallery</a>
         <a href="/cameras">Cameras</a>
         <label class="menu-row">Map style <select id="themeSel"></select></label>
+        <button id="timelineBtn">Travel timeline</button>
         <button id="posterBtn">Make a poster</button>
         <button id="exportBtn">Export backup</button>
         <label>Import backup<input id="importFile" type="file" accept="application/json" hidden></label>
@@ -70,6 +71,15 @@
   <div id="travelList" class="story-list travel" hidden></div>
 </aside>
 <button id="storiesShow" class="stories-show" hidden>Stories</button>
+
+<div id="timeBar" class="timebar" role="group" aria-label="Travel timeline" hidden>
+  <button id="tlPlay" class="btn small primary" aria-label="Play the timeline">▶</button>
+  <div class="tl-mid">
+    <input id="tlRange" type="range" min="0" max="0" value="0" step="1" aria-label="Date">
+    <span id="tlLabel" class="tl-label"></span>
+  </div>
+  <button id="tlClose" class="x2" aria-label="Close the timeline">✕</button>
+</div>
 
 <div id="guestBar" class="banner invite-banner" hidden>
   <span id="guestText"></span>
@@ -157,7 +167,7 @@
       <h3>Comments <span id="cmCount"></span></h3>
       <ul id="cmList" class="cm-list"></ul>
       <form id="cmForm" class="cm-form">
-        <input id="cmIn" class="plain" maxlength="500" placeholder="Add a comment (use @name to mention someone)" autocomplete="off" aria-label="Add a comment">
+        <input id="cmIn" class="plain" maxlength="500" placeholder="Add a comment" autocomplete="off" aria-label="Add a comment">
         <button class="btn small primary">Post</button>
       </form>
       <p id="cmMsg" class="hint" role="status"></p>
@@ -284,6 +294,7 @@
 
     <section id="account" hidden>
       <div class="set-layout">
+        <div class="set-bar" aria-hidden="true"><b>Settings</b></div>
         <nav class="set-nav" role="tablist" aria-label="Profile and settings">
           <div class="set-me"><span class="ava" id="setAva"></span><div><b id="setName"></b><small id="setHandle"></small></div></div>
           <button role="tab" class="set-tab on" data-pane="profile" aria-selected="true">Profile</button>
@@ -306,7 +317,7 @@
                   <button id="stFollowing" class="stat-btn"><b>0</b> following</button>
                 </div>
                 <p id="meBio" class="ig-bio"></p>
-                <div class="row"><button id="editProfile" class="btn small">Edit profile</button><button id="viewMine" class="btn small">View as a visitor</button></div>
+                <div class="row"><button id="editProfile" class="btn small">Edit profile</button><button id="inviteQuick" class="btn small">Invite friends</button><button id="viewMine" class="btn small">View as a visitor</button></div>
               </div>
             </div>
             <div id="meSummary" class="px-summary" hidden></div>
@@ -370,12 +381,12 @@
 
           <div class="set-pane" id="pane-invite" role="tabpanel" hidden>
             <h2>Invite friends</h2>
-            <p class="hint">Anyone with this link or QR code can follow you, even if search is off. Made a mess? Make a new link and the old one stops working.</p>
+            <p class="hint">Send this link or let a friend scan the code. When they sign in from it, they start out following you. It works even if search is off. Made a mess? Make a new link and the old one stops working.</p>
             <div class="invite">
-              <canvas id="qr" width="132" height="132" aria-label="QR code for your invite link"></canvas>
+              <canvas id="qr" width="176" height="176" aria-label="QR code for your invite link"></canvas>
               <div>
                 <input id="inviteUrl" class="plain" readonly aria-label="Your invite link">
-                <div class="row"><button id="inviteBtn" class="btn small">Copy link</button><button id="inviteNew" class="linkbtn">Make a new link</button></div>
+                <div class="row"><button id="inviteShare" class="btn primary small" hidden>Share…</button><button id="inviteBtn" class="btn small">Copy link</button><button id="inviteNew" class="linkbtn">Make a new link</button></div>
               </div>
             </div>
           </div>

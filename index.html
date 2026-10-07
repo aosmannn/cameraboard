@@ -31,6 +31,7 @@
         <button class="btn big" id="playDemo">Watch the demo</button>
       </div>
       <p class="fine">Free to use, right in your browser. Your photos stay on your device until you choose to share them.</p>
+      <p class="live" id="liveStats" hidden></p>
     </div>
 
     <figure class="demo" aria-label="Interactive demo">
@@ -81,6 +82,17 @@
     </ol>
   </section>
 
+  <section class="featured" id="featured" hidden>
+    <div class="featured-copy">
+      <p class="eyebrow">A real story</p>
+      <h2 id="ftTitle"></h2>
+      <p class="fine" id="ftBy"></p>
+      <p class="route" id="ftRoute"></p>
+      <a class="btn primary" id="ftLink" href="/explore?tab=stories">See the whole story</a>
+    </div>
+    <div class="featured-map" id="ftMap" aria-label="A story's route playing on a map"></div>
+  </section>
+
   <section class="community" id="community">
     <div class="community-head">
       <div>
@@ -120,6 +132,30 @@
     </figure>
   </section>
 
+  <section class="travel" id="travel">
+    <div class="travel-copy">
+      <p class="eyebrow">Been and bucket list</p>
+      <h2>Keep score of the world.</h2>
+      <p>Every country you pin a photo in lights up on your map and adds to your count. Add the ones you visited without a camera, and keep a bucket list of places you still want to see. The moment you pin a photo there, the list checks itself off.</p>
+      <ul class="ticks">
+        <li><b>Been:</b> countries fill in on their own from your photos, with a percent of the world.</li>
+        <li><b>Bucket list:</b> countries, cities, places and experiences, with a status for each.</li>
+        <li><b>Travel timeline:</b> press play and watch your map fill up, photo by photo.</li>
+      </ul>
+      <a class="btn primary" href="/app.html">Start your map</a>
+    </div>
+    <div class="travel-card" aria-label="Example of the travel tracker">
+      <div class="tc-stat"><b>12</b> countries <small>· 7% of the world</small></div>
+      <div class="tc-bar"><i></i></div>
+      <ul class="tc-list">
+        <li class="done"><span>Japan</span><small>Done</small></li>
+        <li class="done"><span>Portugal</span><small>Done</small></li>
+        <li><span>Iceland: see the northern lights</span><small>Wishlist</small></li>
+        <li><span>Kyoto</span><small>Planned</small></li>
+      </ul>
+    </div>
+  </section>
+
   <section class="features">
     <article>
       <h3>A map drawn for the job</h3>
@@ -132,6 +168,18 @@
     <article>
       <h3>Private until you say otherwise</h3>
       <p>Everything works without an account. Sign in with just your email when you want your photos on every device, or to share with friends.</p>
+    </article>
+    <article>
+      <h3>Comments and notifications</h3>
+      <p>Talk about a photo with the people who follow you. A bell tells you when someone follows you, likes a photo or mentions you.</p>
+    </article>
+    <article>
+      <h3>Invite with a link or a QR code</h3>
+      <p>Send one link, or let a friend scan your code. When they sign in from it, they start out following you.</p>
+    </article>
+    <article>
+      <h3>Profiles with highlights</h3>
+      <p>Pin your best photos to the top of your profile, and see your countries, favorite place and most-used camera at a glance.</p>
     </article>
   </section>
 

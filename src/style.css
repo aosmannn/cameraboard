@@ -532,8 +532,6 @@ h3.first { margin-top: 12px !important; }
 .pill-note { color: var(--mute); }
 #pinProfBtn.on { color: var(--accent); }
 @media (max-width: 720px) {
-  .set-nav { padding-right: 56px; gap: 2px; }
-  .set-tab { padding: 8px 12px; }
   .ig-stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 4px; text-align: center; margin: 0; font-size: 12px; color: var(--mute); }
   .ig-stats > span, .ig-stats > .stat-btn { display: flex; flex-direction: column; align-items: center; line-height: 1.25; min-width: 0; }
   .ig-stats b { font-size: 18px; color: var(--ink); }
@@ -548,7 +546,28 @@ h3.first { margin-top: 12px !important; }
   #pfStats { margin: 12px 0 6px; padding: 10px 0; border-block: 1px solid var(--line); }
   #pfFollow, #pfMap { flex: 1; }
 }
+
+/* travel timeline */
+.timebar { position: fixed; left: 50%; bottom: 16px; transform: translateX(-50%); z-index: 35; width: min(560px, calc(100% - 24px)); display: flex; align-items: center; gap: 12px; padding: 10px 10px 10px 12px; background: var(--panel); border-radius: 18px; box-shadow: var(--shadow); }
+.timebar .btn { width: 44px; height: 38px; padding: 0; flex: none; }
+.tl-mid { flex: 1; min-width: 0; display: grid; gap: 2px; }
+.tl-mid input[type=range] { width: 100%; accent-color: var(--accent); }
+.tl-label { font: 22px/1 var(--display); text-align: center; }
+body.timeline #tray, body.timeline .stories-show { display: none; }
+.st-tab { font-size: 24px; }
+@media (max-width: 800px) { body.timeline .stories:not([hidden]) { max-height: 40vh; } .timebar { bottom: 10px; } }
+.leaflet-bottom.leaflet-right { transition: margin .2s; } body.timeline .leaflet-bottom.leaflet-right { margin-bottom: 72px; }
+@media (max-width: 720px) { .invite { flex-direction: column; align-items: stretch; text-align: center; } .invite canvas { align-self: center; } .invite .row { justify-content: center; } }
+.invite canvas { width: 132px; height: 132px; }
+
+/* phones: settings get a header bar of their own, with the close button in it, and the tabs sit below it */
+.set-bar { display: none; }
 @media (max-width: 720px) {
-  /* tabs slide under the close button instead of colliding with it */
-  .set-nav { -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 56px), transparent calc(100% - 50px)); mask-image: linear-gradient(to right, #000 calc(100% - 56px), transparent calc(100% - 50px)); }
+  .acct-box.set-box { height: calc(100dvh - 24px); border-radius: 22px; }
+  .set-layout { grid-template-rows: auto auto minmax(0, 1fr); }
+  .set-bar { display: flex; align-items: center; height: 54px; padding: 0 60px 0 18px; border-bottom: 1px solid var(--line); background: var(--panel-2); }
+  .set-bar b { font: 26px/1 var(--display); font-weight: 400; }
+  #acctModal .set-box .m-close { top: 7px; right: 10px; width: 40px; height: 40px; font-size: 18px; }
+  .set-nav { padding: 8px 10px; gap: 4px; overflow: visible; border-bottom: 1px solid var(--line); -webkit-mask-image: none; mask-image: none; justify-content: space-between; }
+  .set-tab { flex: 1 1 0; min-width: 0; padding: 9px 4px; text-align: center; font-size: 14px; }
 }

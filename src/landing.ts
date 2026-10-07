@@ -2,6 +2,7 @@ import { mountShell } from './site';
 import './landing.css';
 import { THEMES, paintWorld, mercY } from './world';
 import * as cloud from './cloud';
+import { mountRouteMap } from './routemap';
 
 mountShell('home');
 
@@ -168,3 +169,33 @@ cloud.explorePhotos({ limit: 8 }).then(r => {
     strip.append(a);
   });
 }).catch(() => { $('community').hidden = true; });
+
+// ---------- the numbers ----------
+cloud.siteStats().then(st => {
+  if (!st || st.photos < 20) return;
+  const n = (v: number) => v.toLocaleString();
+  const parts = [`${n(st.photos)} photos pinned`, st.countries ? `in ${n(st.countries)} ${st.countries === 1 ? 'country' : 'countries'}` : '', st.people > 1 ? `by ${n(st.people)} people` : ''].filter(Boolean);
+  $('liveStats').textContent = parts.join(' ') + ' so far'; $('liveStats').hidden = false;
+}).catch(() => { /* the line just stays out */ });
+
+// ---------- a real story, playing by itself ----------
+(async () => {
+  try {
+    const { stories } = await cloud.exploreStories(12);
+    const pick = [...stories].sort((a, b) => b.stops - a.stops)[0];
+    if (!pick || pick.stops < 3) return;
+    const r = await cloud.publicPhotos({ id: pick.owner });
+    const cards = r.cards.filter(c => c.trip === pick.trip && c.lat != null && c.lng != null).sort((a, b) => a.seq - b.seq);
+    if (cards.length < 3) return;
+    $('ftTitle').textContent = pick.trip; $('ftBy').textContent = `by ${pick.owner_name} · ${cards.length} stops`;
+    const names: string[] = []; for (const c of cards) { const n = (c.place || '').split(',')[0].trim(); if (n && !names.includes(n)) names.push(n); }
+    $('ftRoute').textContent = names.slice(0, 5).join(' → ') + (names.length > 5 ? ' …' : '');
+    ($('ftLink') as HTMLAnchorElement).href = cloud.storyLink(pick.owner, pick.trip);
+    $('featured').hidden = false;
+    const map = mountRouteMap($('ftMap'), cards.map((c, i) => ({ lat: c.lat!, lng: c.lng!, img: c.img!, title: c.title || 'Untitled', n: i + 1 })));
+    let stopped = false, started = false;
+    const loop = () => { if (stopped) return; map.play(() => {}, () => { setTimeout(() => { if (!stopped) { map.showAll(); setTimeout(loop, 900); } }, 2600); }); };
+    new IntersectionObserver((es, ob) => { if (es.some(e => e.isIntersecting) && !started) { started = true; setTimeout(loop, 700); ob.disconnect(); } }, { threshold: 0.4 }).observe($('ftMap'));
+    $('ftMap').addEventListener('pointerdown', () => { stopped = true; map.stop(); }, { once: true });
+  } catch { /* the demo above is enough */ }
+})();

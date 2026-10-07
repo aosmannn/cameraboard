@@ -40,6 +40,7 @@ let pickTarget: Card | null = null;
 let activeStory: string | null = null;     // story shown on its own, the rest faded
 let connecting: string | null = null;      // story that clicks on photos add to
 let query = '';
+let timeLimit: number | null = null;       // travel timeline: only photos up to this moment show
 // signed-in state: your account, the people you follow, and the photos they shared with you
 let signedIn = false;
 let friends: cloud.Person[] = [];
@@ -103,6 +104,7 @@ function fillCountries() {
 }
 function visible(c: Card) {
   if (!c.img) return false;
+  if (timeLimit != null && timeOf(c) > timeLimit) return false;     // the travel timeline hides what hadn't happened yet
   if (!query) return true;
   const hay = [c.title, c.story, c.place, c.trip, cameraName(c), countryOf(c) ?? ''].join(' ').toLowerCase();
   return query.toLowerCase().split(/\s+/).every(w => hay.includes(w));
@@ -360,12 +362,13 @@ function renderStories() {
       vis.onchange = () => { if (vis.value === 'mixed') return; s.cards.forEach(c => { c.visibility = vis.value as Card['visibility']; }); save(); render(); };
       actions.append(vis);
       if (me && levels.has('public')) {
-        const pg = el('button', 'btn small', 'Page link');
-        pg.title = 'A page anyone can open, showing the public photos in this story';
+        const pg = el('button', 'btn small', 'Share');
+        pg.title = 'A page anyone can open: the route plays by itself, with the public photos from this story';
         pg.onclick = async () => {
           const link = cloud.storyLink(me!.id, s.name);
+          if (navigator.share) { try { await navigator.share({ title: s.name, text: `${s.name} on Wayframe`, url: link }); return; } catch (e) { if ((e as Error).name === 'AbortError') return; } }
           try { await navigator.clipboard.writeText(link); pg.textContent = 'Link copied'; } catch { pg.textContent = link; }
-          setTimeout(() => { pg.textContent = 'Page link'; }, 2500);
+          setTimeout(() => { pg.textContent = 'Share'; }, 2500);
         };
         actions.append(pg);
       }
@@ -1121,6 +1124,34 @@ $('pcPause').onclick = () => {
   clearTimeout(pl.timer); if (!pl.paused) pl.timer = window.setTimeout(() => playStep(pl.i + 1), 1500);
 };
 
+// ---------- travel timeline: watch the map fill up, photo by photo ----------
+const timeBar = $('timeBar'), tlRange = $<HTMLInputElement>('tlRange'), tlLabel = $('tlLabel'), tlPlay = $('tlPlay');
+let tlStops: number[] = [], tlTimer = 0;
+const tlDates = () => [...new Set([...cards, ...others()].filter(c => placed(c) && timeOf(c) > 0).map(timeOf))].sort((a, b) => a - b);
+function tlSet(i: number) {
+  if (!tlStops.length) return;
+  i = Math.max(0, Math.min(tlStops.length - 1, i)); tlRange.value = String(i); timeLimit = tlStops[i];
+  tlLabel.textContent = new Date(timeLimit).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+  render();
+}
+function tlStop() { clearInterval(tlTimer); tlTimer = 0; tlPlay.textContent = '▶'; tlPlay.setAttribute('aria-label', 'Play the timeline'); }
+function tlStart() {
+  if (+tlRange.value >= tlStops.length - 1) tlSet(0);
+  tlPlay.textContent = '❚❚'; tlPlay.setAttribute('aria-label', 'Pause');
+  tlTimer = window.setInterval(() => { const i = +tlRange.value + 1; if (i >= tlStops.length) { tlStop(); return; } tlSet(i); if (i >= tlStops.length - 1) tlStop(); }, Math.max(350, Math.min(900, 9000 / tlStops.length)));
+}
+function tlClose() { tlStop(); timeBar.hidden = true; document.body.classList.remove('timeline'); timeLimit = null; render(); }
+$('timelineBtn').onclick = () => {
+  (document.querySelector('.menu') as HTMLDetailsElement).open = false;
+  tlStops = tlDates();
+  if (tlStops.length < 2) { showToast('Add a few dated photos with locations to use the timeline.'); return; }
+  timeBar.hidden = false; document.body.classList.add('timeline'); tlRange.max = String(tlStops.length - 1);
+  tlSet(0); tlStart(); fitCards([...cards, ...others()].filter(placed), 4);
+};
+tlPlay.onclick = () => (tlTimer ? tlStop() : tlStart());
+tlRange.oninput = () => { tlStop(); tlSet(+tlRange.value); };
+$('tlClose').onclick = tlClose;
+
 // ---------- poster ----------
 const posterCv = $<HTMLCanvasElement>('posterCv');
 const posterTitle = $<HTMLInputElement>('posterTitle');
@@ -1183,6 +1214,7 @@ document.addEventListener('keydown', e => {
   if (e.key !== 'Escape') return;
   if (!$('acctModal').hidden) $('acctModal').hidden = true;
   else if (!$('posterModal').hidden) $('posterModal').hidden = true;
+  else if (!timeBar.hidden) tlClose();
   else if (viewerIsOpen()) closeViewer();
   else if (pinTargets.length) stopPinning();
   else if (pickedCountry) selectCountry(null);
@@ -1414,7 +1446,7 @@ async function renderInvite() {
   $<HTMLInputElement>('inviteUrl').value = link;
   try {
     const QR = await import('qrcode');
-    await QR.toCanvas($<HTMLCanvasElement>('qr'), link, { width: 132, margin: 1, color: { dark: '#231f19', light: '#ffffff' } });
+    await QR.toCanvas($<HTMLCanvasElement>('qr'), link, { width: 176, margin: 1, color: { dark: '#231f19', light: '#ffffff' } });
   } catch { /* the link still works without the picture */ }
 }
 $('inviteBtn').onclick = async () => {
@@ -1423,6 +1455,13 @@ $('inviteBtn').onclick = async () => {
   catch { $<HTMLInputElement>('inviteUrl').select(); $('inviteBtn').textContent = 'Press copy'; }
   setTimeout(() => { $('inviteBtn').textContent = 'Copy link'; }, 2500);
 };
+/** On phones this opens the share sheet (Messages, WhatsApp, Instagram and so on). */
+$('inviteShare').hidden = !navigator.share;
+$('inviteShare').onclick = async () => {
+  const link = $<HTMLInputElement>('inviteUrl').value;
+  try { await navigator.share({ title: 'Follow me on Wayframe', text: `${me ? cloud.labelOf(me) : 'I'} invited you to Wayframe. Follow along and see where I’ve been.`, url: link }); } catch { /* closed the sheet */ }
+};
+$('inviteQuick').onclick = () => setPane('invite');
 $('inviteNew').onclick = async () => {
   if (!me) return;
   const code = crypto.randomUUID().replace(/-/g, '').slice(0, 10);
@@ -1660,7 +1699,17 @@ async function onAuth(s: boolean) {
 function openPending() {
   if (!pendingAdd || !me?.display_name) return;
   const code = pendingAdd; pendingAdd = null; history.replaceState(null, '', location.pathname);
-  openProfile({ code });
+  // Someone who signs in from an invite link arrives already following whoever invited them (they can undo it).
+  void (async () => {
+    try {
+      const prof = await cloud.publicProfile({ code });
+      if (prof && prof.id !== me?.id && !followingIds().has(prof.id)) {
+        await cloud.follow(prof.id); await refreshFriends();
+        showToast(`You’re now following ${cloud.labelOf(prof)}.`, () => { void cloud.unfollow(prof.id).then(refreshFriends); });
+      }
+    } catch { /* just show the profile */ }
+    void openProfile({ code });
+  })();
 }
 setInterval(() => { if (signedIn) refreshFriends(); }, 45 * 60 * 1000);   // signed image links last an hour
 
