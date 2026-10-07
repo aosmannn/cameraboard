@@ -42,7 +42,7 @@ button { cursor: pointer; }
 /* polaroids hung on the map; the push pin's point is the exact spot */
 .pol-icon { background: none; border: 0; }
 .pol {
-  --s: 1; --h: 1; position: absolute; left: 0; top: 0; width: 92px;
+  --s: 1; --h: 1; position: absolute; left: 0; top: 0; width: max-content;
   transform: translate(-50%, -7px) scale(calc(var(--s) * var(--h))) rotate(var(--rot, 0deg));
   transform-origin: 50% 7px; transition: transform .18s ease, opacity .2s, filter .2s;
   filter: drop-shadow(0 2px 2px #0003) drop-shadow(0 8px 12px #0002); cursor: pointer;
@@ -53,8 +53,8 @@ button { cursor: pointer; }
 .pol.sel { --h: 1.2; }
 .leaflet-marker-icon:hover { z-index: 3000 !important; }
 .pol-frame { margin-top: 6px; background: var(--paper); padding: 6px 6px 0; }
-.pol-frame img { display: block; width: 80px; height: 64px; object-fit: cover; background: #ddd; }
-.pol-cap { display: block; height: 22px; font: 700 15px/22px var(--hand); color: #2b2118; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.leaflet-container .pol-frame img { display: block; width: auto; height: auto; max-width: 80px !important; max-height: 80px !important; min-width: 52px; min-height: 52px; object-fit: contain; background: #ddd; }
+.pol-cap { display: block; contain: inline-size; height: 22px; font: 700 15px/22px var(--hand); color: #2b2118; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .z-far .pol-cap { visibility: hidden; }
 .pol.stacked .pol-frame { box-shadow: 4px 4px 0 -1px #f1ebdd, 4px 4px 0 0 #0002, 8px 8px 0 -1px #e8e0cf, 8px 8px 0 0 #0002; }
 .pushpin {
@@ -179,7 +179,7 @@ button { cursor: pointer; }
 .x { position: absolute; top: 12px; right: 12px; z-index: 3; width: 32px; height: 32px; border: 0; border-radius: 50%; background: #000a; color: #fff; }
 .d-photo { padding: 22px 26px 4px; background: var(--panel-2); }
 .photo { position: relative; display: block; width: 100%; padding: 10px 10px 36px; border: 0; background: var(--paper); cursor: zoom-in; transform: rotate(var(--rot, 0deg)); box-shadow: 0 2px 4px #0002, 0 12px 26px #0002; }
-.photo img { display: block; width: 100%; aspect-ratio: 4 / 3; object-fit: cover; background: #ddd; }
+.photo img { display: block; width: 100%; height: auto; max-height: min(56vh, 520px); object-fit: contain; background: transparent; }
 .d-photo { padding-bottom: 18px; }
 .body { padding: 16px 20px 26px; }
 .title { width: 100%; padding: 0 0 2px; border: 0; border-bottom: 1px dashed transparent; background: none; outline: 0; font: 700 32px/1.1 var(--hand); }
@@ -357,7 +357,7 @@ h3.first { margin-top: 12px !important; }
 .post-who b { font-weight: 500; }
 .post-who small { color: var(--mute); margin-left: auto; text-align: right; }
 .post-photo { position: relative; display: block; width: 100%; margin: 10px 0 8px; padding: 7px 7px 0; border: 0; background: var(--paper); transform: rotate(var(--rot, 0deg)); box-shadow: 0 2px 4px #0002, 0 8px 18px #0002; }
-.post-photo img { display: block; width: 100%; aspect-ratio: 4 / 3; object-fit: cover; }
+.post-photo img { display: block; width: 100%; height: auto; max-height: 70vh; object-fit: contain; background: var(--panel-2); }
 .post-photo::after { content: ""; display: block; height: 18px; }
 .post-photo .stamp { right: 14px; bottom: 28px; font-size: 20px; }
 .post-title { margin: 6px 0 0; font: 700 24px/1.1 var(--hand); }

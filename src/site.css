@@ -161,7 +161,7 @@ img { max-width: 100%; }
 .stop-n { width: 34px; height: 34px; border-radius: 50%; background: var(--yarn); color: #fff; display: grid; place-items: center; font-weight: 700; box-shadow: var(--shadow-sm); }
 .stop-card { background: var(--panel); border-radius: 18px; overflow: hidden; box-shadow: var(--shadow-sm); border: 2px solid transparent; transition: border-color .2s; cursor: pointer; }
 .stop.sel .stop-card { border-color: var(--yarn); }
-.stop-card img { display: block; width: 100%; height: auto; max-height: 420px; object-fit: cover; }
+.stop-card img { display: block; width: 100%; height: auto; max-height: 70vh; object-fit: contain; background: var(--panel-2); }
 .stop-body { padding: 14px 18px 18px; display: grid; gap: 6px; }
 .stop-body h3 { font: 700 30px/1.1 var(--hand); }
 .stop-body .meta { color: var(--mute); font-size: 14.5px; }
