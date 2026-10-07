@@ -1434,11 +1434,24 @@ async function openProfile(who: { id?: string; handle?: string; code?: string })
       await refreshFriends(); paint(); void drawProfileStories(prof, mine);
     } catch (err) { $('pfStories').textContent = 'Couldn’t update that: ' + (err as Error).message; }
   };
+  const mb = $('pfMap');
+  mb.hidden = true;
+  mb.onclick = () => {
+    const theirs = mine ? cards.filter(c => c.visibility !== 'private') : others().filter(c => c.owner === prof.id);
+    $('profileModal').hidden = true;
+    if (query) { q.value = ''; query = ''; qPeople.hidden = true; render(); }   // a leftover search would hide their pins
+    fitCards(theirs, 5);
+  };
   void drawProfileStories(prof, mine);
 }
+const showMapBtn = (prof: cloud.Profile, mine: boolean) => {
+  const list = mine ? cards.filter(c => c.visibility !== 'private') : others().filter(c => c.owner === prof.id);
+  $('pfMap').hidden = !list.some(placed);
+};
 async function drawProfileStories(prof: cloud.Profile, mine: boolean) {
   const box = $('pfStories'); box.innerHTML = '';
   const following = followingIds().has(prof.id);
+  if (following || mine) showMapBtn(prof, mine);
   let list: { name: string; owner: string; cards: Card[] }[];
   if (mine) {
     list = stories().map(s => ({ ...s, owner: prof.id, cards: s.cards.filter(c => c.visibility !== 'private') })).filter(s => s.cards.length);
@@ -1449,7 +1462,7 @@ async function drawProfileStories(prof: cloud.Profile, mine: boolean) {
     try {
       const pub = await cloud.publicPhotos({ id: prof.id });
       pub.owners.forEach((n, id) => ownerNames.set(id, n));
-      extraCards = [...extraCards.filter(c => c.owner !== prof.id), ...pub.cards]; render();
+      extraCards = [...extraCards.filter(c => c.owner !== prof.id), ...pub.cards]; render(); showMapBtn(prof, mine);
       const m2 = new Map<string, Card[]>();
       for (const c of pub.cards) if (c.trip) (m2.get(c.trip) ?? m2.set(c.trip, []).get(c.trip)!).push(c);
       list = [...m2.entries()].map(([name, cs]) => ({ name, owner: prof.id, cards: cs.sort((a, b) => a.seq - b.seq) }));
