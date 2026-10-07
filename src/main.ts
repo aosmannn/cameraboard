@@ -628,7 +628,8 @@ document.addEventListener('click', e => {
 });
 
 // ---------- upload ----------
-function pick(c: Card | null) { pickTarget = c; picker.multiple = !c; picker.value = ''; picker.click(); }
+/** Adding allows many photos at once; Replace takes one. The input is visually hidden rather than display:none, which some phone browsers handle better. */
+function pick(c: Card | null) { pickTarget = c; if (c) picker.removeAttribute('multiple'); else picker.setAttribute('multiple', ''); picker.value = ''; picker.click(); }
 $('addBtn').onclick = $('emptyAdd').onclick = () => pick(null);
 
 picker.onchange = () => addFiles([...(picker.files ?? [])], pickTarget);

@@ -525,3 +525,5 @@ h3.first { margin-top: 12px !important; }
   .banner > span, .invite-banner > span { flex: 1 1 100%; min-width: 0; overflow-wrap: anywhere; line-height: 1.35; }
   .banner .btn { flex: none; }
 }
+
+.vh { position: fixed; left: 0; top: 0; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
