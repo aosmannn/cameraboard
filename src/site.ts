@@ -71,7 +71,7 @@ export function mountShell(active: Section) {
     col('Product', [['Open the map', '/app.html'], ['Explore', '/explore'], ['Stories', '/explore?tab=stories'], ['Cameras', '/cameras']]),
     col('Company', [['Privacy', '/privacy'], ['Terms', '/terms'], ['Contact', 'mailto:' + CONTACT_EMAIL]])
   );
-  foot.append(el('p', 'credit', `© ${new Date().getFullYear()} Wayframe. Map data from Natural Earth, public domain. Photos belong to the people who took them.`));
+  foot.append(el('p', 'credit', `© ${new Date().getFullYear()} Wayframe. Map data from Natural Earth (public domain). Place names also from GeoNames (CC BY 4.0). Photos belong to the people who took them.`));
   document.body.append(foot);
 
   if (!cloud.cloudEnabled) authDone();

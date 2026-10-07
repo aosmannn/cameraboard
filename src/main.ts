@@ -669,7 +669,7 @@ function drawLocResults() {
 locQ.oninput = async () => {
   await loadCities();
   const q = locQ.value.trim();
-  locHits = q.length >= 2 ? searchPlaces(q, 6) : []; locSel = 0;
+  locHits = q.length >= 2 ? searchPlaces(q, 8) : []; locSel = 0;
   drawLocResults();
   const none = q.length >= 2 && !locHits.length;
   $('locMsg').textContent = none ? `No place named “${q}” in our list. Pick it on the map instead.` : '';
@@ -764,7 +764,7 @@ function openCard(c: Card, fly = true) {
   $('shareRow').hidden = !signedIn || ro; $<HTMLSelectElement>('visSel').value = c.visibility; drawVis(c);
   const dImg = $<HTMLImageElement>('dImg'); dImg.src = c.img!; dImg.alt = c.title;
   $('photoBtn').style.setProperty('--rot', (c.rot / 2) + 'deg');
-  fTitle.value = c.title; fStory.value = c.story; fDate.value = c.date; fPlace.value = c.place || '';
+  fTitle.value = c.title; fStory.value = c.story; fDate.value = c.date; fPlace.value = c.place || ''; placeHits = []; drawPlaceResults();
   fTripName.value = c.trip; fCamera.value = c.meta?.camera ?? '';
   $<HTMLInputElement>('coverBox').checked = c.cover;
   $<HTMLSelectElement>('lookSel').value = c.look; $<HTMLInputElement>('stampBox').checked = c.stamp;
@@ -891,23 +891,40 @@ async function reverse(lat: number, lng: number): Promise<string> {
   await loadCities();
   return nameAt(lat, lng) ?? countryAt(lat, lng) ?? '';
 }
+let placeHits: Place[] = [], placeSel = 0;
+function drawPlaceResults() {
+  const box = $('placeResults'); box.innerHTML = '';
+  placeHits.forEach((p, i) => {
+    const b = el('button', 'loc-res' + (i === placeSel ? ' on' : ''), p.label);
+    b.type = 'button'; b.setAttribute('role', 'option'); b.setAttribute('aria-selected', String(i === placeSel));
+    b.onclick = () => { placeSel = i; void findPlace(); };
+    box.append(b);
+  });
+  fPlace.setAttribute('aria-expanded', String(placeHits.length > 0));
+}
 async function findPlace() {
   const text = fPlace.value.trim(); if (!text || !cur) return;
   const c = cur;
   await loadCities();
-  const hits = searchPlaces(text, 6);
-  const h = hits.find(x => x.label === text) ?? hits[0];
-  if (!h) { $('locNote').textContent = 'No city found with that name. Try another spelling, or pin it on the map.'; return; }
+  const hits = placeHits.length ? placeHits : searchPlaces(text, 8);
+  const h = hits[placeSel] ?? hits[0];
+  if (!h) { $('locNote').textContent = 'No place named “' + text + '” in our list. Use Pin on map to choose the spot yourself.'; return; }
   c.lat = h.lat; c.lng = h.lng; c.place = h.short; fPlace.value = h.short;
+  placeHits = []; drawPlaceResults();
   save(); render(); locNote(); drawStoryNav(c); drawMeta(c); markSelected();
   flyTo(c);
 }
 $('placeBtn').onclick = findPlace;
-fPlace.onkeydown = e => { if (e.key === 'Enter') findPlace(); };
+fPlace.onkeydown = e => {
+  if ((e.key === 'ArrowDown' || e.key === 'ArrowUp') && placeHits.length) {
+    e.preventDefault(); placeSel = (placeSel + (e.key === 'ArrowDown' ? 1 : -1) + placeHits.length) % placeHits.length; drawPlaceResults();
+  } else if (e.key === 'Enter') { e.preventDefault(); void findPlace(); }
+  else if (e.key === 'Escape') { placeHits = []; drawPlaceResults(); }
+};
 fPlace.oninput = async () => {
   await loadCities();
-  const dl = $('placeList'); dl.innerHTML = '';
-  searchPlaces(fPlace.value, 6).forEach(p => dl.append(new Option(p.label)));
+  const q = fPlace.value.trim();
+  placeHits = q.length >= 2 ? searchPlaces(q, 8) : []; placeSel = 0; drawPlaceResults();
 };
 
 function startPinning(targets: Card[]) {

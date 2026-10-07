@@ -159,10 +159,10 @@
 
     <label class="lab" for="fPlace">Where</label>
     <div class="place-row">
-      <input id="fPlace" list="placeList" class="plain" placeholder="Search a city, e.g. Barcelona" autocomplete="off">
-      <datalist id="placeList"></datalist>
+      <input id="fPlace" class="plain" placeholder="Search a city, e.g. Barcelona" autocomplete="off" role="combobox" aria-expanded="false" aria-controls="placeResults">
       <button id="placeBtn" class="btn small">Find</button>
     </div>
+    <div id="placeResults" class="loc-results" role="listbox" aria-label="Matching places"></div>
     <div class="row">
       <button id="pinBtn" class="btn small">Pin on map</button>
       <button id="exactBtn" class="btn small">Zoom in</button>

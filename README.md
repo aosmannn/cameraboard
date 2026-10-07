@@ -60,6 +60,7 @@ Built with TypeScript, Vite and [Leaflet](https://leafletjs.com) (used only to m
 | `src/labels.ts` | Draws place names without overlaps |
 | `src/atlas.ts` | Loads the map data; offline city search and naming |
 | `src/cloud.ts` | Sign-in, syncing your photos, friends and likes (Supabase) |
+| `scripts/build-cities.mjs` | Rebuilds the place list (Natural Earth plus GeoNames cities of 15,000+ people) |
 | `supabase/migrations/` | Database tables, storage bucket and privacy rules, one file per change |
 | `supabase/schema.sql` | The same, joined into one file for pasting (`npm run db:schema`) |
 | `src/photo.ts` | Reads a photo: shrinks it, pulls EXIF, builds a card |
@@ -134,3 +135,10 @@ Not included: streets and buildings. That level of detail needs OpenStreetMap-si
 ## Credits
 
 Map data © [Natural Earth](https://www.naturalearthdata.com) (public domain). US counties from [us-atlas](https://github.com/topojson/us-atlas) (Census Bureau, public domain).
+
+
+## Data credits
+
+- Map shapes and populated places: [Natural Earth](https://www.naturalearthdata.com), public domain.
+- Extra city names and populations: [GeoNames](https://www.geonames.org), CC BY 4.0, via the MIT-licensed `all-the-cities` package.
+- US counties: us-atlas (US Census).
