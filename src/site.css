@@ -224,3 +224,6 @@ img { max-width: 100%; }
 .photo-grid .sq:hover img { transform: scale(1.05); }
 .profile-map { max-width: 980px; }
 @media (max-width: 560px) { .photo-grid { grid-template-columns: repeat(3, 1fr); gap: 3px; } .person-head { padding: 14px; } .ava-big { width: 60px; height: 60px; font-size: 28px; } }
+
+.ava-big { overflow: hidden; }
+.ava-big img { width: 100%; height: 100%; object-fit: cover; display: block; }

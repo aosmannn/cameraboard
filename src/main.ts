@@ -11,7 +11,7 @@ import '@fontsource/instrument-serif/400-italic.css';
 import './style.css';
 import type { Card, Look } from './types';
 import { openStore, loadCards, saveCards } from './storage';
-import { blankCard, fillCard, normalize, cameraName, dayOf, timeOf, stampText, placeKey } from './photo';
+import { blankCard, fillCard, normalize, cameraName, dayOf, timeOf, stampText, placeKey, squareAvatar } from './photo';
 import { drawWorld, countryAt, countryBounds, THEMES, type ThemeName } from './world';
 import { loadCities, searchPlaces, nameAt, type Place } from './atlas';
 import { initViewer, openViewer, closeViewer, viewerIsOpen } from './viewer';
@@ -1122,9 +1122,15 @@ let blocked = new Set<string>();
 const followingIds = () => new Set(friends.map(f => f.id));
 const initial = (p: { display_name: string; username: string | null }) => (cloud.labelOf(p).replace(/^@/, '')[0] || '?').toUpperCase();
 
+/** Shows someone's picture, or their first initial when they haven't set one. */
+function avaInto(node: HTMLElement, letter: string, path?: string | null) {
+  node.textContent = '';
+  if (path) { const im = new Image(); im.src = cloud.avatarUrl(path); im.alt = ''; im.className = 'ava-img'; im.onerror = () => { node.textContent = letter; }; node.append(im); }
+  else node.textContent = letter;
+}
 function renderAcct() {
   acctBtn.hidden = !cloud.cloudEnabled;
-  acctBtn.textContent = signedIn ? (me ? initial(me) : '☺') : 'Sign in';
+  if (signedIn) avaInto(acctBtn, me ? initial(me) : '☺', me?.avatar_path); else acctBtn.textContent = 'Sign in';
   acctBtn.classList.toggle('avatar', signedIn);
   acctBtn.setAttribute('aria-label', signedIn ? 'Your profile' : 'Sign in');
   $('signIn').hidden = signedIn; $('account').hidden = !signedIn;
@@ -1223,7 +1229,8 @@ bioIn.oninput = () => { $('bioCount').textContent = `${bioIn.value.length} / 160
 function renderMeCard() {
   if (!me) return;
   const shown = cards.filter(c => c.img);
-  $('setAva').textContent = $('meAva').textContent = initial(me);
+  for (const id of ['setAva', 'meAva', 'editAva']) avaInto($(id), initial(me), me.avatar_path);
+  $('avaRemove').hidden = !me.avatar_path;
   $('setName').textContent = $('meName').textContent = me.display_name || 'Add your name';
   $('setHandle').textContent = $('meHandle').textContent = me.username ? '@' + me.username : 'No username yet';
   const bio = $('meBio'); bio.textContent = me.bio || 'Add a short bio so friends know whose photos these are.'; bio.classList.toggle('empty', !me.bio);
@@ -1246,6 +1253,21 @@ function setPane(name: string) {
 document.querySelectorAll<HTMLButtonElement>('.set-tab').forEach(t => { t.onclick = () => setPane(t.dataset.pane!); });
 $('stFollowers').onclick = () => { setPane('people'); $('tabFollowers').click(); };
 $('stFollowing').onclick = () => { setPane('people'); $('tabFollowing').click(); };
+const avaFile = $<HTMLInputElement>('avaFile');
+$('avaUpload').onclick = $('meAva').onclick = () => { avaFile.value = ''; avaFile.click(); };
+avaFile.onchange = async () => {
+  const f = avaFile.files?.[0]; if (!f || !me) return;
+  syncNote('Uploading your picture…');
+  try {
+    const blob = await squareAvatar(f);
+    await cloud.uploadAvatar(blob);
+    me = await cloud.myProfile(); renderAcct(); renderMeCard(); syncNote('Profile picture updated.');
+  } catch (err) { syncNote('Couldn’t use that picture: ' + (err as Error).message); }
+};
+$('avaRemove').onclick = async () => {
+  try { await cloud.removeAvatar(); me = await cloud.myProfile(); renderAcct(); renderMeCard(); syncNote('Profile picture removed.'); }
+  catch (err) { syncNote('Couldn’t remove it: ' + (err as Error).message); }
+};
 $('editProfile').onclick = () => { const box = $('editBox'); box.hidden = !box.hidden; if (!box.hidden) $('nameIn').focus(); };
 $('editCancel').onclick = () => { fillProfileForm(); $('editBox').hidden = true; };
 
@@ -1341,7 +1363,7 @@ async function openProfile(who: { id?: string; handle?: string; code?: string })
   const prof = p, mine = prof.id === me?.id;
   profileOf = prof;
   $('acctModal').hidden = true; $('profileModal').hidden = false;
-  $('pfAva').textContent = initial(prof);
+  avaInto($('pfAva'), initial(prof), prof.avatar_path);
   $('pfName').textContent = cloud.labelOf(prof); $('pfHandle').textContent = prof.username ? '@' + prof.username : '';
   $('pfBio').textContent = prof.bio ?? ''; $('pfBio').hidden = !prof.bio;
   $('pfStats').innerHTML = ''; for (const [n, l] of [[prof.photos, 'photos'], [prof.stories, 'stories'], [prof.followers, 'followers'], [prof.following, 'following']] as const) { if (n === undefined) continue; const s = el('span'); s.append(el('b', '', String(n)), ' ' + l); $('pfStats').append(s); }

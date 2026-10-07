@@ -40,8 +40,8 @@ export async function signOut() { await sb?.auth.signOut(); }
 
 /** username is null unless the person chose to be discoverable (or it's you). */
 export interface Person { id: string; display_name: string; username: string | null }
-export interface MyProfile extends Person { discoverable: boolean; invite_code: string; gallery: boolean; default_visibility: Card['visibility']; bio: string }
-export interface Profile extends Person { discoverable: boolean; bio?: string; followers?: number; following?: number; photos?: number; stories?: number }
+export interface MyProfile extends Person { discoverable: boolean; invite_code: string; gallery: boolean; default_visibility: Card['visibility']; bio: string; avatar_path: string | null }
+export interface Profile extends Person { discoverable: boolean; bio?: string; avatar_path?: string | null; followers?: number; following?: number; photos?: number; stories?: number }
 export const USERNAME_RE = /^[a-z0-9_]{3,20}$/;
 export const cleanUsername = (raw: string) => raw.trim().replace(/^@/, '').toLowerCase();
 /** How a person is shown: their name, or @username when they haven't set a name. */
@@ -52,12 +52,13 @@ export async function myProfile(): Promise<MyProfile | null> {
   const q = (cols: string) => sb!.from('profiles').select(cols).eq('id', u.id).maybeSingle();
   const base = 'id, display_name, username, discoverable, invite_code';
   // Newer columns arrive with the latest database migrations; until they exist, load the profile without them.
-  let { data, error } = await q(base + ', gallery, default_visibility, bio');
+  let { data, error } = await q(base + ', gallery, default_visibility, bio, avatar_path');
+  if (error) ({ data, error } = await q(base + ', gallery, default_visibility, bio'));
   if (error) ({ data, error } = await q(base + ', gallery, default_visibility'));
   if (error) ({ data, error } = await q(base + ', gallery'));
   if (error) ({ data } = await q(base));
   const row = data as unknown as MyProfile | null;
-  return row ? { ...row, gallery: !!row.gallery, default_visibility: row.default_visibility ?? 'private', bio: row.bio ?? '' } : null;
+  return row ? { ...row, gallery: !!row.gallery, default_visibility: row.default_visibility ?? 'private', bio: row.bio ?? '', avatar_path: row.avatar_path ?? null } : null;
 }
 export async function saveProfile(p: { display_name: string; username: string; discoverable: boolean; gallery?: boolean; default_visibility?: Card['visibility']; bio?: string }) {
   const u = me(); if (!u) return;
@@ -173,7 +174,7 @@ export async function searchPeople(q: string): Promise<Person[]> {
 }
 /** A profile by id (people you're connected to), @username (discoverable people) or invite code (anyone). */
 export async function publicProfile(who: { id?: string; handle?: string; code?: string }): Promise<Profile | null> {
-  const { data, error } = await sb!.rpc('profile_card', {
+  const { data, error } = await sb!.rpc('profile_page', {
     uid: who.id ?? null, handle: who.handle ? cleanUsername(who.handle) : null, code: who.code ?? null
   });
   if (error) throw new Error(error.message);
@@ -311,12 +312,34 @@ export async function exploreCameras(): Promise<CameraStat[]> {
   const url = await signPaths(rows.map(r => r.cover_path));
   return rows.map(r => ({ camera: r.camera, slug: r.slug, photos: Number(r.photos), people: Number(r.people), cover: url.get(r.cover_path) ?? '' }));
 }
-export interface PublicCard { id: string; display_name: string; username: string | null; bio: string; photos: number; stories: number; followers: number; following: number }
+export interface PublicCard { id: string; display_name: string; username: string | null; bio: string; avatar_path: string | null; photos: number; stories: number; followers: number; following: number }
 /** A name, bio and counts for a profile page. Works without signing in. */
 export async function publicCard(who: { code?: string; handle?: string; id?: string }): Promise<PublicCard | null> {
   if (!sb) return null;
-  const { data, error } = await sb.rpc('profile_card', { code: who.code ?? null, handle: who.handle ? cleanUsername(who.handle) : null, uid: who.id ?? null });
+  const { data, error } = await sb.rpc('profile_page', { code: who.code ?? null, handle: who.handle ? cleanUsername(who.handle) : null, uid: who.id ?? null });
   if (error) throw new Error(error.message);
   const r = (data ?? [])[0] as PublicCard | undefined;
-  return r ? { ...r, bio: r.bio ?? '', photos: Number(r.photos), stories: Number(r.stories), followers: Number(r.followers), following: Number(r.following) } : null;
+  return r ? { ...r, bio: r.bio ?? '', avatar_path: r.avatar_path ?? null, photos: Number(r.photos), stories: Number(r.stories), followers: Number(r.followers), following: Number(r.following) } : null;
+}
+
+// ---------- profile picture ----------
+/** Profile pictures live in a public bucket, so anyone who can see a profile can see the picture. */
+export const avatarUrl = (path: string | null | undefined) => path ? `${URL}/storage/v1/object/public/avatars/${path}` : '';
+export async function uploadAvatar(blob: Blob): Promise<string> {
+  const u = me(); if (!u) throw new Error('Sign in first.');
+  const old = (await myProfile())?.avatar_path;
+  const path = `${u.id}/${Date.now()}.jpg`;
+  const up = await sb!.storage.from('avatars').upload(path, blob, { contentType: 'image/jpeg', cacheControl: '31536000' });
+  if (up.error) throw new Error(up.error.message);
+  const { error } = await sb!.from('profiles').update({ avatar_path: path }).eq('id', u.id);
+  if (error) throw new Error(error.message);
+  if (old) await sb!.storage.from('avatars').remove([old]).catch(() => { /* an old picture left behind is harmless */ });
+  return path;
+}
+export async function removeAvatar() {
+  const u = me(); if (!u) return;
+  const old = (await myProfile())?.avatar_path;
+  const { error } = await sb!.from('profiles').update({ avatar_path: null }).eq('id', u.id);
+  if (error) throw new Error(error.message);
+  if (old) await sb!.storage.from('avatars').remove([old]).catch(() => { /* harmless */ });
 }

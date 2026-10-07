@@ -87,3 +87,19 @@ export function stampText(c: Card): string {
 
 /** Two cards are "at the same place" when they fall in the same ~1 km grid cell. */
 export const placeKey = (c: Card) => `${c.lat!.toFixed(2)},${c.lng!.toFixed(2)}`;
+
+/** A square, centered crop of a picture, shrunk to `size` pixels: what we keep as someone's profile picture. */
+export function squareAvatar(file: File, size = 360): Promise<Blob> {
+  return new Promise((res, rej) => {
+    const url = URL.createObjectURL(file), im = new Image();
+    im.onload = () => {
+      const s = Math.min(im.width, im.height), cv = document.createElement('canvas');
+      cv.width = cv.height = Math.min(size, s);
+      cv.getContext('2d')!.drawImage(im, (im.width - s) / 2, (im.height - s) / 2, s, s, 0, 0, cv.width, cv.height);
+      URL.revokeObjectURL(url);
+      cv.toBlob(b => b ? res(b) : rej(new Error('Could not read that picture')), 'image/jpeg', 0.88);
+    };
+    im.onerror = () => { URL.revokeObjectURL(url); rej(new Error('Could not read that picture')); };
+    im.src = url;
+  });
+}

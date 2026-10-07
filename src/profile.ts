@@ -33,7 +33,9 @@ async function main() {
 
   root.innerHTML = '';
   const head = el('section', 'person-head');
-  head.append(el('span', 'ava-big', initialOf(name)));
+  const ava = el('span', 'ava-big');
+  if (card?.avatar_path) { const im = new Image(); im.src = cloud.avatarUrl(card.avatar_path); im.alt = ''; im.onerror = () => { ava.textContent = initialOf(name); }; ava.append(im); } else ava.textContent = initialOf(name);
+  head.append(ava);
   const stories = new Map<string, Card[]>();
   for (const c of cards) if (c.trip) (stories.get(c.trip) ?? stories.set(c.trip, []).get(c.trip)!).push(c);
   const txt = el('div', 'grow'); txt.append(el('h1', '', name));

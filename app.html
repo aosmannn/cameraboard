@@ -256,7 +256,7 @@
 
           <div class="set-pane" id="pane-profile" role="tabpanel">
             <div class="ig-head">
-              <span class="ava huge" id="meAva"></span>
+              <button type="button" class="ava huge ava-btn" id="meAva" aria-label="Change profile picture" title="Change profile picture"></button>
               <div class="ig-info">
                 <div class="ig-top"><h2 id="meName"></h2><span id="meHandle" class="ig-handle"></span></div>
                 <div class="ig-stats">
@@ -270,6 +270,12 @@
               </div>
             </div>
             <div id="editBox" class="edit-box" hidden>
+              <div class="avatar-edit">
+                <span class="ava big" id="editAva"></span>
+                <div><div class="row"><button type="button" id="avaUpload" class="btn small">Upload a picture</button><button type="button" id="avaRemove" class="linkbtn" hidden>Remove</button></div>
+                  <p class="hint">A square crop of your picture is saved. JPG, PNG or WebP.</p></div>
+                <input id="avaFile" type="file" accept="image/*" hidden>
+              </div>
               <div class="two-fields">
                 <div><label class="lab" for="nameIn">Name</label><input id="nameIn" class="plain" maxlength="40" placeholder="What friends see" autocomplete="name"></div>
                 <div><label class="lab" for="userIn">Username <span class="opt">optional</span></label>
