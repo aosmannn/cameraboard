@@ -13,7 +13,7 @@ import type { Card, Look } from './types';
 import { openStore, loadCards, saveCards } from './storage';
 import { blankCard, fillCard, normalize, cameraName, dayOf, timeOf, stampText, placeKey } from './photo';
 import { drawWorld, countryAt, countryBounds, THEMES, type ThemeName } from './world';
-import { loadCities, searchPlaces, nameAt } from './atlas';
+import { loadCities, searchPlaces, nameAt, type Place } from './atlas';
 import { initViewer, openViewer, closeViewer, viewerIsOpen } from './viewer';
 import { renderPoster } from './poster';
 import * as cloud from './cloud';
@@ -629,16 +629,17 @@ window.addEventListener('drop', e => {
 // ---- where were these taken? ----
 const locQ = $<HTMLInputElement>('locQ');
 let locBatch: Card[] = [], locDone: () => void = () => {};
+let locHits: Place[] = [], locSel = 0;
 function openLocPrompt(batch: Card[], after: () => void) {
   locBatch = batch; locDone = after;
   const n = batch.length;
   $('locTitle').textContent = n === 1 ? 'Where was this taken?' : `Where were these ${n} photos taken?`;
-  $('locSub').textContent = n === 1 ? 'This photo has no GPS. Pick a city, or click the map.'
-    : 'These photos have no GPS. Put them all in one city, or click the map. You can fix single photos later.';
+  $('locSub').textContent = n === 1 ? 'This photo has no GPS. Search for a place, pick it on the map, or skip and add it later.'
+    : 'These photos have no GPS. Put them all in one place, pick it on the map, or skip and add them later.';
   const th = $('locThumbs'); th.innerHTML = '';
   batch.slice(0, 8).forEach(c => { const im = new Image(); im.src = c.img!; im.alt = ''; th.append(im); });
   $('locPlace').textContent = n === 1 ? 'Put it here' : 'Put them here';
-  locQ.value = ''; $('locMsg').textContent = '';
+  locQ.value = ''; $('locMsg').textContent = ''; drawLocResults(); $('locMap').className = 'btn';
   const near = nearestPlaced(batch), nb = $('locNear');
   nb.hidden = !near;
   if (near) {
@@ -648,23 +649,50 @@ function openLocPrompt(batch: Card[], after: () => void) {
   $('locModal').hidden = false; locQ.focus();
 }
 async function finishLoc() { await save(); render(); $('locModal').hidden = true; locDone(); }
+/** Closing the prompt never blocks the map: the photos just stay off the map until you place them. */
+function skipLoc() {
+  if ($('locModal').hidden) return;
+  $('locModal').hidden = true; locDone();
+  showToast(locBatch.length === 1 ? 'Skipped. You can place this photo any time from its panel.' : 'Skipped. You can place these photos any time from their panels.');
+}
+function drawLocResults() {
+  const box = $('locResults'); box.innerHTML = '';
+  locHits.forEach((p, i) => {
+    const b = el('button', 'loc-res' + (i === locSel ? ' on' : ''), p.label);
+    b.type = 'button'; b.setAttribute('role', 'option'); b.setAttribute('aria-selected', String(i === locSel));
+    b.onclick = () => { locSel = i; void placeBatch(); };
+    box.append(b);
+  });
+  locQ.setAttribute('aria-expanded', String(locHits.length > 0));
+  ($('locPlace') as HTMLButtonElement).disabled = !locHits.length;
+}
 locQ.oninput = async () => {
   await loadCities();
-  const dl = $('locList'); dl.innerHTML = '';
-  searchPlaces(locQ.value, 6).forEach(p => dl.append(new Option(p.label)));
+  const q = locQ.value.trim();
+  locHits = q.length >= 2 ? searchPlaces(q, 6) : []; locSel = 0;
+  drawLocResults();
+  const none = q.length >= 2 && !locHits.length;
+  $('locMsg').textContent = none ? `No place named “${q}” in our list. Pick it on the map instead.` : '';
+  $('locMap').className = none ? 'btn primary' : 'btn';
 };
 async function placeBatch() {
-  const text = locQ.value.trim(); if (!text) { $('locMsg').textContent = 'Type a city first.'; return; }
-  await loadCities();
-  const hits = searchPlaces(text, 6), h = hits.find(x => x.label === text) ?? hits[0];
-  if (!h) { $('locMsg').textContent = 'No city found with that name. Try another spelling, or click the map.'; return; }
+  const h = locHits[locSel];
+  if (!h) { $('locMsg').textContent = locQ.value.trim() ? 'Choose one of the places listed, or pick it on the map.' : 'Type a place to search for.'; return; }
   for (const c of locBatch) { c.lat = h.lat; c.lng = h.lng; c.place = h.short; }
   await finishLoc();
 }
 $('locPlace').onclick = placeBatch;
-locQ.onkeydown = e => { if (e.key === 'Enter') void placeBatch(); };
+locQ.onkeydown = e => {
+  if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+    if (!locHits.length) return; e.preventDefault();
+    locSel = (locSel + (e.key === 'ArrowDown' ? 1 : -1) + locHits.length) % locHits.length; drawLocResults();
+  } else if (e.key === 'Enter') { e.preventDefault(); void placeBatch(); }
+};
 $('locMap').onclick = () => { $('locModal').hidden = true; startPinning(locBatch); };
-$('locLater').onclick = () => { $('locModal').hidden = true; locDone(); };
+$('locLater').onclick = skipLoc;
+$('locClose').onclick = skipLoc;
+$('locModal').addEventListener('mousedown', e => { if (e.target === $('locModal')) skipLoc(); });
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && !$('locModal').hidden) skipLoc(); });
 
 // ---- a small message at the bottom, optionally with Undo ----
 let toastT = 0, toastUndo: (() => void) | null = null;
@@ -1304,7 +1332,7 @@ async function onAuth(s: boolean) {
   renderAcct();
   me = await cloud.myProfile().catch(() => null);
   fillProfileForm(); renderAcct(); renderInvite();
-  if (!me?.display_name) { openAcct(); $('nameIn').focus(); syncNote('Add your name so friends recognize you. A username is optional.'); }
+  if (!me?.display_name) syncNote('Tip: add your name in your profile so friends recognize you. A username is optional.');
   try {
     const mine = await cloud.pullMine(new Set(cards.map(c => c.id)));
     if (mine.length) { cards.push(...mine); await saveCards(cards); }

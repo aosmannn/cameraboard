@@ -332,20 +332,21 @@
 <div id="dropOverlay" class="drop-overlay" hidden aria-hidden="true"><div>Drop photos to add them</div></div>
 
 <div id="locModal" class="modal" hidden>
-  <div class="modal-box loc-box">
+  <div class="modal-box loc-box" role="dialog" aria-modal="true" aria-labelledby="locTitle">
+    <button class="x2 m-close" id="locClose" aria-label="Skip for now">✕</button>
     <h2 id="locTitle">Where were these taken?</h2>
     <p id="locSub" class="sub"></p>
     <div id="locThumbs" class="q-thumbs"></div>
     <button id="locNear" class="btn small" hidden></button>
-    <label class="lab" for="locQ">City</label>
-    <input id="locQ" class="plain" list="locList" placeholder="Search a city, e.g. Las Vegas" autocomplete="off">
-    <datalist id="locList"></datalist>
+    <label class="lab" for="locQ">Search for a place</label>
+    <input id="locQ" class="plain" placeholder="Search a city, e.g. Dubai" autocomplete="off" role="combobox" aria-expanded="false" aria-controls="locResults">
+    <div id="locResults" class="loc-results" role="listbox" aria-label="Matching places"></div>
     <p id="locMsg" class="hint" role="status"></p>
     <div class="row">
-      <button id="locPlace" class="btn primary">Put them here</button>
-      <button id="locMap" class="btn">Click on the map</button>
+      <button id="locPlace" class="btn primary" disabled>Put them here</button>
+      <button id="locMap" class="btn">Pick on the map</button>
       <span class="grow"></span>
-      <button id="locLater" class="linkbtn">Decide later</button>
+      <button id="locLater" class="linkbtn">Skip for now</button>
     </div>
   </div>
 </div>
