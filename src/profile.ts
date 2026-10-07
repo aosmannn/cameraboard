@@ -34,10 +34,16 @@ async function main() {
   root.innerHTML = '';
   const head = el('section', 'person-head');
   head.append(el('span', 'ava-big', initialOf(name)));
-  const txt = el('div', 'grow'); txt.append(el('h1', '', name));
   const stories = new Map<string, Card[]>();
   for (const c of cards) if (c.trip) (stories.get(c.trip) ?? stories.set(c.trip, []).get(c.trip)!).push(c);
-  txt.append(el('p', 'sub', [card?.username && '@' + card.username, `${cards.length} public ${cards.length === 1 ? 'photo' : 'photos'}`, `${stories.size} ${stories.size === 1 ? 'story' : 'stories'}`].filter(Boolean).join(' · ')));
+  const txt = el('div', 'grow'); txt.append(el('h1', '', name));
+  if (card?.username) txt.append(el('p', 'sub', '@' + card.username));
+  const stats = el('div', 'ig-stats');
+  for (const [n, l] of [[card?.photos ?? cards.length, 'photos'], [card?.stories ?? stories.size, 'stories'], [card?.followers, 'followers'], [card?.following, 'following']] as const) {
+    if (n === undefined) continue; const s = el('span'); s.append(el('b', '', String(n)), ' ' + l); stats.append(s);
+  }
+  txt.append(stats);
+  if (card?.bio) txt.append(el('p', 'ig-bio', card.bio));
   head.append(txt);
   const act = el('div', 'act');
   const me = cloud.me();
@@ -63,7 +69,14 @@ async function main() {
   if (placed.length) {
     root.append(el('h2', 'section-title', 'Where they’ve been'));
     const host = el('div'); root.append(host);
-    mountRouteMap(host, placed.map(c => ({ lat: c.lat!, lng: c.lng!, img: c.img!, title: c.title || 'Untitled' })), { yarn: false });
+    // each story gets its red string, in the order of its stops
+    const at = new Map(placed.map((c, i) => [c.id, i] as const));
+    const links: [number, number][] = [];
+    for (const list of stories.values()) {
+      const route = [...list].sort((a, b) => a.seq - b.seq).filter(c => at.has(c.id));
+      for (let i = 1; i < route.length; i++) links.push([at.get(route[i - 1].id)!, at.get(route[i].id)!]);
+    }
+    mountRouteMap(host, placed.map(c => ({ lat: c.lat!, lng: c.lng!, img: c.img!, title: c.title || 'Untitled' })), { links });
   }
   if (stories.size) {
     root.append(el('h2', 'section-title', 'Stories'));

@@ -24,8 +24,9 @@ function fit(stops: RouteStop[]) {
   return { w: cx - spanDeg / 2, e: cx + spanDeg / 2, yTop: cy + ySpan / 2, yBot: cy - ySpan / 2 };
 }
 
-export function mountRouteMap(host: HTMLElement, stops: RouteStop[], o: { yarn?: boolean; onSelect?: (i: number) => void } = {}): RouteMap {
-  const yarn = o.yarn !== false;
+/** `links` joins specific pairs of stops (for several stories on one map); without it, each stop joins the one before. */
+export function mountRouteMap(host: HTMLElement, stops: RouteStop[], o: { yarn?: boolean; links?: [number, number][]; onSelect?: (i: number) => void } = {}): RouteMap {
+  const yarn = o.yarn !== false && !o.links;   // numbered stops of a single route
   host.classList.add('routemap'); host.innerHTML = '';
   const cv = document.createElement('canvas'); cv.width = W; cv.height = H; cv.setAttribute('aria-hidden', 'true');
   const view = fit(stops);
@@ -34,19 +35,17 @@ export function mountRouteMap(host: HTMLElement, stops: RouteStop[], o: { yarn?:
   host.append(cv, svg);
 
   const pos = stops.map(s => ({ x: px(s.lng), y: py(s.lat) }));
-  const segs: SVGPathElement[][] = [];   // segs[i] joins stop i-1 to stop i
-  if (yarn) {
-    for (let i = 0; i < stops.length; i++) {
-      segs[i] = [];
-      if (!i) continue;
-      const a = pos[i - 1], b = pos[i], d = Math.hypot(b.x - a.x, b.y - a.y);
-      if (d < 3) continue;
-      const path = `M${a.x} ${a.y} Q${(a.x + b.x) / 2} ${(a.y + b.y) / 2 + Math.min(d * 0.2, 150)} ${b.x} ${b.y}`;
-      for (const cls of ['yarn-shadow', 'yarn']) {
-        const p = document.createElementNS(NS, 'path'); p.setAttribute('d', path); p.setAttribute('class', cls); svg.append(p); segs[i].push(p);
-      }
-    }
-  }
+  const segs: SVGPathElement[][] = [];   // single route: segs[i] joins stop i-1 to stop i
+  const addSeg = (from: number, to: number) => {
+    const a = pos[from], b = pos[to], d = Math.hypot(b.x - a.x, b.y - a.y);
+    if (d < 3) return [];
+    const path = `M${a.x} ${a.y} Q${(a.x + b.x) / 2} ${(a.y + b.y) / 2 + Math.min(d * 0.2, 150)} ${b.x} ${b.y}`;
+    return ['yarn-shadow', 'yarn'].map(cls => {
+      const p = document.createElementNS(NS, 'path'); p.setAttribute('d', path); p.setAttribute('class', cls); svg.append(p); return p;
+    });
+  };
+  if (o.links) o.links.forEach(([f, t]) => { segs.push(addSeg(f, t)); });
+  else if (yarn) for (let i = 0; i < stops.length; i++) segs[i] = i ? addSeg(i - 1, i) : [];
   const pins: HTMLButtonElement[] = stops.map((s, i) => {
     const b = document.createElement('button'); b.type = 'button';
     b.className = 'rpin' + (yarn ? '' : ' plain');

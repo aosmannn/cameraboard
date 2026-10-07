@@ -206,3 +206,7 @@ img { max-width: 100%; }
 .legal a { color: var(--yarn); }
 
 .wordmark em { font-style: italic; color: var(--yarn); }
+
+.ig-stats { display: flex; flex-wrap: wrap; gap: 6px 22px; margin: 12px 0 6px; font-size: 15.5px; }
+.ig-stats b { font-weight: 700; }
+.ig-bio { margin: 6px 0 0; max-width: 40em; white-space: pre-wrap; }

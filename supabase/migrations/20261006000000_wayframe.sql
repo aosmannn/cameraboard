@@ -16,7 +16,6 @@ alter table public.profiles add column if not exists username text;
 alter table public.profiles add column if not exists discoverable boolean not null default false;
 -- A personal, unguessable code for invite links and QR codes. Works even when search is off.
 alter table public.profiles add column if not exists invite_code text not null default substr(replace(gen_random_uuid()::text, '-', ''), 1, 10);
-alter table public.profiles drop column if exists bio;   -- profiles show a name and username only
 alter table public.profiles drop constraint if exists profiles_username_format;
 alter table public.profiles add constraint profiles_username_format check (username is null or username ~ '^[a-z0-9_]{3,20}$');
 alter table public.profiles drop constraint if exists profiles_discoverable_needs_username;

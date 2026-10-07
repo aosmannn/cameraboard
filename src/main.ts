@@ -1128,10 +1128,10 @@ function renderAcct() {
   acctBtn.classList.toggle('avatar', signedIn);
   acctBtn.setAttribute('aria-label', signedIn ? 'Your profile' : 'Sign in');
   $('signIn').hidden = signedIn; $('account').hidden = !signedIn;
-  $('acctBox').classList.toggle('two-col', signedIn);
+  $('acctBox').classList.toggle('set-box', signedIn);
   $('acctEmail').textContent = cloud.me()?.email ? 'Signed in as ' + cloud.me()!.email : '';
 }
-function openAcct() { $('acctModal').hidden = false; if (signedIn) { renderPeople(); renderInvite(); } else $('phoneIn').focus(); }
+function openAcct() { $('acctModal').hidden = false; if (signedIn) { setPane('profile'); $('editBox').hidden = true; renderPeople(); renderMeCard(); } else $('phoneIn').focus(); }
 acctBtn.onclick = openAcct;
 $('acctClose').onclick = () => { $('acctModal').hidden = true; };
 const authMsg = (t: string) => { $('authMsg').textContent = t; };
@@ -1192,15 +1192,17 @@ galBox.onchange = () => { galHint(); visHint(); };
 function fillProfileForm() {
   userIn.value = me?.username ?? ''; $<HTMLInputElement>('nameIn').value = me?.display_name ?? ''; discBox.checked = !!me?.discoverable; discHint();
   galBox.checked = !!me?.gallery; galHint(); setVisChoice(me?.default_visibility ?? 'private'); visHint();
+  bioIn.value = me?.bio ?? ''; $('bioCount').textContent = `${bioIn.value.length} / 160`; renderMeCard();
 }
-$('profSave').onclick = async () => {
+async function saveProfileForm() {
   try {
     const was = me?.default_visibility ?? 'private', now = visChoice();
-    await cloud.saveProfile({ display_name: $<HTMLInputElement>('nameIn').value, username: userIn.value, discoverable: discBox.checked, gallery: galBox.checked, default_visibility: now });
-    me = await cloud.myProfile(); fillProfileForm(); renderAcct(); syncNote('Saved.'); openPending();
+    await cloud.saveProfile({ display_name: $<HTMLInputElement>('nameIn').value, username: userIn.value, bio: bioIn.value, discoverable: discBox.checked, gallery: galBox.checked, default_visibility: now });
+    me = await cloud.myProfile(); fillProfileForm(); renderAcct(); syncNote('Saved.'); $('editBox').hidden = true; openPending();
     if (now !== was) applyAccountVisibility(now);
   } catch (err) { syncNote((err as Error).message); }
-};
+}
+$('profSave').onclick = $('privSave').onclick = saveProfileForm;
 /** Changing the account setting changes every photo you have, and you can undo it. */
 function applyAccountVisibility(v: Card['visibility']) {
   const before = new Map(cards.map(c => [c.id, c.visibility] as const));
@@ -1214,6 +1216,38 @@ function applyAccountVisibility(v: Card['visibility']) {
   });
 }
 $('viewMine').onclick = () => { if (me) openProfile({ id: me.id }); };
+
+// ---- profile header, photo grid and the settings tabs ----
+const bioIn = $<HTMLTextAreaElement>('bioIn');
+bioIn.oninput = () => { $('bioCount').textContent = `${bioIn.value.length} / 160`; };
+function renderMeCard() {
+  if (!me) return;
+  const shown = cards.filter(c => c.img);
+  $('setAva').textContent = $('meAva').textContent = initial(me);
+  $('setName').textContent = $('meName').textContent = me.display_name || 'Add your name';
+  $('setHandle').textContent = $('meHandle').textContent = me.username ? '@' + me.username : 'No username yet';
+  const bio = $('meBio'); bio.textContent = me.bio || 'Add a short bio so friends know whose photos these are.'; bio.classList.toggle('empty', !me.bio);
+  $('stPhotos').textContent = String(shown.length); $('stStories').textContent = String(stories().length);
+  $('stFollowers').querySelector('b')!.textContent = String(followers.length); $('stFollowing').querySelector('b')!.textContent = String(friends.length);
+  const grid = $('myGrid'); grid.innerHTML = '';
+  if (!shown.length) { grid.append(el('p', 'hint', 'Photos you add show up here.')); return; }
+  [...shown].sort((a, b) => b.date.localeCompare(a.date)).slice(0, 12).forEach(c => {
+    const b = el('button', 'my-th'); b.type = 'button'; b.setAttribute('aria-label', c.title || 'Photo');
+    const im = new Image(); im.src = c.img!; im.alt = ''; im.className = 'look-' + c.look; b.append(im);
+    b.onclick = () => { $('acctModal').hidden = true; openCard(c); };
+    grid.append(b);
+  });
+}
+function setPane(name: string) {
+  document.querySelectorAll<HTMLButtonElement>('.set-tab').forEach(t => { const on = t.dataset.pane === name; t.classList.toggle('on', on); t.setAttribute('aria-selected', String(on)); });
+  document.querySelectorAll<HTMLElement>('.set-pane').forEach(p => { p.hidden = p.id !== 'pane-' + name; });
+  if (name === 'invite') void renderInvite();
+}
+document.querySelectorAll<HTMLButtonElement>('.set-tab').forEach(t => { t.onclick = () => setPane(t.dataset.pane!); });
+$('stFollowers').onclick = () => { setPane('people'); $('tabFollowers').click(); };
+$('stFollowing').onclick = () => { setPane('people'); $('tabFollowing').click(); };
+$('editProfile').onclick = () => { const box = $('editBox'); box.hidden = !box.hidden; if (!box.hidden) $('nameIn').focus(); };
+$('editCancel').onclick = () => { fillProfileForm(); $('editBox').hidden = true; };
 
 // ---- invite link and QR code ----
 async function renderInvite() {
@@ -1271,6 +1305,7 @@ function renderPeople() {
   fill('paneFollowing', friends, 'You aren’t following anyone yet. Search for @usernames at the top, or share your invite link.');
   fill('paneFollowers', followers, 'No followers yet. Share your invite link.');
   $('blockedFold').hidden = !blocked.size;
+  renderMeCard();
 }
 async function renderBlocked() {
   const box = $('blockedList'); box.innerHTML = '';
@@ -1308,6 +1343,8 @@ async function openProfile(who: { id?: string; handle?: string; code?: string })
   $('acctModal').hidden = true; $('profileModal').hidden = false;
   $('pfAva').textContent = initial(prof);
   $('pfName').textContent = cloud.labelOf(prof); $('pfHandle').textContent = prof.username ? '@' + prof.username : '';
+  $('pfBio').textContent = prof.bio ?? ''; $('pfBio').hidden = !prof.bio;
+  $('pfStats').innerHTML = ''; for (const [n, l] of [[prof.photos, 'photos'], [prof.stories, 'stories'], [prof.followers, 'followers'], [prof.following, 'following']] as const) { if (n === undefined) continue; const s = el('span'); s.append(el('b', '', String(n)), ' ' + l); $('pfStats').append(s); }
   $('pfFollowsYou').hidden = !followers.some(f => f.id === prof.id);
   $('pfSafety').hidden = mine; $('reportBox').hidden = true; $('safetyMsg').textContent = '';
   const mut = $('pfMutual'); mut.hidden = true;
