@@ -22,8 +22,14 @@ const cleanUrls = (): Plugin => {
   return { name: 'wayframe-clean-urls', configureServer: s => { s.middlewares.use(rewrite); }, configurePreviewServer: s => { s.middlewares.use(rewrite); } };
 };
 
+/** Link previews need full addresses, so the home page's __SITE__ is filled in with the live site's address at build time. */
+const siteAddress = (): Plugin => ({
+  name: 'wayframe-site-address',
+  transformIndexHtml: html => html.replace(/__SITE__/g, (process.env.VITE_PUBLIC_URL || 'https://' + (process.env.VERCEL_PROJECT_PRODUCTION_URL || 'cameraboard-xi.vercel.app')).replace(/\/$/, ''))
+});
+
 export default defineConfig({
-  plugins: [cleanUrls()],
+  plugins: [cleanUrls(), siteAddress()],
   build: {
     rollupOptions: {
       input: { main: 'index.html', app: 'app.html', explore: 'explore.html', story: 'story.html', profile: 'profile.html', cameras: 'cameras.html', privacy: 'privacy.html', terms: 'terms.html', credits: 'credits.html' }
