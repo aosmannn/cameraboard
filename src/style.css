@@ -128,7 +128,8 @@ button { cursor: pointer; }
 .st-thumbs { display: flex; padding: 10px 0 2px 4px; }
 .st-thumbs img { width: 40px; height: 32px; object-fit: cover; border: 2px solid var(--paper); margin-left: -6px; box-shadow: 0 2px 5px #0003; transform: rotate(-3deg); }
 .st-thumbs img:nth-child(2n) { transform: rotate(3deg); }
-.st-actions { display: flex; gap: 6px; margin-top: 10px; }
+.st-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 10px; }
+.st-actions > * { min-width: 0; }
 .st-edit { margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--line); }
 .st-stops { list-style: none; margin: 0; padding: 0; }
 .st-stops li { display: grid; grid-template-columns: 20px 40px minmax(0, 1fr) auto auto auto; gap: 8px; align-items: center; padding: 5px 0; }
@@ -373,7 +374,7 @@ h3.first { margin-top: 12px !important; }
 .country-chip span { font-weight: 500; }
 .leaflet-container.has-pick { cursor: pointer; }
 
-.st-vis { padding: 5px 8px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); font-size: 13px; }
+.st-vis { max-width: 100%; padding: 5px 8px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); font-size: 13px; }
 .share .lab { margin-top: 0; }
 .share .btn { margin-top: 8px; }
 

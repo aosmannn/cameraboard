@@ -341,12 +341,12 @@ function renderStories() {
       vis.onchange = () => { if (vis.value === 'mixed') return; s.cards.forEach(c => { c.visibility = vis.value as Card['visibility']; }); save(); render(); };
       actions.append(vis);
       if (me && levels.has('public')) {
-        const pg = el('button', 'btn small', 'Copy page link');
+        const pg = el('button', 'btn small', 'Page link');
         pg.title = 'A page anyone can open, showing the public photos in this story';
         pg.onclick = async () => {
           const link = cloud.storyLink(me!.id, s.name);
           try { await navigator.clipboard.writeText(link); pg.textContent = 'Link copied'; } catch { pg.textContent = link; }
-          setTimeout(() => { pg.textContent = 'Copy page link'; }, 2500);
+          setTimeout(() => { pg.textContent = 'Page link'; }, 2500);
         };
         actions.append(pg);
       }
