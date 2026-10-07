@@ -9,6 +9,11 @@ import '@fontsource/instrument-serif/400.css';
 import '@fontsource/instrument-serif/400-italic.css';
 import './site.css';
 import * as cloud from './cloud';
+import { inject as trackVisits } from '@vercel/analytics';
+
+/** Counts page views (no cookies, no personal data) so we can see whether anyone uses the site. Needs Web Analytics turned on in Vercel. */
+export const countVisit = () => { try { trackVisits(); } catch { /* analytics must never break a page */ } };
+countVisit();
 
 export type Section = 'home' | 'explore' | 'cameras' | '';
 

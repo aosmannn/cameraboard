@@ -1,4 +1,5 @@
 import L from 'leaflet';
+import { inject as countVisit } from '@vercel/analytics';
 import 'leaflet/dist/leaflet.css';
 import '@fontsource/dm-sans/400.css';
 import '@fontsource/dm-sans/500.css';
@@ -80,6 +81,7 @@ const fDate = $<HTMLInputElement>('fDate');
 const fCamera = $<HTMLInputElement>('fCamera');
 const fPlace = $<HTMLInputElement>('fPlace');
 const fTripName = $<HTMLInputElement>('fTripName');
+try { countVisit(); } catch { /* analytics must never break the app */ }
 const picker = $<HTMLInputElement>('picker');
 
 // ---------- which country is each photo in ----------
