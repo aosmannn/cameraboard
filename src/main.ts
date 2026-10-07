@@ -13,6 +13,7 @@ import './style.css';
 import type { Card, Look } from './types';
 import { openStore, loadCards, saveCards } from './storage';
 import { blankCard, fillCard, normalize, cameraName, dayOf, timeOf, stampText, placeKey, squareAvatar } from './photo';
+import { initTravel } from './travel-ui';
 import { drawWorld, countryAt, countryBounds, THEMES, type ThemeName } from './world';
 import { loadCities, searchPlaces, nameAt, type Place } from './atlas';
 import { initViewer, openViewer, closeViewer, viewerIsOpen } from './viewer';
@@ -53,13 +54,15 @@ let showFriends = lsGet('wf-friends') !== '0';
 const likeCache = new Map<string, { n: number; mine: boolean }>();
 const FRIEND_YARN = '#2f5fb3';
 let hl: { owner: string; trip: string } | null = null;   // a friend's story picked from the feed
-let panelTab: 'stories' | 'feed' = 'stories';
+let panelTab: 'stories' | 'feed' | 'travel' = 'stories';
 let feedShown = 20;
 
 let pushT: number;
 /** Saves in the browser, and to your account a moment later when signed in. */
 const save = async () => {
+  fillCountries();
   await saveCards(cards);
+  travel.refresh();
   if (signedIn) { clearTimeout(pushT); pushT = window.setTimeout(syncUp, 1500); }
 };
 async function syncUp() {
@@ -91,6 +94,10 @@ function countryOf(c: Card): string | null {
   const k = c.lat + ',' + c.lng;
   if (!countryCache.has(k)) countryCache.set(k, countryAt(c.lat, c.lng));
   return countryCache.get(k)!;
+}
+/** Each photo remembers its country (the travel list and profiles count by it). */
+function fillCountries() {
+  for (const c of cards) if (c.lat != null && c.lng != null) { const n = countryOf(c) ?? ''; if (c.country !== n) c.country = n; }
 }
 function visible(c: Card) {
   if (!c.img) return false;
@@ -300,6 +307,14 @@ function flyTo(c: Card, zoom = 8) {
   map.flyToBounds(L.latLngBounds([[c.lat!, c.lng!]]), { ...mapPadding(), maxZoom: Math.max(map.getZoom(), zoom), duration: 1.1 });
 }
 
+// ---------- travel: countries you've been to, and the bucket list ----------
+const travel = initTravel({
+  map, cards: () => cards, signedIn: () => signedIn, setVisited: n => world.setVisited(n),
+  flyToCountry: name => { const b = countryBounds(name); if (b) map.flyToBounds(b, { ...mapPadding(), maxZoom: 6, duration: 1 }); },
+  openCard: id => { const c = cards.find(x => x.id === id); if (c) openCard(c); },
+  note: t => showToast(t)
+});
+
 // ---------- stories panel ----------
 function routeText(list: Card[]) {
   const names: string[] = [];
@@ -459,15 +474,17 @@ function timeAgo(c: Card) {
   const d = Math.round((Date.now() - t) / 864e5);
   return d <= 0 ? 'today' : d === 1 ? 'yesterday' : d < 30 ? `${d} days ago` : fmtDate(c);
 }
-function setPanelTab(t: 'stories' | 'feed') {
-  panelTab = signedIn ? t : 'stories';
-  $('tabStories').classList.toggle('on', panelTab === 'stories'); $('tabFeed').classList.toggle('on', panelTab === 'feed');
-  $('storyList').hidden = panelTab !== 'stories'; $('feedList').hidden = panelTab !== 'feed';
+function setPanelTab(t: 'stories' | 'feed' | 'travel') {
+  panelTab = t === 'feed' && !signedIn ? 'stories' : t;
+  $('tabStories').classList.toggle('on', panelTab === 'stories'); $('tabFeed').classList.toggle('on', panelTab === 'feed'); $('tabTravel').classList.toggle('on', panelTab === 'travel');
+  $('storyList').hidden = panelTab !== 'stories'; $('feedList').hidden = panelTab !== 'feed'; $('travelList').hidden = panelTab !== 'travel';
   $('newStory').hidden = panelTab !== 'stories'; if (panelTab !== 'stories') $('newStoryForm').hidden = true;
+  if (panelTab === 'travel') travel.render();
   renderFeed();
 }
 $('tabStories').onclick = () => setPanelTab('stories');
 $('tabFeed').onclick = () => setPanelTab('feed');
+$('tabTravel').onclick = () => setPanelTab('travel');
 function renderFeed() {
   $('tabFeed').hidden = !signedIn;
   if (panelTab === 'feed' && !signedIn) { panelTab = 'stories'; setPanelTab('stories'); return; }
@@ -1588,6 +1605,7 @@ $('inviteSignIn').onclick = () => { $('inviteBanner').hidden = true; openAcct();
 $('inviteDismiss').onclick = () => { $('inviteBanner').hidden = true; };
 async function onAuth(s: boolean) {
   signedIn = s;
+  void travel.onAuth();
   if (!s) {
     me = null; friends = []; followers = []; friendCards = []; extraCards = []; blocked = new Set(); likeCache.clear(); hl = null; setPanelTab('stories');
     $('phoneForm').hidden = false; $('codeForm').hidden = true; offerPassword = false;
@@ -1636,6 +1654,7 @@ setInterval(() => { if (signedIn) refreshFriends(); }, 45 * 60 * 1000);   // sig
   const saved = await loadCards();
   // older boards kept empty placeholder cards; the map has no use for them
   cards = (saved ?? []).map(normalize).filter(c => c.img);
+  fillCountries(); travel.refresh();
   render();
   fitCards(cards, 5);
   document.fonts.ready.then(() => map.fire('moveend'));

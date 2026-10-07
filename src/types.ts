@@ -27,6 +27,8 @@ export interface Card {
   visibility: Visibility; // who can see it: only you, people who follow you, or anyone with your link
   owner: string;        // account id; '' for photos made before signing in
   imgPath: string;      // where the image lives in cloud storage, '' until uploaded
+  country: string;      // the country it was taken in, worked out from its location ('' when unknown)
+  pinned: boolean;      // shown as a highlight at the top of the owner's profile
 }
 
 export type Look = 'none' | 'digicam' | 'film' | 'bw';

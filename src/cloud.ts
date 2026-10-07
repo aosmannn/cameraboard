@@ -108,16 +108,17 @@ interface Row {
   id: string; owner: string; title: string; story: string; taken_at: string; lat: number | null; lng: number | null;
   place: string; trip: string; seq: number; look: string; stamp: boolean; pin_color: string; cover: boolean;
   rot: number; meta: any; image_path: string | null; visibility?: Card['visibility']; updated_at?: string;
+  country?: string; pinned?: boolean;
 }
 const toRow = (c: Card) => ({
   id: c.id, title: c.title, story: c.story, taken_at: c.date, lat: c.lat, lng: c.lng, place: c.place, trip: c.trip,
   seq: c.seq, look: c.look, stamp: c.stamp, pin_color: c.pinColor, cover: c.cover, rot: c.rot, meta: c.meta ?? {},
-  image_path: c.imgPath || null, visibility: c.visibility
+  image_path: c.imgPath || null, visibility: c.visibility, country: c.country ?? '', pinned: !!c.pinned
 });
 const fromRow = (r: Row, img: string): Card => normalize({
   id: r.id, owner: r.owner, title: r.title, story: r.story, date: r.taken_at, lat: r.lat, lng: r.lng, place: r.place,
   trip: r.trip, seq: r.seq, look: r.look as Card['look'], stamp: r.stamp, pinColor: r.pin_color, cover: r.cover, rot: r.rot,
-  meta: r.meta ?? {}, imgPath: r.image_path ?? '', visibility: r.visibility ?? 'public', img
+  meta: r.meta ?? {}, imgPath: r.image_path ?? '', visibility: r.visibility ?? 'public', country: r.country ?? '', pinned: !!r.pinned, img
 }, 0);
 
 const blobToDataUrl = (b: Blob) => new Promise<string>((res, rej) => {
@@ -355,4 +356,106 @@ export async function removeAvatar() {
   const { error } = await sb!.from('profiles').update({ avatar_path: null }).eq('id', u.id);
   if (error) throw new Error(error.message);
   if (old) await sb!.storage.from('avatars').remove([old]).catch(() => { /* harmless */ });
+}
+
+// ---------- travel: countries you've marked, and your bucket list ----------
+export type BucketKind = 'country' | 'city' | 'place' | 'experience';
+export type BucketStatus = 'wishlist' | 'planned' | 'done';
+export interface BucketItem {
+  id: string; title: string; kind: BucketKind; country: string; lat: number | null; lng: number | null;
+  notes: string; status: BucketStatus; fulfilled_photo: string | null; created_at: string;
+}
+export async function myVisits(): Promise<string[]> {
+  if (!sb || !me()) return [];
+  const { data, error } = await sb.from('visits').select('country').eq('user_id', me()!.id);
+  if (error) throw error;
+  return (data ?? []).map((r: { country: string }) => r.country);
+}
+export async function addVisit(country: string) {
+  const { error } = await sb!.from('visits').upsert({ user_id: me()!.id, country }, { onConflict: 'user_id,country' });
+  if (error) throw error;
+}
+export async function removeVisit(country: string) {
+  const { error } = await sb!.from('visits').delete().eq('user_id', me()!.id).eq('country', country);
+  if (error) throw error;
+}
+export async function myBucket(): Promise<BucketItem[]> {
+  if (!sb || !me()) return [];
+  const { data, error } = await sb.from('bucket_items').select('*').eq('user_id', me()!.id).order('created_at', { ascending: false });
+  if (error) throw error;
+  return (data ?? []) as BucketItem[];
+}
+export async function addBucket(item: Pick<BucketItem, 'title' | 'kind' | 'country' | 'lat' | 'lng' | 'notes'>): Promise<BucketItem> {
+  const { data, error } = await sb!.from('bucket_items').insert({ ...item, user_id: me()!.id }).select('*').single();
+  if (error) throw error;
+  return data as BucketItem;
+}
+export async function updateBucket(id: string, patch: Partial<Pick<BucketItem, 'status' | 'notes' | 'title' | 'fulfilled_photo'>>) {
+  const { error } = await sb!.from('bucket_items').update(patch).eq('id', id);
+  if (error) throw error;
+}
+export async function removeBucket(id: string) {
+  const { error } = await sb!.from('bucket_items').delete().eq('id', id);
+  if (error) throw error;
+}
+
+// ---------- profile: travel summary and highlights ----------
+export interface TravelSummary { countries: number; photos: number; top_place: string | null; top_place_n: number | null; longest_trip: string | null; longest_trip_n: number | null; top_camera: string | null; top_camera_n: number | null }
+export async function travelSummary(id: string): Promise<TravelSummary | null> {
+  if (!sb) return null;
+  const { data, error } = await sb.rpc('travel_summary', { who: id });
+  if (error) throw new Error(error.message);
+  const r = (data ?? [])[0] as TravelSummary | undefined;
+  return r && r.photos ? r : null;
+}
+export interface Highlight { id: string; title: string; place: string; trip: string; image_path: string; taken_at: string; look: string; url: string }
+export async function profileHighlights(id: string): Promise<Highlight[]> {
+  if (!sb) return [];
+  const { data, error } = await sb.rpc('profile_highlights', { who: id });
+  if (error) throw new Error(error.message);
+  const rows = (data ?? []) as Omit<Highlight, 'url'>[];
+  const url = await signPaths(rows.map(r => r.image_path));
+  return rows.filter(r => url.get(r.image_path)).map(r => ({ ...r, url: url.get(r.image_path)! }));
+}
+/** The totals on the home page: photos pinned, countries covered, people pinning. */
+export async function siteStats(): Promise<{ photos: number; countries: number; people: number } | null> {
+  if (!sb) return null;
+  const { data, error } = await sb.rpc('site_stats');
+  if (error) return null;
+  const r = (data ?? [])[0];
+  return r ? { photos: Number(r.photos), countries: Number(r.countries), people: Number(r.people) } : null;
+}
+export async function setPinned(id: string, pinned: boolean) {
+  const { error } = await sb!.from('photos').update({ pinned }).eq('id', id);
+  if (error) throw error;
+}
+
+// ---------- comments ----------
+export interface Comment { id: string; user_id: string; name: string; username: string | null; avatar_path: string | null; body: string; created_at: string; mine: boolean; can_delete: boolean }
+export async function photoComments(photoId: string): Promise<Comment[]> {
+  if (!sb || !me()) return [];
+  const { data, error } = await sb.rpc('photo_comments_list', { pid: photoId });
+  if (error) throw new Error(error.message);
+  return (data ?? []) as Comment[];
+}
+export async function addComment(photoId: string, body: string) {
+  const { error } = await sb!.from('photo_comments').insert({ photo_id: photoId, user_id: me()!.id, body: body.trim() });
+  if (error) throw new Error(/row-level security/i.test(error.message) ? 'Slow down a little, or follow them first to comment.' : error.message);
+}
+export async function deleteComment(id: string) {
+  const { error } = await sb!.from('photo_comments').delete().eq('id', id);
+  if (error) throw error;
+}
+
+// ---------- notifications ----------
+export interface Notice { id: number; kind: 'follow' | 'like' | 'comment' | 'mention'; actor: string; actor_name: string; actor_username: string | null; actor_avatar: string | null; photo_id: string | null; photo_title: string | null; body: string; created_at: string; is_read: boolean }
+export async function myNotices(lim = 40): Promise<Notice[]> {
+  if (!sb || !me()) return [];
+  const { data, error } = await sb.rpc('my_notifications', { lim });
+  if (error) throw new Error(error.message);
+  return (data ?? []) as Notice[];
+}
+export async function markNoticesRead() {
+  if (!sb || !me()) return;
+  await sb.from('notifications').update({ read_at: new Date().toISOString() }).eq('user_id', me()!.id).is('read_at', null);
 }

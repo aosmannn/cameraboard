@@ -76,7 +76,10 @@ export function mountShell(active: Section) {
     col('Product', [['Open the map', '/app.html'], ['Explore', '/explore'], ['Stories', '/explore?tab=stories'], ['Cameras', '/cameras']]),
     col('Company', [['Privacy', '/privacy'], ['Terms', '/terms'], ['Credits', '/credits'], ['Contact', 'mailto:' + CONTACT_EMAIL]])
   );
-  foot.append(el('p', 'credit', `© ${new Date().getFullYear()} Wayframe. Photos belong to the people who took them.`));
+  const credit = el('p', 'credit');
+  const by = (name: string, href: string) => { const a = el('a', 'by', name); a.href = href; a.rel = 'noopener'; return a; };
+  credit.append(`© ${new Date().getFullYear()} Wayframe. Photos belong to the people who took them. Made by `, by('Adam', 'https://adamosman.dev/'), ' with help from ', by('Steven', 'https://github.com/vcanp'), '.');
+  foot.append(credit);
   document.body.append(foot);
 
   if (!cloud.cloudEnabled) authDone();

@@ -149,6 +149,9 @@ export function paintWorld(ctx: CanvasRenderingContext2D, W: number, H: number,
 }
 
 /** The part of a country to zoom to: its biggest piece, so far-away islands don't stretch the view. */
+/** Every country on the map, A to Z. */
+export const countryNames = (): string[] => fc.features.map((f: any) => f.properties.name as string).filter((n: string) => n && n !== 'Antarctica').sort((a: string, b: string) => a.localeCompare(b));
+
 export function countryBounds(name: string): L.LatLngBounds | null {
   const f = fc.features.find((x: any) => x.properties.name === name);
   if (!f) return null;
