@@ -1,4 +1,4 @@
-// Draws our own colored political world map (no street-map tiles).
+// Draws our own coloured political world map (no street-map tiles).
 // Country shapes: Natural Earth via the world-atlas package.
 import L from 'leaflet';
 import { feature, neighbors } from 'topojson-client';
@@ -38,7 +38,7 @@ interface Poly { bbox: [number, number, number, number]; rings: Ring[] }
 const geoms = topo.objects.countries.geometries;
 const fc: any = feature(topo, topo.objects.countries);
 {
-  // greedy coloring so neighboring countries get different colors
+  // greedy colouring so neighbouring countries get different colours
   const nb = neighbors(geoms);
   const col: number[] = [];
   geoms.forEach((_: unknown, i: number) => {
@@ -123,6 +123,14 @@ export function countryAt(lat: number, lng: number, strict = false): string | nu
   return best;
 }
 
+/** All country names on the map (Natural Earth), excluding Antarctica. */
+export function allCountryNames(): string[] {
+  return fc.features
+    .map((f: { properties: { name: string } }) => f.properties.name)
+    .filter((n: string) => n && n !== 'Antarctica')
+    .sort((a: string, b: string) => a.localeCompare(b));
+}
+
 // ---- Mercator helpers (shared with the poster) ----
 export const mercY = (lat: number) => Math.log(Math.tan(Math.PI / 4 + (Math.max(-85, Math.min(85, lat)) * Math.PI) / 360));
 export const invMercY = (y: number) => (2 * Math.atan(Math.exp(y)) - Math.PI / 2) * 180 / Math.PI;
@@ -170,7 +178,7 @@ export interface World {
 
 const SEA_ZOOM_MAX = 7;
 
-// ---- color helpers: states get a slightly different shade of their country's color ----
+// ---- colour helpers: states get a slightly different shade of their country's colour ----
 const hash = (s: string | null) => { s = s ?? ''; let h = 0; for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0; return Math.abs(h); };
 function shade(hex: string, amt: number) {
   const n = parseInt(hex.slice(1), 16), t = amt < 0 ? 0 : 255, p = Math.abs(amt);
