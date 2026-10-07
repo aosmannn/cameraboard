@@ -4,6 +4,7 @@ import type { Card } from './types';
 import { mountShell, el, $, routeOf, fmtDate, setTitle, pathPart, isUuid, initialOf, authReady } from './site';
 import { tile, openLightbox } from './gallery-ui';
 import { mountRouteMap } from './routemap';
+import { drawSummary, drawHighlights, loadExtras } from './profile-extras';
 
 mountShell('explore');
 const root = $('root');
@@ -65,6 +66,12 @@ async function main() {
   }
   head.append(act);
   root.append(head);
+  const sumBox = el('div', 'px-summary'), hlBox = el('div'); sumBox.hidden = hlBox.hidden = true;
+  root.append(sumBox, hlBox);
+  if (id) void loadExtras(id).then(x => {
+    drawSummary(sumBox, x.summary);
+    drawHighlights(hlBox, x.shots, (sh, all) => openLightbox(all.map(a => ({ ...cards[0], id: a.id, title: a.title, place: a.place, img: a.url, story: '', trip: '', seq: 0 })), all.indexOf(sh), new Map([[cards[0]?.owner ?? id, name]]), { storyLink: false }));
+  });
 
   if (!cards.length) { const e = el('div', 'empty'); e.append(el('h2', '', 'Nothing public yet'), el('p', '', `${name} hasn't made any photos public.`)); root.append(e); return; }
 

@@ -14,6 +14,8 @@ import type { Card, Look } from './types';
 import { openStore, loadCards, saveCards } from './storage';
 import { blankCard, fillCard, normalize, cameraName, dayOf, timeOf, stampText, placeKey, squareAvatar } from './photo';
 import { initTravel } from './travel-ui';
+import { initComments, initNotices } from './social-ui';
+import { drawSummary, drawHighlights, loadExtras, type Shot } from './profile-extras';
 import { drawWorld, countryAt, countryBounds, THEMES, type ThemeName } from './world';
 import { loadCities, searchPlaces, nameAt, type Place } from './atlas';
 import { initViewer, openViewer, closeViewer, viewerIsOpen } from './viewer';
@@ -877,7 +879,7 @@ function openCard(c: Card, fly = true) {
   fTripName.value = c.trip; fCamera.value = c.meta?.camera ?? '';
   $<HTMLInputElement>('coverBox').checked = c.cover;
   $<HTMLSelectElement>('lookSel').value = c.look; $<HTMLInputElement>('stampBox').checked = c.stamp;
-  drawLike(); locNote(); buildSwatches(); drawLookAndStamp(c); drawShotOn(c); drawStoryNav(c); drawMeta(c);
+  drawLike(); drawPin(); void comments.draw(); locNote(); buildSwatches(); drawLookAndStamp(c); drawShotOn(c); drawStoryNav(c); drawMeta(c);
   const m = c.meta || {};
   const meta = $('meta'); meta.innerHTML = '';
   for (const [k, v] of [['Size', m.size], ['File', m.file]] as [string, string | undefined][]) {
@@ -914,6 +916,24 @@ function drawLike() {
   $('likeBtn').firstChild!.textContent = v.mine ? '♥ ' : '♡ ';
   $('likeCount').textContent = String(v.n);
 }
+/** Comments work on your own photos and on photos from people you follow. */
+const commentable = (c: Card) => cloudLike(c) && (c.owner === me?.id || friendCards.includes(c));
+const comments = initComments({ photoId: () => (cur && commentable(cur) ? cur.id : null), openProfile: id => { void openProfile({ id }); } });
+const notices = initNotices({
+  signedIn: () => signedIn, openProfile: id => { void openProfile({ id }); },
+  openPhoto: pid => { const c = cards.find(x => x.id === pid) ?? friendCards.find(x => x.id === pid); if (!c) return false; openCard(c); return true; }
+});
+/** Pinned photos show as highlights at the top of your profile. */
+function drawPin() {
+  const b = $('pinProfBtn'); if (!cur) return;
+  b.textContent = cur.pinned ? '★ Pinned to profile' : '☆ Pin to profile'; b.classList.toggle('on', !!cur.pinned);
+}
+$('pinProfBtn').onclick = () => {
+  if (!cur) return;
+  if (!cur.pinned && cards.filter(c => c.pinned).length >= 6) { showToast('You can pin up to 6 photos. Unpin one first.'); return; }
+  cur.pinned = !cur.pinned; drawPin(); save();
+  showToast(cur.pinned ? 'Pinned. It shows at the top of your profile.' : 'Unpinned.');
+};
 $('likeBtn').onclick = async () => {
   if (!cur) return;
   if (isFriendCard(cur) && !signedIn) { openAcct(); return; }
@@ -1335,6 +1355,10 @@ $('viewMine').onclick = () => { if (me) openProfile({ id: me.id }); };
 // ---- profile header, photo grid and the settings tabs ----
 const bioIn = $<HTMLTextAreaElement>('bioIn');
 bioIn.oninput = () => { $('bioCount').textContent = `${bioIn.value.length} / 160`; };
+/** Sets a count and its label: "1 follower", "2 followers". */
+function stat(host: HTMLElement, n: number, one: string, many: string) {
+  host.querySelector('b')!.textContent = String(n); host.lastChild!.textContent = ' ' + (n === 1 ? one : many);
+}
 function renderMeCard() {
   if (!me) return;
   const shown = cards.filter(c => c.img);
@@ -1343,8 +1367,11 @@ function renderMeCard() {
   $('setName').textContent = $('meName').textContent = me.display_name || 'Add your name';
   $('setHandle').textContent = $('meHandle').textContent = me.username ? '@' + me.username : 'No username yet';
   const bio = $('meBio'); bio.textContent = me.bio || 'Add a short bio so friends know whose photos these are.'; bio.classList.toggle('empty', !me.bio);
-  $('stPhotos').textContent = String(shown.length); $('stStories').textContent = String(stories().length);
-  $('stFollowers').querySelector('b')!.textContent = String(followers.length); $('stFollowing').querySelector('b')!.textContent = String(friends.length);
+  stat($('stPhotos').parentElement!, shown.length, 'photo', 'photos'); stat($('stStories').parentElement!, stories().length, 'story', 'stories');
+  stat($('stFollowers'), followers.length, 'follower', 'followers'); stat($('stFollowing'), friends.length, 'following', 'following');
+  const pins = cards.filter(c => c.pinned && c.img).slice(0, 6);
+  drawHighlights($('meHighlights'), pins.map(c => ({ id: c.id, url: c.img!, title: c.title, place: c.place })), (sh) => openViewer(sh.url, 'look-none'));
+  void loadExtras(me.id).then(x => { if (me) drawSummary($('meSummary'), x.summary); });
   const grid = $('myGrid'); grid.innerHTML = '';
   if (!shown.length) { grid.append(el('p', 'hint', 'Photos you add show up here.')); return; }
   [...shown].sort((a, b) => b.date.localeCompare(a.date)).slice(0, 12).forEach(c => {
@@ -1475,7 +1502,9 @@ async function openProfile(who: { id?: string; handle?: string; code?: string })
   avaInto($('pfAva'), initial(prof), prof.avatar_path);
   $('pfName').textContent = cloud.labelOf(prof); $('pfHandle').textContent = prof.username ? '@' + prof.username : '';
   $('pfBio').textContent = prof.bio ?? ''; $('pfBio').hidden = !prof.bio;
-  $('pfStats').innerHTML = ''; for (const [n, l] of [[prof.photos, 'photos'], [prof.stories, 'stories'], [prof.followers, 'followers'], [prof.following, 'following']] as const) { if (n === undefined) continue; const s = el('span'); s.append(el('b', '', String(n)), ' ' + l); $('pfStats').append(s); }
+  $('pfStats').innerHTML = ''; for (const [n, one, many] of [[prof.photos, 'photo', 'photos'], [prof.stories, 'story', 'stories'], [prof.followers, 'follower', 'followers'], [prof.following, 'following', 'following']] as const) { if (n === undefined) continue; const s = el('span'); s.append(el('b', '', String(n)), ' ' + (n === 1 ? one : many)); $('pfStats').append(s); }
+  drawSummary($('pfSummary'), null); drawHighlights($('pfHighlights'), [], () => {});
+  void loadExtras(prof.id).then(x => { if (profileOf !== prof) return; drawSummary($('pfSummary'), x.summary); drawHighlights($('pfHighlights'), x.shots, sh => openViewer(sh.url, 'look-none')); });
   $('pfFollowsYou').hidden = !followers.some(f => f.id === prof.id);
   $('pfSafety').hidden = mine; $('reportBox').hidden = true; $('safetyMsg').textContent = '';
   const mut = $('pfMutual'); mut.hidden = true;
@@ -1570,7 +1599,7 @@ async function refreshFriends() {
     likeCache.clear(); info.forEach((v, k) => likeCache.set(k, v));
   } catch (err) { console.warn('Could not load friends', err); }
   render(); renderPeople();
-  if (cur) drawLike();
+  if (cur) { drawLike(); void comments.draw(); }
 }
 /** An invite link like /app.html?add=CODE opens that person's profile once you're signed in. */
 let pendingAdd = new URLSearchParams(location.search).get('add');
@@ -1606,6 +1635,7 @@ $('inviteDismiss').onclick = () => { $('inviteBanner').hidden = true; };
 async function onAuth(s: boolean) {
   signedIn = s;
   void travel.onAuth();
+  if (s) notices.start(); else notices.stop();
   if (!s) {
     me = null; friends = []; followers = []; friendCards = []; extraCards = []; blocked = new Set(); likeCache.clear(); hl = null; setPanelTab('stories');
     $('phoneForm').hidden = false; $('codeForm').hidden = true; offerPassword = false;

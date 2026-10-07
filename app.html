@@ -24,6 +24,10 @@
     </div>
   </div>
   <div class="top-right">
+    <button id="bellBtn" class="btn icon bell" aria-label="Notifications" aria-expanded="false" hidden>
+      <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M5 8a5 5 0 0 1 10 0c0 4 1.5 5.5 2 6H3c.5-.5 2-2 2-6z"/><path d="M8.2 16.5a2 2 0 0 0 3.6 0"/></svg>
+      <span id="bellN" class="bell-n" hidden>0</span>
+    </button>
     <button id="acctBtn" class="btn acct" hidden>Sign in</button>
     <button id="addBtn" class="btn primary"><span class="add-long">Add photos</span><span class="add-short">Add</span></button>
     <details class="menu">
@@ -41,6 +45,11 @@
     </details>
   </div>
 </header>
+
+<div id="noticePanel" class="notice-panel" role="dialog" aria-label="Notifications" hidden>
+  <div class="np-head"><h2>Notifications</h2><button id="noticeClose" class="x2" aria-label="Close">✕</button></div>
+  <ul id="noticeList" class="np-list"></ul>
+</div>
 
 <aside id="stories" class="stories">
   <div class="st-head">
@@ -140,9 +149,19 @@
     <div class="row">
       <button id="likeBtn" class="like">♡ <span id="likeCount">0</span></button>
       <span class="grow"></span>
+      <button id="pinProfBtn" class="btn small ghost edit-only" title="Show this photo at the top of your profile">☆ Pin to profile</button>
       <button id="replaceBtn" class="btn small ghost edit-only">Replace</button>
       <button id="deleteBtn" class="btn small ghost danger edit-only">Remove</button>
     </div>
+    <section id="comments" class="comments" hidden aria-label="Comments">
+      <h3>Comments <span id="cmCount"></span></h3>
+      <ul id="cmList" class="cm-list"></ul>
+      <form id="cmForm" class="cm-form">
+        <input id="cmIn" class="plain" maxlength="500" placeholder="Add a comment (use @name to mention someone)" autocomplete="off" aria-label="Add a comment">
+        <button class="btn small primary">Post</button>
+      </form>
+      <p id="cmMsg" class="hint" role="status"></p>
+    </section>
     <div id="shareRow" class="share edit-only" hidden>
       <label class="lab" for="visSel">Who can see this</label>
       <select id="visSel" class="plain" aria-describedby="visHint">
@@ -290,6 +309,8 @@
                 <div class="row"><button id="editProfile" class="btn small">Edit profile</button><button id="viewMine" class="btn small">View as a visitor</button></div>
               </div>
             </div>
+            <div id="meSummary" class="px-summary" hidden></div>
+            <div id="meHighlights" hidden></div>
             <div id="editBox" class="edit-box" hidden>
               <div class="avatar-edit">
                 <span class="ava big" id="editAva"></span>
@@ -392,6 +413,8 @@
     <div id="pfStats" class="ig-stats"></div>
     <p id="pfMutual" class="mutual" hidden></p>
     <div class="row"><button id="pfFollow" class="btn primary">Follow</button><button id="pfMap" class="btn" hidden>Show on map</button><span id="pfFollowsYou" class="pill" hidden>Follows you</span></div>
+    <div id="pfSummary" class="px-summary" hidden></div>
+    <div id="pfHighlights" hidden></div>
     <h3>Stories</h3>
     <div id="pfStories"></div>
     <div class="safety" id="pfSafety">
