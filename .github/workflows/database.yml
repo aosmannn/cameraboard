@@ -21,9 +21,15 @@ jobs:
         with:
           version: latest
       - name: Check the secrets are set
+        id: sec
         run: |
           if [ -z "$SUPABASE_ACCESS_TOKEN" ] || [ -z "$SUPABASE_DB_PASSWORD" ]; then
-            echo "Add the SUPABASE_ACCESS_TOKEN and SUPABASE_DB_PASSWORD repository secrets first."; exit 1
+            echo "::notice::Database changes were not applied automatically. Add the SUPABASE_ACCESS_TOKEN and SUPABASE_DB_PASSWORD repository secrets to turn this on."
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=true" >> "$GITHUB_OUTPUT"
           fi
-      - run: supabase link --project-ref psuykzkrakkdqhulrqig
-      - run: supabase db push
+      - if: steps.sec.outputs.ready == 'true'
+        run: supabase link --project-ref psuykzkrakkdqhulrqig
+      - if: steps.sec.outputs.ready == 'true'
+        run: supabase db push
