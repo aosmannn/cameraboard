@@ -1085,7 +1085,10 @@ const countriesOf = (list: Card[]) => new Set(list.map(countryOf).filter(Boolean
 const mappedStories = () => stories().filter(s => s.cards.filter(placed).length >= 2);
 function drawPoster() {
   const list = activeStory ? storyOf(activeStory) : cards.filter(visible);
-  void renderPoster(posterCv, list, posterTitle.value.trim(), themeSel.value as ThemeName, null, countriesOf(list), { handle: posterHandle() });
+  void renderPoster(posterCv, list, posterTitle.value.trim(), themeSel.value as ThemeName, null, countriesOf(list), { handle: posterHandle() }).then(r => {
+    const a = $<HTMLAnchorElement>('posterLink'); a.href = location.origin + '/';
+    a.style.left = r.x * 100 + '%'; a.style.top = r.y * 100 + '%'; a.style.width = r.w * 100 + '%'; a.style.height = r.h * 100 + '%';
+  });
 }
 /** The GIF button shows when there's a story to animate; with several and none chosen, a picker appears. */
 function setupGifControls() {

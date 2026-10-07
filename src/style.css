@@ -240,7 +240,9 @@ textarea { resize: vertical; font: 500 19px/1.3 var(--hand); }
 .m-head { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
 .m-head h2 { margin: 0; font: 28px/1 var(--display); }
 .m-head .plain { flex: 1; min-width: 160px; width: auto; }
-#posterCv { width: 100%; height: auto; border-radius: 8px; background: #ddd; }
+#posterLink { position: absolute; display: block; }
+.poster-wrap { position: relative; }
+#posterCv { display: block; width: 100%; height: auto; border-radius: 8px; background: #ddd; }
 
 @media (prefers-reduced-motion: reduce) { .drawer { animation: none; } .pol { transition: none; } }
 

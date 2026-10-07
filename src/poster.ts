@@ -11,8 +11,6 @@ const loadImg = (src: string) => new Promise<HTMLImageElement>((res, rej) => {
 interface Spot { rep: Card; n: number; lat: number; lng: number; x: number; y: number; bx: number; by: number }
 
 export interface PosterOpts { handle?: string }
-/** Where a shared poster points people. */
-const SITE_HOST = /^(localhost|127\.|0\.0\.0\.0)/.test(location.hostname) ? 'cameraboard-xi.vercel.app' : location.host;
 const LINK_BLUE = '#1a5fd0';
 const PW = 250, PH = 300;
 
@@ -92,6 +90,7 @@ export interface Frame {
 }
 
 /** Draws the poster (or one frame of the GIF) onto a 2400 x 1600 canvas. */
+/** Returns where the "Wayframe" word sits, as fractions of the poster, so a link can be laid over it. */
 export function paintPoster(cv: HTMLCanvasElement, P: Prepared, title: string, opts: PosterOpts = {}, frame: Frame = {}) {
   cv.width = W; cv.height = H;
   const ctx = cv.getContext('2d')!;
@@ -148,25 +147,24 @@ export function paintPoster(cv: HTMLCanvasElement, P: Prepared, title: string, o
   ctx.font = '34px DM Sans, sans-serif'; ctx.fillStyle = '#76736b';
   ctx.fillText([`${cards.filter(c => c.img).length} photos`, `${P.countries} countries`, years].filter(Boolean).join('  ·  '), 60, H - 25);
 
-  // who made it, and a link back (a PNG can't be clicked, so the address is written out in link blue)
-  ctx.textAlign = 'left';
+  // who made it, and "Wayframe" in link blue (the poster preview lays a real link over this spot)
   const right = W - 60;
   if (opts.handle) { ctx.font = 'bold 40px DM Sans, sans-serif'; ctx.fillStyle = '#1c1c1a'; ctx.textAlign = 'right'; ctx.fillText(opts.handle, right, H - 78); }
-  ctx.font = '30px DM Sans, sans-serif';
-  const made = 'Made with ', name = 'Wayframe', host = '  ' + SITE_HOST;
-  const mw = ctx.measureText(made).width, nw = ctx.measureText(name).width, hw = ctx.measureText(host).width;
-  let x = right - (mw + nw + hw);
-  ctx.textAlign = 'left'; ctx.fillStyle = '#76736b'; ctx.fillText(made, x, H - 25); x += mw;
-  ctx.fillStyle = LINK_BLUE; ctx.font = 'bold 30px DM Sans, sans-serif';
-  const nameW = ctx.measureText(name).width; ctx.fillText(name, x, H - 25);
-  ctx.fillRect(x, H - 19, nameW, 3);
-  ctx.font = '30px DM Sans, sans-serif'; ctx.fillStyle = LINK_BLUE; ctx.fillText(host, x + nameW, H - 25);
+  ctx.textAlign = 'left'; ctx.font = '30px DM Sans, sans-serif';
+  const made = 'Made with ', name = 'Wayframe';
+  const mw = ctx.measureText(made).width;
+  ctx.font = 'bold 30px DM Sans, sans-serif';
+  const nw = ctx.measureText(name).width, x = right - nw - mw;
+  ctx.font = '30px DM Sans, sans-serif'; ctx.fillStyle = '#76736b'; ctx.fillText(made, x, H - 25);
+  ctx.font = 'bold 30px DM Sans, sans-serif'; ctx.fillStyle = LINK_BLUE; ctx.fillText(name, x + mw, H - 25);
+  ctx.fillRect(x + mw, H - 19, nw, 3);
+  return { x: (x + mw) / W, y: (H - 58) / H, w: nw / W, h: 46 / H };
 }
 
 /** Draws a printable poster of the given photos onto the canvas (2400 x 1600). */
 export async function renderPoster(cv: HTMLCanvasElement, cards: Card[], title: string, themeName: ThemeName,
   visited: Set<string> | null, countries: number, opts: PosterOpts = {}) {
-  paintPoster(cv, await preparePoster(cards, themeName, visited, countries), title, opts);
+  return paintPoster(cv, await preparePoster(cards, themeName, visited, countries), title, opts);
 }
 
 /** An animated GIF of a story: the string is drawn stop by stop and each photo is pinned as it is reached. */
