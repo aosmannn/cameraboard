@@ -15,10 +15,13 @@
 <header class="top">
   <div class="top-left">
     <a class="brand" href="/" aria-label="Wayframe home"><img class="brand-mark" src="/logo-mark.svg" alt="" width="28" height="28"><span class="wordmark">Way<em>frame</em></span></a>
+    <div class="search-wrap">
     <label class="search">
-      <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="8.5" cy="8.5" r="5.5"/><path d="M13 13l4 4"/></svg>
-      <input id="q" type="search" placeholder="Search photos and places" aria-label="Search photos and places">
-    </label>
+        <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="8.5" cy="8.5" r="5.5"/><path d="M13 13l4 4"/></svg>
+        <input id="q" type="search" placeholder="Search photos, places, @people" aria-label="Search photos, places and people" autocomplete="off">
+      </label>
+      <div id="qPeople" class="q-people" role="listbox" aria-label="People" hidden></div>
+    </div>
   </div>
   <div class="top-right">
     <button id="acctBtn" class="btn acct" hidden>Sign in</button>
@@ -244,56 +247,63 @@
       <p id="acctEmail" class="sub"></p>
       <div class="acct-grid">
       <div class="acct-col">
-      <label class="lab" for="nameIn">Name</label>
-      <input id="nameIn" class="plain" maxlength="40" placeholder="What friends see" autocomplete="name">
-      <label class="lab" for="userIn">Username <span class="opt">optional</span></label>
-      <div class="at-row"><span aria-hidden="true">@</span><input id="userIn" class="plain" maxlength="20" placeholder="yourname" autocomplete="off" autocapitalize="none" spellcheck="false"></div>
-      <label class="switch"><input id="discBox" type="checkbox"><span><b>Let people find me by username</b><small id="discHint">Off. Nobody can find you by searching. You can still be added with your invite link or by email.</small></span></label>
-      <label class="switch"><input id="galBox" type="checkbox"><span><b>Show my public photos in the community gallery</b><small id="galHint">Off. Photos you set to Public can only be opened with your link.</small></span></label>
-      <div class="row">
-        <button id="profSave" class="btn primary">Save</button>
-        <button id="viewMine" class="linkbtn">See how others see it</button>
-        <span class="grow"></span>
-        <button id="signOutBtn" class="linkbtn">Sign out</button>
-      </div>
-      <p id="syncNote" class="hint" role="status"></p>
-
-      <h3>Your invite link</h3>
-      <p class="hint">Anyone with this link can follow you, even if search is off. Made a mess? Make a new link and the old one stops working.</p>
-      <div class="invite">
-        <canvas id="qr" width="132" height="132" aria-label="QR code for your invite link"></canvas>
-        <div>
-          <input id="inviteUrl" class="plain" readonly aria-label="Your invite link">
-          <div class="row"><button id="inviteBtn" class="btn small">Copy link</button><button id="inviteNew" class="linkbtn">Make a new link</button></div>
+        <div class="two-fields">
+          <div><label class="lab" for="nameIn">Name</label><input id="nameIn" class="plain" maxlength="40" placeholder="What friends see" autocomplete="name"></div>
+          <div><label class="lab" for="userIn">Username <span class="opt">optional</span></label>
+            <div class="at-row"><span aria-hidden="true">@</span><input id="userIn" class="plain" maxlength="20" placeholder="yourname" autocomplete="off" autocapitalize="none" spellcheck="false"></div></div>
         </div>
-      </div>
 
+        <h3>Who can see your photos</h3>
+        <div class="vis-cards" role="radiogroup" aria-label="Who can see my photos">
+          <label class="vis-card"><input type="radio" name="vis" value="private"><span><b>Private</b><small>Only you</small></span></label>
+          <label class="vis-card"><input type="radio" name="vis" value="friends"><span><b>Friends</b><small>People who follow you</small></span></label>
+          <label class="vis-card"><input type="radio" name="vis" value="public"><span><b>Public</b><small>Anyone with your link</small></span></label>
+        </div>
+        <p id="visDefaultHint" class="hint">New photos start this way, and saving a change updates all your photos (with an Undo). You can still change a single photo or story.</p>
+
+        <h3>Being found</h3>
+        <label class="switch"><input id="discBox" type="checkbox"><span><b>Let people find me by username</b><small id="discHint">Off. Nobody can find you by searching. You can still be added with your invite link or by email.</small></span></label>
+        <label class="switch" id="galRow"><input id="galBox" type="checkbox"><span><b>Show my public photos in the community gallery</b><small id="galHint">Off. Photos you set to Public can only be opened with your link.</small></span></label>
+
+        <div class="row save-row">
+          <button id="profSave" class="btn primary">Save</button>
+          <button id="viewMine" class="linkbtn">See how others see it</button>
+          <span class="grow"></span>
+          <button id="signOutBtn" class="linkbtn">Sign out</button>
+        </div>
+        <p id="syncNote" class="hint" role="status"></p>
       </div>
       <div class="acct-col">
-      <h3 class="first">People</h3>
-      <div class="tabs" role="tablist">
-        <button role="tab" id="tabFollowing" class="tab on" data-tab="following">Following <span id="nFollowing">0</span></button>
-        <button role="tab" id="tabFollowers" class="tab" data-tab="followers">Followers <span id="nFollowers">0</span></button>
-        <button role="tab" id="tabFind" class="tab" data-tab="find">Find</button>
-      </div>
-      <div id="paneFollowing" class="people"></div>
-      <div id="paneFollowers" class="people" hidden></div>
-      <div id="paneFind" hidden>
-        <input id="peopleQ" class="plain" type="search" placeholder="Find people by username, like @sam" autocomplete="off" aria-label="Search people by username">
-        <div id="matchList" class="people"></div>
-        <details class="fold">
-          <summary>Find friends by email instead</summary>
-          <p class="hint">Paste addresses, one per line. We check which use Wayframe. They’re sent as one-way hashes and aren’t saved.</p>
+        <h3 class="first">People</h3>
+        <p class="hint tip">To find someone, type their @username in the search bar at the top of the map.</p>
+        <div class="tabs" role="tablist">
+          <button role="tab" id="tabFollowing" class="tab on" data-tab="following">Following <span id="nFollowing">0</span></button>
+          <button role="tab" id="tabFollowers" class="tab" data-tab="followers">Followers <span id="nFollowers">0</span></button>
+          <button role="tab" id="tabFind" class="tab" data-tab="find">By email</button>
+        </div>
+        <div id="paneFollowing" class="people"></div>
+        <div id="paneFollowers" class="people" hidden></div>
+        <div id="paneFind" hidden>
+          <p class="hint">Paste email addresses, one per line. We check which use Wayframe. They’re sent as one-way hashes and aren’t saved.</p>
           <textarea id="numbersIn" class="plain nums" rows="3" placeholder="friend@example.com"></textarea>
           <div class="row"><span class="grow"></span><button id="findBtn" class="btn small primary">Check</button></div>
           <div id="emailList" class="people"></div>
+        </div>
+        <label class="check"><input id="showFriends" type="checkbox" checked> Show friends’ photos on the map</label>
+        <details class="fold" id="blockedFold" hidden>
+          <summary>Blocked people</summary>
+          <div id="blockedList" class="people"></div>
         </details>
-      </div>
-      <label class="check"><input id="showFriends" type="checkbox" checked> Show friends’ photos on the map</label>
-      <details class="fold" id="blockedFold" hidden>
-        <summary>Blocked people</summary>
-        <div id="blockedList" class="people"></div>
-      </details>
+
+        <h3>Invite friends</h3>
+        <div class="invite">
+          <canvas id="qr" width="132" height="132" aria-label="QR code for your invite link"></canvas>
+          <div>
+            <p class="hint">Anyone with this link can follow you, even if search is off.</p>
+            <input id="inviteUrl" class="plain" readonly aria-label="Your invite link">
+            <div class="row"><button id="inviteBtn" class="btn small">Copy link</button><button id="inviteNew" class="linkbtn">Make a new link</button></div>
+          </div>
+        </div>
       </div>
       </div>
     </section>

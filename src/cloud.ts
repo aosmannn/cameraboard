@@ -40,7 +40,7 @@ export async function signOut() { await sb?.auth.signOut(); }
 
 /** username is null unless the person chose to be discoverable (or it's you). */
 export interface Person { id: string; display_name: string; username: string | null }
-export interface MyProfile extends Person { discoverable: boolean; invite_code: string; gallery: boolean }
+export interface MyProfile extends Person { discoverable: boolean; invite_code: string; gallery: boolean; default_visibility: Card['visibility'] }
 export interface Profile extends Person { discoverable: boolean }
 export const USERNAME_RE = /^[a-z0-9_]{3,20}$/;
 export const cleanUsername = (raw: string) => raw.trim().replace(/^@/, '').toLowerCase();
@@ -50,20 +50,23 @@ export const labelOf = (p: Pick<Person, 'display_name' | 'username'>) => p.displ
 export async function myProfile(): Promise<MyProfile | null> {
   const u = me(); if (!u) return null;
   const q = (cols: string) => sb!.from('profiles').select(cols).eq('id', u.id).maybeSingle();
-  let { data, error } = await q('id, display_name, username, discoverable, invite_code, gallery');
-  // The gallery column arrives with the latest supabase/schema.sql; until it's run, load the profile without it.
-  if (error) ({ data } = await q('id, display_name, username, discoverable, invite_code'));
+  const base = 'id, display_name, username, discoverable, invite_code';
+  // Newer columns arrive with the latest database migrations; until they exist, load the profile without them.
+  let { data, error } = await q(base + ', gallery, default_visibility');
+  if (error) ({ data, error } = await q(base + ', gallery'));
+  if (error) ({ data } = await q(base));
   const row = data as unknown as MyProfile | null;
-  return row ? { ...row, gallery: !!row.gallery } : null;
+  return row ? { ...row, gallery: !!row.gallery, default_visibility: row.default_visibility ?? 'private' } : null;
 }
-export async function saveProfile(p: { display_name: string; username: string; discoverable: boolean; gallery?: boolean }) {
+export async function saveProfile(p: { display_name: string; username: string; discoverable: boolean; gallery?: boolean; default_visibility?: Card['visibility'] }) {
   const u = me(); if (!u) return;
   const username = cleanUsername(p.username);
   if (username && !USERNAME_RE.test(username)) throw new Error('Usernames are 3 to 20 letters, numbers or underscores.');
   if (p.discoverable && !username) throw new Error('Pick a username to be discoverable.');
   const { error } = await sb!.from('profiles').update({
     display_name: p.display_name.trim().slice(0, 40), username: username || null, discoverable: p.discoverable && !!username,
-    ...(p.gallery === undefined ? {} : { gallery: p.gallery })
+    ...(p.gallery === undefined ? {} : { gallery: p.gallery }),
+    ...(p.default_visibility === undefined ? {} : { default_visibility: p.default_visibility })
   }).eq('id', u.id);
   if (error) throw new Error(error.code === '23505' ? 'That username is taken. Try another.' : error.message);
 }

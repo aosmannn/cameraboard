@@ -571,7 +571,34 @@ function render() {
   stories().forEach(s => dl.append(new Option(s.name)));
 }
 const q = $<HTMLInputElement>('q');
-q.oninput = () => { query = q.value.trim(); render(); };
+const qPeople = $('qPeople');
+let qPeopleT = 0, qPeopleToken = 0;
+async function searchPeopleBar() {
+  const raw = q.value.trim(), term = cloud.cleanUsername(raw), my = ++qPeopleToken, at = raw.startsWith('@');
+  qPeople.innerHTML = '';
+  if (!cloud.cloudEnabled || term.length < 2) { qPeople.hidden = true; return; }
+  if (!signedIn) {
+    if (!at) { qPeople.hidden = true; return; }
+    const b = el('button', 'q-row', 'Sign in to find people'); b.onclick = () => { qPeople.hidden = true; openAcct(); };
+    qPeople.append(b); qPeople.hidden = false; return;
+  }
+  try {
+    const found = (await cloud.searchPeople(raw)).filter(p => !blocked.has(p.id));
+    if (my !== qPeopleToken) return;
+    if (!found.length) {
+      if (at) { qPeople.append(el('p', 'hint', `No one with the username “${term}”. People only appear if they chose to be found. Ask them for their invite link.`)); qPeople.hidden = false; }
+      else qPeople.hidden = true;
+      return;
+    }
+    qPeople.append(el('p', 'q-head', 'People'));
+    for (const p of found) { const row = personRow(p, followButton(p)); row.classList.add('q-person'); qPeople.append(row); }
+    qPeople.hidden = false;
+  } catch (err) { if (my === qPeopleToken && at) { qPeople.append(el('p', 'hint', (err as Error).message)); qPeople.hidden = false; } }
+}
+q.oninput = () => { query = q.value.trim(); render(); clearTimeout(qPeopleT); qPeopleT = window.setTimeout(searchPeopleBar, 350); };
+q.onfocus = () => { if (qPeople.children.length) qPeople.hidden = false; };
+q.addEventListener('keydown', e => { if (e.key === 'Escape') qPeople.hidden = true; });
+document.addEventListener('mousedown', e => { if (!qPeople.hidden && !qPeople.contains(e.target as Node) && e.target !== q) qPeople.hidden = true; });
 
 // ---------- map style ----------
 const themeSel = $<HTMLSelectElement>('themeSel');
@@ -597,7 +624,7 @@ async function addFiles(files: File[], target: Card | null) {
   const made: Card[] = [];
   for (const f of files) {
     let c = target;
-    if (!c) { c = blankCard(cards.length); cards.push(c); }
+    if (!c) { c = blankCard(cards.length); c.visibility = accountVis(); cards.push(c); }
     try {
       if (c.img) await cloud.dropImage(c);
       await fillCard(c, f);
@@ -1088,6 +1115,8 @@ $<HTMLInputElement>('importFile').onchange = async e => {
 const acctBtn = $('acctBtn');
 let pendingEmail = '';
 let me: cloud.MyProfile | null = null;
+/** What new photos start as: your account setting once you're signed in; photos on this device alone stay private. */
+const accountVis = (): Card['visibility'] => (signedIn && me?.default_visibility) || 'private';
 let followers: cloud.Person[] = [];
 let blocked = new Set<string>();
 const followingIds = () => new Set(friends.map(f => f.id));
@@ -1139,23 +1168,51 @@ function discHint() {
 }
 userIn.oninput = () => { userIn.value = userIn.value.toLowerCase().replace(/[^a-z0-9_]/g, ''); discHint(); };
 discBox.onchange = discHint;
+const visRadios = [...document.querySelectorAll<HTMLInputElement>('input[name=vis]')];
+const visChoice = () => (visRadios.find(r => r.checked)?.value ?? 'private') as Card['visibility'];
+const setVisChoice = (v: string) => visRadios.forEach(r => { r.checked = r.value === v; });
+const VIS_HINT: Record<Card['visibility'], string> = {
+  private: 'Only you can see your photos. Nothing is shared.',
+  friends: 'People who follow you can see your photos and stories.',
+  public: 'Anyone with your link can see your photos, even without an account.'
+};
+function visHint() {
+  $('visDefaultHint').textContent = VIS_HINT[visChoice()] + ' New photos start this way, and saving a change updates all your photos (with an Undo). You can still change a single photo or story.';
+  $('galRow').hidden = visChoice() !== 'public' && !galBox.checked;
+}
+visRadios.forEach(r => { r.onchange = visHint; });
+const VIS_NAME: Record<Card['visibility'], string> = { private: 'Private', friends: 'Friends only', public: 'Public' };
 const galBox = $<HTMLInputElement>('galBox');
 function galHint() {
   $('galHint').textContent = galBox.checked
     ? 'On. Your Public photos and stories are listed on the Explore pages, with your name. Turn this off any time.'
     : 'Off. Photos you set to Public can only be opened with your link.';
 }
-galBox.onchange = galHint;
+galBox.onchange = () => { galHint(); visHint(); };
 function fillProfileForm() {
   userIn.value = me?.username ?? ''; $<HTMLInputElement>('nameIn').value = me?.display_name ?? ''; discBox.checked = !!me?.discoverable; discHint();
-  galBox.checked = !!me?.gallery; galHint();
+  galBox.checked = !!me?.gallery; galHint(); setVisChoice(me?.default_visibility ?? 'private'); visHint();
 }
 $('profSave').onclick = async () => {
   try {
-    await cloud.saveProfile({ display_name: $<HTMLInputElement>('nameIn').value, username: userIn.value, discoverable: discBox.checked, gallery: galBox.checked });
+    const was = me?.default_visibility ?? 'private', now = visChoice();
+    await cloud.saveProfile({ display_name: $<HTMLInputElement>('nameIn').value, username: userIn.value, discoverable: discBox.checked, gallery: galBox.checked, default_visibility: now });
     me = await cloud.myProfile(); fillProfileForm(); renderAcct(); syncNote('Saved.'); openPending();
+    if (now !== was) applyAccountVisibility(now);
   } catch (err) { syncNote((err as Error).message); }
 };
+/** Changing the account setting changes every photo you have, and you can undo it. */
+function applyAccountVisibility(v: Card['visibility']) {
+  const before = new Map(cards.map(c => [c.id, c.visibility] as const));
+  const changed = cards.filter(c => c.img && c.visibility !== v);
+  if (!changed.length) return;
+  changed.forEach(c => { c.visibility = v; });
+  save(); render();
+  showToast(`${changed.length === 1 ? '1 photo is' : changed.length + ' photos are'} now ${VIS_NAME[v]}.`, () => {
+    cards.forEach(c => { const o = before.get(c.id); if (o) c.visibility = o; });
+    save(); render();
+  });
+}
 $('viewMine').onclick = () => { if (me) openProfile({ id: me.id }); };
 
 // ---- invite link and QR code ----
@@ -1211,7 +1268,7 @@ function renderPeople() {
     if (!list.length) box.append(el('p', 'hint', empty));
     for (const p of list) box.append(personRow(p, followButton(p)));
   };
-  fill('paneFollowing', friends, 'You aren’t following anyone yet. Use Find, or share your invite link.');
+  fill('paneFollowing', friends, 'You aren’t following anyone yet. Search for @usernames at the top, or share your invite link.');
   fill('paneFollowers', followers, 'No followers yet. Share your invite link.');
   $('blockedFold').hidden = !blocked.size;
 }
@@ -1227,20 +1284,8 @@ $('blockedFold').addEventListener('toggle', renderBlocked);
 document.querySelectorAll<HTMLButtonElement>('.tab').forEach(t => t.onclick = () => {
   document.querySelectorAll('.tab').forEach(x => x.classList.toggle('on', x === t));
   for (const k of ['following', 'followers', 'find']) $('pane' + k[0].toUpperCase() + k.slice(1)).hidden = t.dataset.tab !== k;
-  if (t.dataset.tab === 'find') $('peopleQ').focus();
+  if (t.dataset.tab === 'find') $('numbersIn').focus();
 });
-let searchT: number;
-async function runSearch() {
-  const q = $<HTMLInputElement>('peopleQ').value, out = $('matchList'); out.innerHTML = '';
-  if (cloud.cleanUsername(q).length < 2) return;
-  try {
-    const found = await cloud.searchPeople(q);
-    if (!found.length) { out.append(el('p', 'hint', 'No one found. People only show up here if they chose to be found. Ask them for their invite link.')); return; }
-    for (const p of found) out.append(personRow(p, followButton(p)));
-  } catch (err) { out.append(el('p', 'hint', (err as Error).message)); }
-}
-$('peopleQ').oninput = () => { clearTimeout(searchT); searchT = window.setTimeout(runSearch, 350); };
-$('peopleQ').onkeydown = e => { if (e.key === 'Enter') { clearTimeout(searchT); runSearch(); } };
 $('findBtn').onclick = async () => {
   const lines = $<HTMLTextAreaElement>('numbersIn').value.split(/[\s,;]+/), out = $('emailList'); out.innerHTML = '';
   try {
