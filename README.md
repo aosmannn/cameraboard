@@ -31,11 +31,11 @@ Point-and-shoots, old digital cameras, DSLRs and film scans save the date and se
 
 ## About
 
-Hi, I'm Adam. I take pictures on old digital cameras, like a Sony Cyber-shot, and none of them ever knew where they were. My photos were scattered across folders with nothing to connect them. I wanted a place to hang them on the wall, string them together, and show friends where I'd been. So I built Wayframe.
+Hi, we're Adam and Steven. We take pictures on old digital cameras, like a Sony Cyber-shot, and none of them ever knew where they were. Our photos were scattered across folders with nothing to connect them. We wanted a place to hang them on the wall, string them together, and show friends where we'd been. So we built Wayframe.
 
-If you shoot on old gear too, I'd love for you to try it.
+If you shoot on old gear too, we'd love for you to try it.
 
-**Adam Osman** · [@aosmannn](https://github.com/aosmannn)
+**Made by** [Adam Osman (@aosmannn)](https://github.com/aosmannn) and Steven ([@vcanp](https://github.com/vcanp))
 
 ---
 
