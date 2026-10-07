@@ -143,7 +143,7 @@ const map = L.map('map', { zoomControl: false, minZoom: 2, maxZoom: 16, preferCa
   maxBounds: [[-70, -220], [85, 220]], maxBoundsViscosity: 0.8 }).setView([30, 10], 2);
 L.control.zoom({ position: 'bottomright' }).addTo(map);
 const world = drawWorld(map, themeName);
-map.attributionControl.setPrefix('').addAttribution('Natural Earth');
+map.attributionControl.setPrefix('').addAttribution('Wayframe');
 
 map.createPane('stringPane').style.zIndex = '620';
 map.getPane('stringPane')!.style.pointerEvents = 'none';

@@ -7,6 +7,7 @@ const ROUTES: [RegExp, string][] = [
   [/^\/explore\/?$/, '/explore.html'],
   [/^\/privacy\/?$/, '/privacy.html'],
   [/^\/terms\/?$/, '/terms.html'],
+  [/^\/credits\/?$/, '/credits.html'],
   [/^\/cameras(\/[^/]*)?\/?$/, '/cameras.html'],
   [/^\/s\/[^/]+\/?$/, '/story.html'],
   [/^\/u\/[^/]+\/?$/, '/profile.html']
@@ -25,7 +26,7 @@ export default defineConfig({
   plugins: [cleanUrls()],
   build: {
     rollupOptions: {
-      input: { main: 'index.html', app: 'app.html', explore: 'explore.html', story: 'story.html', profile: 'profile.html', cameras: 'cameras.html', privacy: 'privacy.html', terms: 'terms.html' }
+      input: { main: 'index.html', app: 'app.html', explore: 'explore.html', story: 'story.html', profile: 'profile.html', cameras: 'cameras.html', privacy: 'privacy.html', terms: 'terms.html', credits: 'credits.html' }
     }
   }
 });
