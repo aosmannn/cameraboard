@@ -577,21 +577,38 @@ async function searchPeopleBar() {
   const raw = q.value.trim(), term = cloud.cleanUsername(raw), my = ++qPeopleToken, at = raw.startsWith('@');
   qPeople.innerHTML = '';
   if (!cloud.cloudEnabled || term.length < 2) { qPeople.hidden = true; return; }
-  if (!signedIn) {
-    if (!at) { qPeople.hidden = true; return; }
-    const b = el('button', 'q-row', 'Sign in to find people'); b.onclick = () => { qPeople.hidden = true; openAcct(); };
-    qPeople.append(b); qPeople.hidden = false; return;
-  }
+  const rows: HTMLElement[] = [], seen = new Set<string>();
   try {
-    const found = (await cloud.searchPeople(raw)).filter(p => !blocked.has(p.id));
+    // An exact username works for anyone, signed in or not (it opens that person's public page).
+    const exact = cloud.USERNAME_RE.test(term) ? await cloud.publicProfile({ handle: term }).catch(() => null) : null;
     if (my !== qPeopleToken) return;
-    if (!found.length) {
-      if (at) { qPeople.append(el('p', 'hint', `No one with the username “${term}”. People only appear if they chose to be found. Ask them for their invite link.`)); qPeople.hidden = false; }
+    if (exact?.username && !blocked.has(exact.id)) {
+      seen.add(exact.id);
+      const mine = exact.id === me?.id;
+      let row: HTMLElement;
+      if (signedIn) row = personRow(exact, mine ? el('span', 'pill', 'You') : followButton(exact));
+      else {
+        row = el('div', 'person');
+        const link = el('a', 'p-open'); link.href = '/u/' + exact.username;
+        const ava = el('span', 'ava'); avaInto(ava, initial(exact), exact.avatar_path);
+        const t = el('span', 'p-text'); t.append(el('b', '', cloud.labelOf(exact)), el('small', '', '@' + exact.username));
+        link.append(ava, t); row.append(link);
+      }
+      row.classList.add('q-person'); rows.push(row);
+    }
+    // Signed-in people can also search by the first letters of a username.
+    if (signedIn) {
+      const found = (await cloud.searchPeople(raw)).filter(p => !blocked.has(p.id) && !seen.has(p.id));
+      if (my !== qPeopleToken) return;
+      for (const p of found) { const row = personRow(p, followButton(p)); row.classList.add('q-person'); rows.push(row); }
+    }
+    if (!rows.length) {
+      if (at) { qPeople.append(el('p', 'hint', signedIn ? `No one with the username “${term}”. People only appear if they chose to be found. Ask them for their invite link.` : `No one with the exact username “${term}”.`)); qPeople.hidden = false; if (!signedIn) { const b = el('button', 'q-row', 'Sign in to search by the first letters'); b.onclick = () => { qPeople.hidden = true; openAcct(); }; qPeople.append(b); } }
       else qPeople.hidden = true;
       return;
     }
-    qPeople.append(el('p', 'q-head', 'People'));
-    for (const p of found) { const row = personRow(p, followButton(p)); row.classList.add('q-person'); qPeople.append(row); }
+    qPeople.append(el('p', 'q-head', 'People'), ...rows);
+    if (!signedIn) { const b = el('button', 'q-row', 'Sign in to follow people and search by the first letters'); b.onclick = () => { qPeople.hidden = true; openAcct(); }; qPeople.append(b); }
     qPeople.hidden = false;
   } catch (err) { if (my === qPeopleToken && at) { qPeople.append(el('p', 'hint', (err as Error).message)); qPeople.hidden = false; } }
 }
