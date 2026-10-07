@@ -130,24 +130,27 @@ const blobToDataUrl = (b: Blob) => new Promise<string>((res, rej) => {
 const sent = new Map<string, string>();
 const signature = (c: Card) => JSON.stringify(toRow(c));
 
-/** Uploads new or changed photos you own. Images go up once, then only the details. */
+/** Uploads new or changed photos you own. Images go up once (a few at a time), then the details go in one request. */
 export async function push(cards: Card[]) {
   const u = me(); if (!u) return;
-  for (const c of cards) {
-    if (!c.img || (c.owner && c.owner !== u.id)) continue;
-    c.owner = u.id;
-    if (!c.imgPath) {
+  const mine = cards.filter(c => c.img && (!c.owner || c.owner === u.id));
+  const fresh = mine.filter(c => !c.imgPath);
+  for (let i = 0; i < fresh.length; i += 4) {
+    await Promise.all(fresh.slice(i, i + 4).map(async c => {
+      c.owner = u.id;
       const path = `${u.id}/${c.id}-${Date.now()}.jpg`;
-      const blob = await (await fetch(c.img)).blob();
+      const blob = await (await fetch(c.img!)).blob();
       const { error } = await sb!.storage.from(BUCKET).upload(path, blob, { contentType: 'image/jpeg' });
       if (error) throw error;
       c.imgPath = path;
-    }
-    const sig = signature(c);
-    if (sent.get(c.id) === sig) continue;
-    const { error } = await sb!.from('photos').upsert(toRow(c));
+    }));
+  }
+  const changed = mine.filter(c => { c.owner = u.id; return sent.get(c.id) !== signature(c); });
+  for (let i = 0; i < changed.length; i += 40) {
+    const batch = changed.slice(i, i + 40);
+    const { error } = await sb!.from('photos').upsert(batch.map(toRow));
     if (error) throw error;
-    sent.set(c.id, sig);
+    for (const c of batch) sent.set(c.id, signature(c));
   }
 }
 export async function removeRemote(c: Card) {
@@ -162,21 +165,31 @@ export async function dropImage(c: Card) {
   c.imgPath = '';
 }
 
-/** Your photos saved in the cloud that this browser doesn't have yet (for example, from another device). */
-export async function pullMine(have: Set<string>): Promise<Card[]> {
+/**
+ * Your photos saved in the cloud that this browser doesn't have yet (for example, from another device).
+ * They download several at a time, and `onCard` hears about each one as it arrives so pins can appear right away.
+ */
+export async function pullMine(have: Set<string>, onCard: (c: Card, done: number, total: number) => void = () => {}): Promise<Card[]> {
   const u = me(); if (!u) return [];
   const { data, error } = await sb!.from('photos').select('*').eq('owner', u.id);
   if (error) throw error;
+  const rows = data as Row[];
+  for (const r of rows) sent.set(r.id, '');   // force a compare on the next push
+  const need = rows.filter(r => !have.has(r.id) && r.image_path);
   const out: Card[] = [];
-  for (const r of data as Row[]) {
-    sent.set(r.id, '');   // force a compare on the next push
-    if (have.has(r.id) || !r.image_path) continue;
-    const { data: blob } = await sb!.storage.from(BUCKET).download(r.image_path);
-    if (!blob) continue;
-    const c = fromRow(r, await blobToDataUrl(blob));
-    sent.set(c.id, signature(c));
-    out.push(c);
-  }
+  let next = 0, done = 0;
+  const worker = async () => {
+    while (next < need.length) {
+      const r = need[next++];
+      try {
+        const { data: blob } = await sb!.storage.from(BUCKET).download(r.image_path!);
+        if (!blob) continue;
+        const c = fromRow(r, await blobToDataUrl(blob));
+        sent.set(c.id, signature(c)); out.push(c); done++; onCard(c, done, need.length);
+      } catch { /* one photo failing shouldn't stop the rest */ }
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(6, need.length) }, worker));
   return out;
 }
 

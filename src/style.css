@@ -576,3 +576,12 @@ body.timeline #tray, body.timeline .stories-show { display: none; }
 .toast { width: max-content; max-width: calc(100vw - 32px); }
 .toast #toastText { min-width: 0; }
 @media (max-width: 560px) { .toast { bottom: 18px; } }
+
+/* the "pin your first photo" card can be dismissed */
+.empty-state { position: fixed; }
+.empty-x { position: absolute; top: 10px; right: 10px; }
+/* panel header: tabs on one row, "New story" under them, so nothing is cut off */
+.st-head { flex-wrap: wrap; position: relative; row-gap: 6px; }
+.st-tabs { flex: 1 1 100%; padding-right: 34px; }
+#storiesHide { position: absolute; top: 14px; right: 12px; }
+#newStory { margin-left: 0; }

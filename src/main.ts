@@ -40,6 +40,8 @@ let pickTarget: Card | null = null;
 let activeStory: string | null = null;     // story shown on its own, the rest faded
 let connecting: string | null = null;      // story that clicks on photos add to
 let query = '';
+let syncing = false;                       // signed in and still bringing your photos down: don't tell them the map is empty
+let emptyOff = lsGet('wf-empty-off') === '1';   // they dismissed the "pin your first photo" card
 let timeLimit: number | null = null;       // travel timeline: only photos up to this moment show
 // signed-in state: your account, the people you follow, and the photos they shared with you
 let signedIn = false;
@@ -246,7 +248,7 @@ function renderMap() {
     });
     markers.set(k, m); photos.addLayer(m);
   });
-  $('empty').hidden = cards.some(c => c.img) || (showOthers() && others().length > 0);
+  $('empty').hidden = syncing || emptyOff || cards.some(c => c.img) || (showOthers() && others().length > 0);
 }
 function markSelected() {
   const f = focusCard(), key = f && placed(f) ? keyOf(f) : '';
@@ -655,6 +657,7 @@ document.addEventListener('click', e => {
 /** Adding allows many photos at once; Replace takes one. The input is visually hidden rather than display:none, which some phone browsers handle better. */
 function pick(c: Card | null) { pickTarget = c; if (c) picker.removeAttribute('multiple'); else picker.setAttribute('multiple', ''); picker.value = ''; picker.click(); }
 $('addBtn').onclick = $('emptyAdd').onclick = () => pick(null);
+$('emptyClose').onclick = () => { emptyOff = true; lsSet('wf-empty-off', '1'); $('empty').hidden = true; };
 
 picker.onchange = () => addFiles([...(picker.files ?? [])], pickTarget);
 
@@ -1673,10 +1676,11 @@ $('inviteSignIn').onclick = () => { $('inviteBanner').hidden = true; openAcct();
 $('inviteDismiss').onclick = () => { $('inviteBanner').hidden = true; };
 async function onAuth(s: boolean) {
   signedIn = s;
+  $('tabFeed').hidden = !s;                 // the Friends tab is there the moment you're signed in
   void travel.onAuth();
   if (s) notices.start(); else notices.stop();
   if (!s) {
-    me = null; friends = []; followers = []; friendCards = []; extraCards = []; blocked = new Set(); likeCache.clear(); hl = null; setPanelTab('stories');
+    syncing = false; me = null; friends = []; followers = []; friendCards = []; extraCards = []; blocked = new Set(); likeCache.clear(); hl = null; setPanelTab('stories');
     $('phoneForm').hidden = false; $('codeForm').hidden = true; offerPassword = false;
     renderAcct(); render(); return;
   }
@@ -1684,16 +1688,28 @@ async function onAuth(s: boolean) {
   $('acctModal').hidden = offerPassword ? false : true; $('inviteBanner').hidden = true; $('guestBar').hidden = true; guestMode = false; extraCards = [];
   showPasswordStatus();
   renderAcct();
-  me = await cloud.myProfile().catch(() => null);
+  // Everything that doesn't depend on anything else starts at once, and photos show up as they arrive.
+  syncing = true; render();
+  const hadNone = !cards.some(c => c.img);
+  let renderT = 0;
+  const friendsP = refreshFriends().catch(() => { /* the friends list can wait */ });
+  const profileP = cloud.myProfile().catch(() => null);
+  const mineP = cloud.pullMine(new Set(cards.map(c => c.id)), (c, done, total) => {
+    cards.push(c); showToast(`Loading your photos… ${done} of ${total}`, undefined, true);
+    clearTimeout(renderT); renderT = window.setTimeout(() => { fillCountries(); render(); }, 200);
+  });
+  me = await profileP;
   fillProfileForm(); renderAcct(); renderInvite();
   if (!me?.display_name) syncNote('Tip: add your name in your profile so friends recognize you. A username is optional.');
   try {
-    const mine = await cloud.pullMine(new Set(cards.map(c => c.id)));
-    if (mine.length) { cards.push(...mine); await saveCards(cards); }
+    const mine = await mineP;
+    if (mine.length) { await saveCards(cards); }
     await cloud.push(cards); await saveCards(cards);
     if (me?.display_name) syncNote(mine.length ? `Brought in ${mine.length} photos from your account.` : 'Your photos are saved to your account.');
-  } catch (err) { syncNote('Couldn’t sync your photos: ' + (err as Error).message); }
-  await refreshFriends();
+    if (mine.length) { $('toast').hidden = true; if (hadNone) fitCards(cards, 5); }
+  } catch (err) { syncNote('Couldn’t sync your photos: ' + (err as Error).message); $('toast').hidden = true; }
+  syncing = false; fillCountries(); render(); travel.refresh();
+  await friendsP;
   openPending();
 }
 function openPending() {
