@@ -504,3 +504,5 @@ h3.first { margin-top: 12px !important; }
 .avatar-edit { display: flex; align-items: center; gap: 14px; margin-bottom: 8px; }
 .avatar-edit .hint { margin: 6px 0 0; }
 .pill { padding: 2px 10px; border-radius: 999px; background: var(--panel-2); color: var(--mute); font-size: 12.5px; font-weight: 600; }
+.pw-row { display: flex; gap: 8px; align-items: center; } .pw-row .plain { flex: 1; }
+#phoneForm .linkbtn { display: block; margin: 10px 0 0; }

@@ -1131,6 +1131,7 @@ $<HTMLInputElement>('importFile').onchange = async e => {
 // ---------- account: email sign-in, profile, following ----------
 const acctBtn = $('acctBtn');
 let pendingEmail = '';
+let offerPassword = false;   // after a first sign-in by email code, offer to add a password
 let me: cloud.MyProfile | null = null;
 /** What new photos start as: your account setting once you're signed in; photos on this device alone stay private. */
 const accountVis = (): Card['visibility'] => (signedIn && me?.default_visibility) || 'private';
@@ -1150,31 +1151,64 @@ function renderAcct() {
   if (signedIn) avaInto(acctBtn, me ? initial(me) : '☺', me?.avatar_path); else acctBtn.textContent = 'Sign in';
   acctBtn.classList.toggle('avatar', signedIn);
   acctBtn.setAttribute('aria-label', signedIn ? 'Your profile' : 'Sign in');
-  $('signIn').hidden = signedIn; $('account').hidden = !signedIn;
-  $('acctBox').classList.toggle('set-box', signedIn);
+  $('signIn').hidden = signedIn; $('pwStep').hidden = !(signedIn && offerPassword); $('account').hidden = !signedIn || offerPassword;
+  $('acctBox').classList.toggle('set-box', signedIn && !offerPassword);
   $('acctEmail').textContent = cloud.me()?.email ? 'Signed in as ' + cloud.me()!.email : '';
 }
-function openAcct() { $('acctModal').hidden = false; if (signedIn) { setPane('profile'); $('editBox').hidden = true; renderPeople(); renderMeCard(); } else $('phoneIn').focus(); }
+function openAcct() { $('acctModal').hidden = false; if (signedIn) { setPane('profile'); $('editBox').hidden = true; renderPeople(); renderMeCard(); showPasswordStatus(); } else $('phoneIn').focus(); }
 acctBtn.onclick = openAcct;
 $('acctClose').onclick = () => { $('acctModal').hidden = true; };
 const authMsg = (t: string) => { $('authMsg').textContent = t; };
-$('phoneForm').onsubmit = async e => {
-  e.preventDefault();
+const pwIn = $<HTMLInputElement>('pwIn');
+const phoneGo = $('phoneGo');
+pwIn.oninput = () => { phoneGo.textContent = pwIn.value ? 'Sign in' : 'Email me a code'; $('codeInstead').hidden = !pwIn.value; };
+async function sendTheCode() {
   pendingEmail = $<HTMLInputElement>('phoneIn').value;
+  if (!pendingEmail) { authMsg('Type your email first.'); return; }
   authMsg('Sending…');
   try {
     await cloud.sendCode(pendingEmail);
     $('phoneForm').hidden = true; $('codeForm').hidden = false; $('codeIn').focus();
     authMsg(`We emailed a sign-in code to ${cloud.cleanEmail(pendingEmail)}. Type it here.`);
   } catch (err) { authMsg('Couldn’t send the code: ' + (err as Error).message); }
+}
+$('phoneForm').onsubmit = async e => {
+  e.preventDefault();
+  if (!pwIn.value) { await sendTheCode(); return; }
+  authMsg('Signing in…');
+  try { await cloud.signInWithPassword($<HTMLInputElement>('phoneIn').value, pwIn.value); pwIn.value = ''; authMsg(''); }
+  catch { authMsg('That email and password don’t match. If you haven’t set a password yet, or forgot it, email yourself a code instead.'); $('codeInstead').hidden = false; }
 };
+$('codeInstead').onclick = () => { pwIn.value = ''; pwIn.oninput!(new Event('input')); void sendTheCode(); };
 $('codeForm').onsubmit = async e => {
   e.preventDefault();
   authMsg('Checking…');
-  try { await cloud.verifyCode(pendingEmail, $<HTMLInputElement>('codeIn').value.replace(/\D/g, '')); authMsg(''); }
-  catch (err) { authMsg('That code didn’t work. It may have expired, so ask for a new one. (' + (err as Error).message + ')'); }
+  try {
+    offerPassword = true;   // decided before the sign-in event arrives; cleared again if they already have a password
+    await cloud.verifyCode(pendingEmail, $<HTMLInputElement>('codeIn').value.replace(/\D/g, ''));
+    authMsg('');
+  } catch (err) { offerPassword = false; authMsg('That code didn’t work. It may have expired, so ask for a new one. (' + (err as Error).message + ')'); }
 };
 $('codeBack').onclick = () => { $('codeForm').hidden = true; $('phoneForm').hidden = false; authMsg(''); };
+
+// ---- adding or changing a password ----
+function finishPasswordStep() { offerPassword = false; showPasswordStatus(); $('pwStep').hidden = true; $('acctModal').hidden = true; renderAcct(); }
+$('pwForm').onsubmit = async e => {
+  e.preventDefault();
+  $('pwMsg').textContent = 'Saving…';
+  try { await cloud.setPassword($<HTMLInputElement>('pwNew').value); $<HTMLInputElement>('pwNew').value = ''; $('pwMsg').textContent = ''; finishPasswordStep(); showToast('Password saved. You can sign in with it next time.'); }
+  catch (err) { $('pwMsg').textContent = (err as Error).message; }
+};
+$('pwSkip').onclick = finishPasswordStep;
+$('pwChangeForm').onsubmit = async e => {
+  e.preventDefault();
+  const note = $('pwChangeMsg'); note.textContent = 'Saving…';
+  try { await cloud.setPassword($<HTMLInputElement>('pwChange').value); $<HTMLInputElement>('pwChange').value = ''; note.textContent = 'Password saved.'; showPasswordStatus(); }
+  catch (err) { note.textContent = (err as Error).message; }
+};
+function showPasswordStatus() {
+  $('pwStatus').textContent = cloud.hasPassword() ? 'You have a password. You can also always sign in with an emailed code.' : 'No password yet. You sign in with an emailed code. Add a password to skip the code.';
+}
 $('signOutBtn').onclick = async () => { await cloud.signOut(); $('acctModal').hidden = true; };
 const showFriendsBox = $<HTMLInputElement>('showFriends');
 showFriendsBox.checked = showFriends;
@@ -1502,10 +1536,12 @@ async function onAuth(s: boolean) {
   signedIn = s;
   if (!s) {
     me = null; friends = []; followers = []; friendCards = []; extraCards = []; blocked = new Set(); likeCache.clear(); hl = null; setPanelTab('stories');
-    $('phoneForm').hidden = false; $('codeForm').hidden = true;
+    $('phoneForm').hidden = false; $('codeForm').hidden = true; offerPassword = false;
     renderAcct(); render(); return;
   }
-  $('acctModal').hidden = true; $('inviteBanner').hidden = true; $('guestBar').hidden = true; guestMode = false; extraCards = [];
+  if (offerPassword && cloud.hasPassword()) offerPassword = false;   // they already have one
+  $('acctModal').hidden = offerPassword ? false : true; $('inviteBanner').hidden = true; $('guestBar').hidden = true; guestMode = false; extraCards = [];
+  showPasswordStatus();
   renderAcct();
   me = await cloud.myProfile().catch(() => null);
   fillProfileForm(); renderAcct(); renderInvite();

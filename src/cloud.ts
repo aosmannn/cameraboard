@@ -36,6 +36,19 @@ export async function verifyCode(email: string, token: string) {
   const { error } = await sb!.auth.verifyOtp({ email: cleanEmail(email), token: token.trim(), type: 'email' });
   if (error) throw error;
 }
+/** Signing in with an email and password, for people who set one. */
+export async function signInWithPassword(email: string, password: string) {
+  const { error } = await sb!.auth.signInWithPassword({ email: cleanEmail(email), password });
+  if (error) throw error;
+}
+export const PASSWORD_MIN = 8;
+/** Adds or changes the password. The emailed code is still always available as a way in. */
+export async function setPassword(password: string) {
+  if (password.length < PASSWORD_MIN) throw new Error(`Use at least ${PASSWORD_MIN} characters.`);
+  const { error } = await sb!.auth.updateUser({ password, data: { pw: true } });
+  if (error) throw error;
+}
+export const hasPassword = () => !!session?.user?.user_metadata?.pw;
 export async function signOut() { await sb?.auth.signOut(); }
 
 /** username is null unless the person chose to be discoverable (or it's you). */

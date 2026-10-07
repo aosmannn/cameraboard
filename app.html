@@ -227,11 +227,14 @@
     <button class="x2 m-close" id="acctClose" aria-label="Close">✕</button>
     <section id="signIn">
       <h2>Sign in</h2>
-      <p class="sub">Enter your email and we’ll email you a sign-in code. No password needed.</p>
+      <p class="sub">Use your email. We’ll email you a code, and you can add a password afterwards so you won’t need one next time.</p>
       <form id="phoneForm">
         <label class="lab" for="phoneIn">Email</label>
         <input id="phoneIn" class="plain" type="email" placeholder="you@example.com" autocomplete="email" required>
-        <button class="btn primary wide">Email me a code</button>
+        <label class="lab" for="pwIn">Password <span class="opt">if you have one</span></label>
+        <input id="pwIn" class="plain" type="password" autocomplete="current-password" placeholder="Leave blank to get a code">
+        <button id="phoneGo" class="btn primary wide">Email me a code</button>
+        <button type="button" id="codeInstead" class="linkbtn" hidden>Forgot it? Email me a code instead</button>
       </form>
       <form id="codeForm" hidden>
         <label class="lab" for="codeIn">Code from your email</label>
@@ -240,6 +243,19 @@
         <button type="button" id="codeBack" class="linkbtn">Use a different email</button>
       </form>
       <p id="authMsg" class="hint" role="status"></p>
+    </section>
+
+    <section id="pwStep" hidden>
+      <h2>Add a password?</h2>
+      <p class="sub">Optional. Next time you can sign in with your email and password, with no code. You can always still get a code by email.</p>
+      <form id="pwForm">
+        <label class="lab" for="pwNew">New password</label>
+        <input id="pwNew" class="plain" type="password" minlength="8" autocomplete="new-password" required>
+        <p class="hint">At least 8 characters.</p>
+        <button class="btn primary wide">Save password</button>
+        <button type="button" id="pwSkip" class="linkbtn">Skip for now</button>
+      </form>
+      <p id="pwMsg" class="hint" role="status"></p>
     </section>
 
     <section id="account" hidden>
@@ -341,7 +357,14 @@
           <div class="set-pane" id="pane-account" role="tabpanel" hidden>
             <h2>Account</h2>
             <p id="acctEmail" class="sub"></p>
-            <p class="hint">You sign in with a code we email you. There’s no password to remember.</p>
+            <h3>Password</h3>
+            <p id="pwStatus" class="hint"></p>
+            <form id="pwChangeForm" class="pw-row">
+              <input id="pwChange" class="plain" type="password" minlength="8" autocomplete="new-password" placeholder="New password (8+ characters)" aria-label="New password">
+              <button class="btn small primary">Save</button>
+            </form>
+            <p id="pwChangeMsg" class="hint" role="status"></p>
+            <h3>Sign out</h3>
             <div class="row save-row"><button id="signOutBtn" class="btn">Sign out</button></div>
             <p class="hint">To delete your account and everything attached to it, email us from the address above.</p>
           </div>
