@@ -32,5 +32,10 @@
       "source": "/u/:key",
       "destination": "/api/share?kind=profile&key=:key"
     }
-  ]
+  ],
+  "functions": {
+    "api/cover.js": {
+      "includeFiles": "api/_assets/**"
+    }
+  }
 }
