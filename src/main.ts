@@ -639,8 +639,11 @@ const isPhoto = (f: File) => f.type.startsWith('image/') || /\.(jpe?g|png|webp|g
 async function addFiles(files: File[], target: Card | null) {
   files = files.filter(isPhoto);
   if (!files.length) { showToast('No photos found there.'); return; }
-  const made: Card[] = [];
-  for (const f of files) {
+  const made: Card[] = [], failed: string[] = [];
+  // One photo at a time, with a visible count: 30+ photos from a phone take a while, and silence looks like a freeze.
+  const progress = (n: number) => { if (files.length > 1) showToast(`Adding photos… ${n} of ${files.length}`, undefined, true); };
+  progress(0);
+  for (const [i, f] of files.entries()) {
     let c = target;
     if (!c) { c = blankCard(cards.length); c.visibility = accountVis(); cards.push(c); }
     try {
@@ -649,11 +652,15 @@ async function addFiles(files: File[], target: Card | null) {
       if (placed(c) && (!c.place || c.place === 'From photo GPS')) { await loadCities(); c.place = nameAt(c.lat!, c.lng!) ?? c.place; }
       made.push(c);
     } catch {
-      showToast(`Couldn’t read ${f.name}`);
+      failed.push(f.name);
       if (!c.img) cards.splice(cards.indexOf(c), 1);
     }
+    progress(i + 1);
+    if ((i + 1) % 6 === 0 && i + 1 < files.length) { await save(); render(); }   // pins appear as they go, and a crash loses little
+    await new Promise(r => setTimeout(r));                                      // let the page breathe
   }
   await save(); render();
+  if (files.length > 1 || failed.length) showToast(failed.length ? `Added ${made.length}. Couldn’t read ${failed.length}: ${failed.slice(0, 2).join(', ')}${failed.length > 2 ? '…' : ''}` : `Added ${made.length} photos.`);
   const missing = made.filter(c => !placed(c));
   const done = () => { if (made.length === 1) openCard(made[0]); else if (made.length) fitCards(made); };
   if (missing.length) openLocPrompt(missing, done); else done();
@@ -779,10 +786,10 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape' && !$('locMod
 
 // ---- a small message at the bottom, optionally with Undo ----
 let toastT = 0, toastUndo: (() => void) | null = null;
-function showToast(text: string, undo?: () => void) {
+function showToast(text: string, undo?: () => void, stay = false) {
   clearTimeout(toastT); toastUndo = undo ?? null;
   $('toastText').textContent = text; $('toastUndo').hidden = !undo; $('toast').hidden = false;
-  toastT = window.setTimeout(() => { $('toast').hidden = true; toastUndo = null; }, undo ? 10000 : 4500);
+  if (!stay) toastT = window.setTimeout(() => { $('toast').hidden = true; toastUndo = null; }, undo ? 10000 : 4500);
 }
 $('toastUndo').onclick = () => { const u = toastUndo; $('toast').hidden = true; toastUndo = null; u?.(); };
 
