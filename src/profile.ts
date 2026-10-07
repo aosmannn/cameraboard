@@ -39,8 +39,9 @@ async function main() {
   const txt = el('div', 'grow'); txt.append(el('h1', '', name));
   if (card?.username) txt.append(el('p', 'sub', '@' + card.username));
   const stats = el('div', 'ig-stats');
-  for (const [n, l] of [[card?.photos ?? cards.length, 'photos'], [card?.stories ?? stories.size, 'stories'], [card?.followers, 'followers'], [card?.following, 'following']] as const) {
-    if (n === undefined) continue; const s = el('span'); s.append(el('b', '', String(n)), ' ' + l); stats.append(s);
+  const word = (n: number, one: string, many: string) => n === 1 ? one : many;
+  for (const [n, one, many] of [[card?.photos ?? cards.length, 'photo', 'photos'], [card?.stories ?? stories.size, 'story', 'stories'], [card?.followers, 'follower', 'followers'], [card?.following, 'following', 'following']] as const) {
+    if (n === undefined) continue; const s = el('span'); s.append(el('b', '', String(n)), ' ' + word(n, one, many)); stats.append(s);
   }
   txt.append(stats);
   if (card?.bio) txt.append(el('p', 'ig-bio', card.bio));
@@ -65,21 +66,16 @@ async function main() {
 
   if (!cards.length) { const e = el('div', 'empty'); e.append(el('h2', '', 'Nothing public yet'), el('p', '', `${name} hasn't made any photos public.`)); root.append(e); return; }
 
+  // Photos, Stories and Map are tabs, so the page opens on the photos instead of a huge map
   const placed = cards.filter(c => c.lat != null && c.lng != null);
-  if (placed.length) {
-    root.append(el('h2', 'section-title', 'Where they’ve been'));
-    const host = el('div'); root.append(host);
-    // each story gets its red string, in the order of its stops
-    const at = new Map(placed.map((c, i) => [c.id, i] as const));
-    const links: [number, number][] = [];
-    for (const list of stories.values()) {
-      const route = [...list].sort((a, b) => a.seq - b.seq).filter(c => at.has(c.id));
-      for (let i = 1; i < route.length; i++) links.push([at.get(route[i - 1].id)!, at.get(route[i].id)!]);
-    }
-    mountRouteMap(host, placed.map(c => ({ lat: c.lat!, lng: c.lng!, img: c.img!, title: c.title || 'Untitled' })), { links });
-  }
+  const panes: [string, string, HTMLElement][] = [['photos', `Photos ${cards.length}`, el('div', 'photo-grid')]];
+  cards.forEach((c, i) => {
+    const b = el('button', 'sq'); b.type = 'button'; b.setAttribute('aria-label', c.title || 'Photo');
+    const im = new Image(); im.src = c.img!; im.alt = ''; im.loading = 'lazy'; im.className = 'look-' + c.look; b.append(im);
+    b.onclick = () => openLightbox(cards, i, photos.owners);
+    panes[0][2].append(b);
+  });
   if (stories.size) {
-    root.append(el('h2', 'section-title', 'Stories'));
     const grid = el('div', 'cards');
     for (const [trip, list] of stories) {
       list.sort((a, b) => a.seq - b.seq);
@@ -90,11 +86,37 @@ async function main() {
       body.append(el('small', '', `${list.length} ${list.length === 1 ? 'stop' : 'stops'} · ${fmtDate(list[0].date, { month: 'short', year: 'numeric' })}`));
       a.append(th, body); grid.append(a);
     }
-    root.append(grid);
+    panes.push(['stories', `Stories ${stories.size}`, grid]);
   }
-  root.append(el('h2', 'section-title', 'Photos'));
-  const wall = el('div', 'wall');
-  cards.forEach((c, i) => wall.append(tile(c, '', () => openLightbox(cards, i, photos.owners))));
-  root.append(wall);
+  let drawMap: (() => void) | null = null;
+  if (placed.length) {
+    const host = el('div', 'profile-map');
+    drawMap = () => {
+      if (host.childElementCount) return;   // drawn once, when the tab is first opened
+      // each story gets its red string, in the order of its stops
+      const at = new Map(placed.map((c, i) => [c.id, i] as const));
+      const links: [number, number][] = [];
+      for (const list of stories.values()) {
+        const route = [...list].sort((a, b) => a.seq - b.seq).filter(c => at.has(c.id));
+        for (let i = 1; i < route.length; i++) links.push([at.get(route[i - 1].id)!, at.get(route[i].id)!]);
+      }
+      mountRouteMap(host, placed.map(c => ({ lat: c.lat!, lng: c.lng!, img: c.img!, title: c.title || 'Untitled' })), { links });
+    };
+    panes.push(['map', 'Map', host]);
+  }
+  const tabs = el('div', 'tabs profile-tabs'); tabs.setAttribute('role', 'tablist');
+  const body = el('div', 'profile-body');
+  const show = (key: string) => {
+    panes.forEach(([k,, node], i) => { const on = k === key; (tabs.children[i] as HTMLElement).setAttribute('aria-selected', String(on)); node.hidden = !on; });
+    if (key === 'map') drawMap?.();
+    const u = new URL(location.href); key === 'photos' ? u.searchParams.delete('tab') : u.searchParams.set('tab', key); history.replaceState(null, '', u);
+  };
+  panes.forEach(([key, label, node]) => {
+    const t = el('button', '', label); t.type = 'button'; t.setAttribute('role', 'tab'); t.onclick = () => show(key); tabs.append(t);
+    node.hidden = true; body.append(node);
+  });
+  root.append(tabs, body);
+  const want = new URLSearchParams(location.search).get('tab');
+  show(panes.some(([k]) => k === want) ? want! : 'photos');
 }
 main().catch(err => missing('Couldn’t load it: ' + (err as Error).message));

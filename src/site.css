@@ -210,3 +210,17 @@ img { max-width: 100%; }
 .ig-stats { display: flex; flex-wrap: wrap; gap: 6px 22px; margin: 12px 0 6px; font-size: 15.5px; }
 .ig-stats b { font-weight: 700; }
 .ig-bio { margin: 6px 0 0; max-width: 40em; white-space: pre-wrap; }
+
+/* ---- profile page: compact header, then the photos ---- */
+.person-head { gap: 18px; padding: 18px 22px; margin-bottom: 18px; }
+.ava-big { width: 76px; height: 76px; font-size: 36px; }
+.person-head h1 { font-size: clamp(28px, 3.2vw, 38px); }
+.person-head .ig-stats { margin: 6px 0 2px; font-size: 14.5px; }
+.person-head .ig-bio { margin-top: 4px; font-size: 15px; }
+.profile-tabs { display: flex; width: fit-content; margin: 0 0 16px; }
+.photo-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 6px; }
+.photo-grid .sq { padding: 0; border: 0; background: var(--panel-2); aspect-ratio: 1; overflow: hidden; border-radius: 6px; cursor: pointer; }
+.photo-grid .sq img { width: 100%; height: 100%; object-fit: cover; display: block; transition: transform .2s; }
+.photo-grid .sq:hover img { transform: scale(1.05); }
+.profile-map { max-width: 980px; }
+@media (max-width: 560px) { .photo-grid { grid-template-columns: repeat(3, 1fr); gap: 3px; } .person-head { padding: 14px; } .ava-big { width: 60px; height: 60px; font-size: 28px; } }
