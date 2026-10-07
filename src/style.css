@@ -571,3 +571,8 @@ body.timeline #tray, body.timeline .stories-show { display: none; }
   .set-nav { padding: 8px 10px; gap: 4px; overflow: visible; border-bottom: 1px solid var(--line); -webkit-mask-image: none; mask-image: none; justify-content: space-between; }
   .set-tab { flex: 1 1 0; min-width: 0; padding: 9px 4px; text-align: center; font-size: 14px; }
 }
+
+/* the toast is centered with left:50%, which squeezed it to half the screen and wrapped the text; let it be as wide as its words */
+.toast { width: max-content; max-width: calc(100vw - 32px); }
+.toast #toastText { min-width: 0; }
+@media (max-width: 560px) { .toast { bottom: 18px; } }
