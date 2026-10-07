@@ -697,8 +697,13 @@ language sql stable security definer set search_path = '' as $$
     select trip as name, count(*) as n from vis where trip <> '' group by 1 order by n desc, 1 limit 1
   ), cam as (
     select meta->>'camera' as name, count(*) as n from vis where coalesce(meta->>'camera', '') <> '' group by 1 order by n desc, 1 limit 1
+  ), been as (
+    -- countries from the photos you can see, plus the ones the person added by hand (only the count is ever shown)
+    select country from vis where country <> ''
+    union
+    select country from public.visits where user_id = who
   )
-  select (select count(distinct country) from vis where country <> '')::integer, (select count(*) from vis)::integer,
+  select (select count(*) from been)::integer, (select count(*) from vis)::integer,
          (select name from place), (select n from place)::integer, (select name from trip), (select n from trip)::integer,
          (select name from cam), (select n from cam)::integer;
 $$;
