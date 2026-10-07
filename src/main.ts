@@ -31,6 +31,7 @@ const el = <K extends keyof HTMLElementTagNameMap>(tag: K, cls = '', text = '') 
 let cards: Card[] = [];
 let cur: Card | null = null;
 let pinTargets: Card[] = [];
+let pinDone: (() => void) | null = null;   // what to do once a pin is placed or cancelled
 let pickTarget: Card | null = null;
 let activeStory: string | null = null;     // story shown on its own, the rest faded
 let connecting: string | null = null;      // story that clicks on photos add to
@@ -628,32 +629,66 @@ window.addEventListener('drop', e => {
 
 // ---- where were these taken? ----
 const locQ = $<HTMLInputElement>('locQ');
-let locBatch: Card[] = [], locDone: () => void = () => {};
+let locAll: Card[] = [], locSelected = new Set<Card>(), locDone: () => void = () => {};
 let locHits: Place[] = [], locSel = 0;
+const locPending = () => locAll.filter(c => !placed(c));
+/** Photos of one batch can be from different places: pick some, give them a place, repeat until all have one. */
 function openLocPrompt(batch: Card[], after: () => void) {
-  locBatch = batch; locDone = after;
-  const n = batch.length;
-  $('locTitle').textContent = n === 1 ? 'Where was this taken?' : `Where were these ${n} photos taken?`;
-  $('locSub').textContent = n === 1 ? 'This photo has no GPS. Search for a place, pick it on the map, or skip and add it later.'
-    : 'These photos have no GPS. Put them all in one place, pick it on the map, or skip and add them later.';
+  locAll = batch; locDone = after;
+  locSelected = new Set(batch.length === 1 ? batch : [batch[0]]);
+  locQ.value = ''; locHits = []; $('locMsg').textContent = '';
+  $('locModal').hidden = false; drawLoc(); locQ.focus();
+}
+function drawLoc() {
+  const pending = locPending(), total = locAll.length, done = total - pending.length;
+  locSelected = new Set([...locSelected].filter(c => !placed(c)));
+  if (!locSelected.size && pending.length) locSelected.add(pending[0]);
+  $('locTitle').textContent = total === 1 ? 'Where was this taken?' : 'Where were these photos taken?';
+  $('locSub').textContent = total === 1 ? 'This photo has no GPS. Search for a place, pick it on the map, or skip and add it later.'
+    : `${done} of ${total} placed. Choose a photo (hold Shift or Ctrl to choose more), then search for its place. Photos from the same place can go together.`;
   const th = $('locThumbs'); th.innerHTML = '';
-  batch.slice(0, 8).forEach(c => { const im = new Image(); im.src = c.img!; im.alt = ''; th.append(im); });
-  $('locPlace').textContent = n === 1 ? 'Put it here' : 'Put them here';
-  locQ.value = ''; $('locMsg').textContent = ''; drawLocResults(); $('locMap').className = 'btn';
-  const near = nearestPlaced(batch), nb = $('locNear');
+  locAll.forEach(c => {
+    const b = el('button', 'loc-th' + (locSelected.has(c) ? ' on' : '') + (placed(c) ? ' done' : '')); b.type = 'button';
+    b.setAttribute('aria-pressed', String(locSelected.has(c)));
+    b.setAttribute('aria-label', (c.title || 'Photo') + (placed(c) ? ', placed in ' + c.place : ''));
+    const im = new Image(); im.src = c.img!; im.alt = ''; b.append(im);
+    if (placed(c)) b.append(el('span', 'loc-th-place', (c.place || '').split(',')[0]));
+    b.onclick = e => {
+      if (placed(c)) { c.lat = c.lng = null; c.place = ''; locSelected = new Set([c]); }   // placed in the wrong spot? choose it again
+      else if (e.shiftKey || e.ctrlKey || e.metaKey) { locSelected.has(c) ? locSelected.size > 1 && locSelected.delete(c) : locSelected.add(c); }
+      else locSelected = new Set([c]);
+      drawLoc(); locQ.focus();
+    };
+    th.append(b);
+  });
+  const allBtn = $('locAllBtn'); allBtn.hidden = pending.length < 2;
+  allBtn.textContent = locSelected.size === pending.length ? 'Choose just one' : `Choose all ${pending.length} remaining`;
+  allBtn.onclick = () => { locSelected = locSelected.size === pending.length ? new Set([pending[0]]) : new Set(pending); drawLoc(); };
+  const n = locSelected.size;
+  $('locPlace').textContent = n === 1 ? 'Put it here' : `Put these ${n} here`;
+  ($('locPlace') as HTMLButtonElement).disabled = !locHits.length;
+  const near = nearestPlaced([...locSelected]), nb = $('locNear');
   nb.hidden = !near;
   if (near) {
     nb.textContent = `Same place as ${near.place || 'the closest photo in time'}`;
-    nb.onclick = () => { for (const c of batch) { c.lat = near.lat; c.lng = near.lng; c.place = near.place; } finishLoc(); };
+    nb.onclick = () => { for (const c of locSelected) { c.lat = near.lat; c.lng = near.lng; c.place = near.place; } afterLocStep(); };
   }
-  $('locModal').hidden = false; locQ.focus();
+  drawLocResults();
 }
-async function finishLoc() { await save(); render(); $('locModal').hidden = true; locDone(); }
-/** Closing the prompt never blocks the map: the photos just stay off the map until you place them. */
+/** After some photos get a place: carry on with the rest, or finish when every photo has one. */
+async function afterLocStep() {
+  locQ.value = ''; locHits = []; $('locMsg').textContent = ''; $('locMap').className = 'btn';
+  await save(); render();
+  if (!locPending().length) { $('locModal').hidden = true; locDone(); return; }
+  locSelected = new Set([locPending()[0]]);
+  drawLoc(); locQ.focus();
+}
+/** Closing the prompt never blocks the map: photos without a place just stay off the map until you place them. */
 function skipLoc() {
   if ($('locModal').hidden) return;
   $('locModal').hidden = true; locDone();
-  showToast(locBatch.length === 1 ? 'Skipped. You can place this photo any time from its panel.' : 'Skipped. You can place these photos any time from their panels.');
+  const left = locPending().length;
+  if (left) showToast(left === 1 ? 'Skipped. You can place this photo any time from its panel.' : `Skipped. You can place the other ${left} photos any time from the tray or their panels.`);
 }
 function drawLocResults() {
   const box = $('locResults'); box.innerHTML = '';
@@ -678,8 +713,8 @@ locQ.oninput = async () => {
 async function placeBatch() {
   const h = locHits[locSel];
   if (!h) { $('locMsg').textContent = locQ.value.trim() ? 'Choose one of the places listed, or pick it on the map.' : 'Type a place to search for.'; return; }
-  for (const c of locBatch) { c.lat = h.lat; c.lng = h.lng; c.place = h.short; }
-  await finishLoc();
+  for (const c of locSelected) { c.lat = h.lat; c.lng = h.lng; c.place = h.short; }
+  await afterLocStep();
 }
 $('locPlace').onclick = placeBatch;
 locQ.onkeydown = e => {
@@ -688,7 +723,10 @@ locQ.onkeydown = e => {
     locSel = (locSel + (e.key === 'ArrowDown' ? 1 : -1) + locHits.length) % locHits.length; drawLocResults();
   } else if (e.key === 'Enter') { e.preventDefault(); void placeBatch(); }
 };
-$('locMap').onclick = () => { $('locModal').hidden = true; startPinning(locBatch); };
+$('locMap').onclick = () => {
+  $('locModal').hidden = true; pinDone = () => { if (locPending().length) { $('locModal').hidden = false; void afterLocStep(); } else locDone(); };
+  startPinning([...locSelected]);
+};
 $('locLater').onclick = skipLoc;
 $('locClose').onclick = skipLoc;
 $('locModal').addEventListener('mousedown', e => { if (e.target === $('locModal')) skipLoc(); });
@@ -938,6 +976,7 @@ function stopPinning() {
   if (!pinTargets.length && $('pinBanner').hidden) return;
   pinTargets = []; document.body.classList.remove('pinning'); $('pinBanner').hidden = true;
   if (cur) $('drawer').hidden = false;
+  const cb = pinDone; pinDone = null; if (cb) setTimeout(cb, 0);
 }
 $('pinBtn').onclick = () => { if (cur) startPinning([cur]); };
 $('pinCancel').onclick = stopPinning;

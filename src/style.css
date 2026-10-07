@@ -409,3 +409,12 @@ h3.first { margin-top: 12px !important; }
 .loc-res { text-align: left; border: 0; background: none; padding: 9px 12px; border-radius: 9px; cursor: pointer; font: inherit; color: inherit; }
 .loc-res:hover, .loc-res.on { background: var(--panel-2); }
 .loc-res.on { box-shadow: inset 3px 0 0 var(--accent); }
+
+.loc-box .loc-thumbs { gap: 10px; padding: 8px 4px 6px; }
+.loc-th { position: relative; padding: 0; border: 3px solid transparent; border-radius: 6px; background: none; cursor: pointer; }
+.loc-th img { display: block; width: 64px; height: 48px; object-fit: cover; border: 3px solid var(--paper); box-shadow: 0 2px 6px #0003; }
+.loc-th.on { border-color: var(--accent); }
+.loc-th.done img { opacity: .55; }
+.loc-th-place { position: absolute; left: -2px; right: -2px; bottom: -12px; padding: 0 3px; border-radius: 6px; background: var(--ink); color: var(--bg); font: 600 10.5px/16px var(--ui); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-align: center; }
+.loc-box .q-thumbs { margin-bottom: 14px; }
+#locAllBtn { margin: 0 0 6px; }
