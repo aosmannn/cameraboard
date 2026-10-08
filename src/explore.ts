@@ -3,6 +3,7 @@ import * as cloud from './cloud';
 import type { Card } from './types';
 import { mountShell, el, $, routeOf, fmtDate, setTitle, slideTabs, swapContent } from './site';
 import { tile, openLightbox } from './gallery-ui';
+import { dropdown } from './dropdown';
 
 mountShell('explore'); setTitle('Explore');
 const root = $('root');
@@ -19,8 +20,9 @@ for (const b of [tPhotos, tStories]) { b.type = 'button'; b.setAttribute('role',
 head.append(titles, tabs);
 const filters = el('div', 'filters');
 const search = el('input', 'field'); search.type = 'search'; search.placeholder = 'Search places, titles or cameras'; search.value = q; search.setAttribute('aria-label', 'Search photos');
-const camSel = el('select', 'field'); camSel.setAttribute('aria-label', 'Camera'); camSel.append(new Option('All cameras', ''));
-filters.append(search, camSel);
+const camDd = dropdown({ label: 'Camera', onChange: v => { camera = v; sync(); void load(true); } });
+camDd.setChoices([{ value: '', label: 'All cameras' }]);
+filters.append(search, camDd.el);
 const out = el('div'); out.id = 'out'; out.setAttribute('aria-live', 'polite');
 root.append(head, filters, out);
 
@@ -114,15 +116,17 @@ function drawStories(list: cloud.GalleryStory[], more: boolean) {
 
 let typing = 0;
 search.oninput = () => { clearTimeout(typing); typing = window.setTimeout(() => { q = search.value; sync(); load(true); }, 300); };
-camSel.onchange = () => { camera = camSel.value; sync(); load(true); };
 function sync() {
   const u = new URL(location.href);
   q ? u.searchParams.set('q', q) : u.searchParams.delete('q'); camera ? u.searchParams.set('camera', camera) : u.searchParams.delete('camera');
   history.replaceState(null, '', u);
 }
 
-cloud.exploreCameras().then(list => {
-  for (const c of list) camSel.append(new Option(`${c.camera} (${c.photos})`, c.slug));
-  camSel.value = camera;
-}).catch(() => { /* the camera filter is optional */ });
+const fillCameras = (list: { camera: string; slug: string; photos: number }[]) => {
+  camDd.setChoices([{ value: '', label: 'All cameras' }, ...list.map(c => ({ value: c.slug, label: `${c.camera} (${c.photos})` }))]);
+  camDd.value = camera;
+};
+const seenCameras = cloud.peekCameras(); if (seenCameras) fillCameras(seenCameras);
+cloud.exploreCameras().then(fillCameras).catch(() => { /* the camera filter is optional */ });
+
 setTab(tab, false);

@@ -184,5 +184,7 @@ The community pages start with two network steps (the list, then signing the ima
 
 ## Motion between tabs and pages
 
+- Drop-down lists use `src/dropdown.ts` instead of the browser's `<select>` (whose pop-up can't be animated): the list fades and slides open, the arrow turns, and it works with the keyboard (arrows, Home/End, Enter, Escape, typing a letter). Explore's camera filter is the first user.
+
 - Pill tab bars (Explore's Photos/Stories, the Cameras periods) have a highlight that glides to the chosen tab (`slideTabs` in `src/site.ts`), and the content under them fades out and the new content fades in (`swapContent`).
 - The site header's highlight is one pill that glides to the link you click (Explore, Cameras, Map) before the page changes (`glideNav` in `src/site.ts`; about 150 ms). It is not used in the narrow drop-down menu. Pages also fade into each other with cross-page view transitions (`@view-transition` in `src/site.css` and `src/style.css`); browsers without them (for example Firefox) get a short fade-in of the page instead. Everything is turned off for people who prefer reduced motion.
