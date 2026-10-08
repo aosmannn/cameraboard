@@ -151,8 +151,37 @@ export function paintWorld(ctx: CanvasRenderingContext2D, W: number, H: number,
     }
   }
   ctx.globalAlpha = 1;
+  if (theme.terrain && zones) {
+    // the Terrain style on a poster or GIF: the same climate zones, clipped to the land
+    const cell = Math.max(3, Math.round(W / 700)), cols = Math.ceil(W / cell), rows = Math.ceil(H / cell);
+    const small = document.createElement('canvas'); small.width = cols; small.height = rows;
+    const sctx = small.getContext('2d')!, img = sctx.createImageData(cols, rows), rgb = [0, 0, 0];
+    for (let j = 0; j < rows; j++) {
+      const lat = invMercY(view.yTop - ((j + 0.5) / rows) * (view.yTop - view.yBot));
+      for (let i = 0; i < cols; i++) {
+        zoneAt(lat, view.w + ((i + 0.5) / cols) * (view.e - view.w), rgb);
+        const o = (j * cols + i) * 4; img.data[o] = rgb[0]; img.data[o + 1] = rgb[1]; img.data[o + 2] = rgb[2]; img.data[o + 3] = 255;
+      }
+    }
+    sctx.putImageData(img, 0, 0);
+    ctx.save(); ctx.beginPath();
+    for (const f of fc.features) {
+      if (f.properties.name === 'Antarctica') continue;
+      for (const p of f._polys as Poly[]) for (const r of p.rings) { r.forEach(([x, y], i) => i ? ctx.lineTo(px(x), py(y)) : ctx.moveTo(px(x), py(y))); ctx.closePath(); }
+    }
+    ctx.clip('evenodd'); ctx.globalAlpha = 0.78; ctx.imageSmoothingEnabled = true; ctx.drawImage(small, 0, 0, W, H); ctx.restore();
+    ctx.lineJoin = 'round'; ctx.lineWidth = Math.max(1, W / 1800); ctx.strokeStyle = theme.border; ctx.globalAlpha = 0.8;
+    for (const f of fc.features) {
+      if (f.properties.name === 'Antarctica') continue;
+      for (const p of f._polys as Poly[]) { ctx.beginPath(); for (const r of p.rings) r.forEach(([x, y], i) => i ? ctx.lineTo(px(x), py(y)) : ctx.moveTo(px(x), py(y))); ctx.stroke(); }
+    }
+    ctx.globalAlpha = 1;
+  }
   return { px, py };
 }
+
+/** Resolves once the climate-zone grid has loaded (posters wait for it so the Terrain style isn't drawn plain). */
+export const zonesLoaded = (): Promise<void> => zonesReady;
 
 /** Every country name on the map (Natural Earth spelling, which is abbreviated: "S. Sudan"), for search. */
 export function listCountries(): string[] {
@@ -199,7 +228,7 @@ const areaZoom = (a: number, z: number[]) => a > z[0] ? 3 : a > z[1] ? 4 : a > z
 // ---- what grows on the land: forests, grassland, desert, tundra, ice (the Terrain style) ----
 // public/data/biomes.png is a world grid of climate zones made from Natural Earth II land cover (public domain) by Steven (@vcanp);
 // each pixel's red value is a zone number. We color the land by zone and clip it to the country shapes, so it never spills into the sea.
-const ZONE_COLORS = ['#f3f7fa', '#cfccb6', '#86a28b', '#a4c184', '#659d6d', '#d0cc8f', '#dcd498', '#dcc79f', '#f0dfae', '#d6ac82']
+const ZONE_COLORS = ['#f3f7fa', '#c6c5a6', '#86a28b', '#a4c184', '#659d6d', '#d0cc8f', '#dcd498', '#dcc79f', '#f0dfae', '#d6ac82']
   .map(h => [parseInt(h.slice(1, 3), 16), parseInt(h.slice(3, 5), 16), parseInt(h.slice(5, 7), 16)]);
 let zones: Uint8Array | null = null, zw = 2048, zh = 1024;
 const zonesReady: Promise<void> = new Promise(res => {

@@ -1,5 +1,5 @@
 import type { Card } from './types';
-import { THEMES, type ThemeName, paintWorld, mercY } from './world';
+import { THEMES, type ThemeName, paintWorld, mercY, zonesLoaded } from './world';
 import { placeKey } from './photo';
 import { GIFEncoder, quantize, applyPalette } from 'gifenc';
 
@@ -23,6 +23,7 @@ export interface Prepared {
 /** Does the slow work once (map, layout, photos) so a poster or every GIF frame can reuse it. */
 export async function preparePoster(cards: Card[], themeName: ThemeName, visited: Set<string> | null, countries: number): Promise<Prepared> {
   await Promise.all(['34px Caveat', 'bold 30px DM Sans', '30px DM Sans'].map(f => document.fonts.load(f).catch(() => [])));   // canvas text needs them ready
+  await zonesLoaded();
   const base = document.createElement('canvas'); base.width = W; base.height = H;
   const ctx = base.getContext('2d')!;
   const theme = THEMES[themeName];
