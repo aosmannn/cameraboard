@@ -46,9 +46,11 @@ function downscale(file: File, max = 1800): Promise<{ data: string; w: number; h
       cv.width = Math.round(im.width * s); cv.height = Math.round(im.height * s);
       cv.getContext('2d')!.drawImage(im, 0, 0, cv.width, cv.height);
       URL.revokeObjectURL(url);
-      res({ data: cv.toDataURL('image/jpeg', 0.86), w: im.width, h: im.height });
+      const data = cv.toDataURL('image/jpeg', 0.86), w = im.width, h = im.height;
+      cv.width = cv.height = 0; im.src = '';          // phones cap total canvas memory, so let go of each one right away
+      res({ data, w, h });
     };
-    im.onerror = () => rej(new Error('Could not read image'));
+    im.onerror = () => { URL.revokeObjectURL(url); rej(new Error('Could not read image')); };
     im.src = url;
   });
 }

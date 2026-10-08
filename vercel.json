@@ -1,12 +1,36 @@
 {
   "rewrites": [
-    { "source": "/explore", "destination": "/explore.html" },
-    { "source": "/privacy", "destination": "/privacy.html" },
-    { "source": "/terms", "destination": "/terms.html" },
-    { "source": "/credits", "destination": "/credits.html" },
-    { "source": "/cameras", "destination": "/cameras.html" },
-    { "source": "/cameras/:slug", "destination": "/cameras.html" },
-    { "source": "/s/:key", "destination": "/story.html" },
-    { "source": "/u/:key", "destination": "/profile.html" }
+    {
+      "source": "/explore",
+      "destination": "/explore.html"
+    },
+    {
+      "source": "/privacy",
+      "destination": "/privacy.html"
+    },
+    {
+      "source": "/terms",
+      "destination": "/terms.html"
+    },
+    {
+      "source": "/credits",
+      "destination": "/credits.html"
+    },
+    {
+      "source": "/cameras",
+      "destination": "/cameras.html"
+    },
+    {
+      "source": "/cameras/:slug",
+      "destination": "/cameras.html"
+    },
+    {
+      "source": "/s/:key",
+      "destination": "/api/share?kind=story&key=:key"
+    },
+    {
+      "source": "/u/:key",
+      "destination": "/api/share?kind=profile&key=:key"
+    }
   ]
 }
