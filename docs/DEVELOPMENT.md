@@ -142,3 +142,60 @@ Map data © [Natural Earth](https://www.naturalearthdata.com) (public domain). U
 - Map shapes and populated places: [Natural Earth](https://www.naturalearthdata.com), public domain.
 - Extra city names and populations: [GeoNames](https://www.geonames.org), CC BY 4.0, via the MIT-licensed `all-the-cities` package.
 - US counties: us-atlas (US Census).
+
+## Map styles and the Terrain theme
+
+The Terrain theme draws live layers under the country borders, each a Leaflet grid layer:
+
+- `src/relief.ts`: pixel-art terrain. For every map tile it combines
+  - heights from Terrarium elevation tiles (`elevation-tiles-prod` on S3),
+  - climate zones from `public/data/biomes.png` (desert, steppe, savanna, forests, tundra, ice...), baked from Natural Earth II land cover by `scripts/build-biomes.mjs`,
+  - from zoom 7, OpenStreetMap land cover and land use (forest, fields, marsh, sand, rock, ice, towns),
+
+  then applies altitude (tree line, bare rock, snow line), steep-cliff rock, hillshade and dithering.
+- `src/streets.ts`: roads, rail, rivers, lakes and buildings from OpenFreeMap vector tiles (OpenStreetMap data). Roads start at zoom 8.5, one zoom after county lines.
+- `src/tiles.ts`: the shared vector tile download and cache.
+- Heights (`loadElevation` in `src/relief.ts`): land comes from Mapterhorn (`tiles.mapterhorn.com`, free, no key, Terrarium encoding, 512 px; global 30 m Copernicus data plus open national surveys). Mapterhorn has no seabed (the sea is flat zero), so the sea depth comes from the AWS Terrarium tiles, repaired as described next. If Mapterhorn is down, the AWS tiles are used for everything.
+- AWS Terrarium repair (`loadAws` in `src/relief.ts`): those tiles have known flaws, so every tile is checked against its coarser parent tile. Tiles in the last strip before the date line (east of 178.6 degrees) hold wrong land at zoom 8 and 9 (Fiji, East Cape of New Zealand), so their land is rebuilt from the zoom 10 tiles (the sea keeps the tile's own depth, and false land becomes sea). Tiles that clearly disagree with their parent about land and sea take the parent's data, and ocean with no depth data (flat zero) takes its depth from the zoom 7 tile. Within about 3.6 degrees of the date line the deep sea also blends smoothly toward the zoom 7 depth, because depth differs between tiles and between the two sides of the line. Known limit: some zoom 10 land tiles east of 178.6 degrees are simply smoother than their neighbours; that is the source data.
+- `src/shade.ts`: for the flat styles (Paper, Atlas, Night), hillshade over the land and depth in the sea, from the same elevation tiles. Each style's `detail` in `src/world.ts` also gives `streets.ts` its own colors for lakes, rivers, roads and buildings.
+
+Posters use `reliefWorld()` in `src/relief.ts`, which draws the whole world once (heights and climate zones only).
+
+The two tile sources are free and need no key, but they are third-party services: if one is down, that layer stays blank and the rest of the map still works. Credit is on the Credits page.
+
+## Panning around the globe
+
+The map has no sideways limit. Tile layers (relief, streets, shading) repeat on their own; vector layers do not, so countries, states, counties, the country outline, labels, photo pins and yarn are each drawn three times, one world to the left (-360), the middle and the right (+360). After every move the map centre is wrapped back into -180..180 (`map.on('moveend')` in `src/main.ts`), which is invisible because the copies look identical. Flights use `nearLng()` to take the short way round, and clicks are wrapped with `map.wrapLatLng` before they are used as real coordinates.
+
+## Cameras and the camera ranking
+
+`/cameras` (`cameras.html`, `src/cameras.ts`) lists the cameras people shot community photos on, as cards with a cover photo, ranked by how many photos were taken with them: today, this week (from Monday), this month, this year, or all time. It counts public photos from people who turned on the community gallery, minus people you have blocked. A photo counts for the day it was taken (`taken_at`), not the day it was uploaded. Each camera has its own page at `/cameras/<camera>`.
+
+All time uses `explore_cameras()`. The other periods use the database function `camera_leaderboard(from_day, to_day)` (migration `20261008000000_camera_leaderboard.sql`; run `npm run db:push` once). The page sends local dates, so "today" follows the visitor's own clock. Until the migration is applied, `cloud.cameraLeaderboard` counts from the newest 768 community photos instead and says so.
+
+## Keeping Explore and Cameras fast
+
+The community pages start with two network steps (the list, then signing the image links) and then download full photos, so they used to show "Loading…" for a second or more. To feel instant:
+
+- `src/cache.ts` remembers the last community data in `localStorage` (public data only, never private photos), for up to 50 minutes because signed image links last an hour. Explore and Cameras draw from it at once and then refresh quietly, redrawing only if something changed.
+- `signPaths` in `src/cloud.ts` reuses a signed link until shortly before it expires. The same image keeps the same address, so the browser's own cache serves it.
+- `cloud.warmCommunity()` fetches the first page of Explore and Cameras (and the first photos) when a site page has settled, and when the pointer reaches a nav link, so the next tab opens already filled.
+- On a first visit, placeholder cards show instead of "Loading…".
+
+## Motion between tabs and pages
+
+- Drop-down lists use `src/dropdown.ts` instead of the browser's `<select>` (whose pop-up can't be animated): the list fades and slides open, the arrow turns, and it works with the keyboard (arrows, Home/End, Enter, Escape, typing a letter). Explore's camera filter is the first user.
+
+- Pill tab bars (Explore's Photos/Stories, the Cameras periods) have a highlight that glides to the chosen tab (`slideTabs` in `src/site.ts`), and the content under them fades out and the new content fades in (`swapContent`).
+- The site header's highlight is one pill that glides to the link you click (Explore, Cameras, Map) before the page changes (`glideNav` in `src/site.ts`; about 150 ms). It is not used in the narrow drop-down menu. Pages also fade into each other with cross-page view transitions (`@view-transition` in `src/site.css` and `src/style.css`); browsers without them (for example Firefox) get a short fade-in of the page instead. Everything is turned off for people who prefer reduced motion.
+## Likes and comments
+
+Under other people's photos there is a heart and a comment thread (`src/reactions.ts`, styles in `src/reactions.css`). It appears in the Explore photo viewer (also used on profile, story and camera pages), and in the map's photo panel as a comments section under the existing heart.
+
+Who can like or comment on a photo is decided in the database by `can_see_photo(pid)` (migration `20261008010000_likes_and_comments.sql`; run `npm run db:push` once): the owner, people who follow the owner (friends and public photos), and anyone signed in for photos the owner listed in the community gallery. Blocked people never see each other's reactions. Private photos are never reachable.
+
+- Comments are read through `photo_comments(pid)` (adds names, hides blocked people; works without signing in for community gallery photos) and counted with `reaction_counts(ids)`. There is deliberately no select policy on the `comments` table.
+- 1 to 500 characters, at most 8 a minute per person. The photo's owner can remove any comment on their photo; everyone can remove their own.
+- Comment text is always inserted as text, never as HTML.
+- Each polaroid on the Explore and camera walls has its own heart on the caption row (`heartFor` in `src/gallery-ui.ts`); one `reaction_counts` call fills all of them. The `wf-like` event keeps a polaroid's heart and the viewer's heart in step.
+- Until the migration is applied the heart and comments show a short "needs the latest database update" message instead of failing quietly.

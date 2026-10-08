@@ -48,6 +48,9 @@ export function mountShell(active: Section) {
     const a = el('a', '', label); a.href = href; if (key === active) a.setAttribute('aria-current', 'page'); links.append(a);
   }
   const mapLink = el('a', '', 'Map'); mapLink.href = '/app.html'; links.append(mapLink);
+  // Get the next tab ready: on hover or touch, and quietly once this page has settled.
+  for (const a of links.querySelectorAll('a')) for (const ev of ['pointerenter', 'focus', 'touchstart']) a.addEventListener(ev, () => cloud.warmCommunity(), { passive: true });
+  (window.requestIdleCallback ?? ((f: () => void) => setTimeout(f, 1200)))(() => cloud.warmCommunity());
   const end = el('div', 'nav-end');
   const who = el('a', 'who'); who.id = 'whoBtn'; who.hidden = true; who.href = '/app.html?account=1';
   const signIn = el('a', 'btn small', 'Sign in'); signIn.id = 'signInBtn'; signIn.href = '/app.html?account=1'; signIn.hidden = !cloud.cloudEnabled;
@@ -57,6 +60,7 @@ export function mountShell(active: Section) {
   end.append(signIn, who, go, menu);
   nav.append(logo, links, end);
   document.body.prepend(nav);
+  glideNav(links);
   const onScroll = () => nav.classList.toggle('scrolled', scrollY > 8);
   addEventListener('scroll', onScroll, { passive: true }); onScroll();
 
@@ -108,6 +112,59 @@ export function routeOf(places: string[]) {
 }
 export const shortPlace = (p: string) => (p || '').split(',').slice(0, 2).join(',').trim();
 export const pathPart = (n: number) => decodeURIComponent(location.pathname.split('/').filter(Boolean)[n] ?? '');
+/**
+ * The header's highlight is one pill that glides to the link you choose (Explore, Cameras, Map) instead of jumping.
+ * Clicking waits a moment so the glide is seen, then goes to the page. Not used in the narrow drop-down menu.
+ */
+function glideNav(links: HTMLElement) {
+  const anchors = [...links.querySelectorAll('a')];
+  const pill = el('span', 'nav-pill'); pill.setAttribute('aria-hidden', 'true');
+  links.prepend(pill); links.classList.add('has-pill');
+  const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const active = anchors.find(a => a.getAttribute('aria-current') === 'page');
+  const put = (a: HTMLElement) => {
+    pill.style.left = a.offsetLeft + 'px'; pill.style.top = a.offsetTop + 'px';
+    pill.style.width = a.offsetWidth + 'px'; pill.style.height = a.offsetHeight + 'px';
+  };
+  const place = () => { if (active && active.offsetWidth) { put(active); pill.classList.add('on'); } else pill.classList.remove('on'); };
+  place();
+  requestAnimationFrame(() => requestAnimationFrame(() => pill.classList.add('glide')));   // later moves glide; the first placement does not
+  new ResizeObserver(() => { pill.classList.remove('glide'); place(); requestAnimationFrame(() => pill.classList.add('glide')); }).observe(links);
+  void document.fonts?.ready.then(place);
+  addEventListener('pageshow', e => { if (e.persisted) { pill.classList.remove('glide'); place(); requestAnimationFrame(() => pill.classList.add('glide')); } });
+  let leaving = false;
+  for (const a of anchors) a.addEventListener('click', e => {
+    if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || reduce || a === active || leaving) return;
+    if (getComputedStyle(pill).display === 'none') return;   // the narrow drop-down menu has no pill
+    e.preventDefault(); leaving = true;
+    if (!active) { pill.classList.remove('glide'); put(a); void pill.offsetWidth; pill.classList.add('glide'); }
+    put(a); pill.classList.add('on');
+    setTimeout(() => { location.href = a.href; }, 150);
+  });
+}
+
+/** Makes a pill-style tab bar slide its highlight from one tab to the next. Call it again whenever the selected tab changes. */
+export function slideTabs(tabs: HTMLElement) {
+  tabs.classList.add('slide');
+  const place = () => {
+    const sel = tabs.querySelector<HTMLElement>('[aria-selected="true"]'); if (!sel || !sel.offsetWidth) return;
+    tabs.style.setProperty('--pill-x', sel.offsetLeft + 'px'); tabs.style.setProperty('--pill-w', sel.offsetWidth + 'px');
+  };
+  place();
+  if (!tabs.dataset.watched) {
+    tabs.dataset.watched = '1';
+    requestAnimationFrame(() => requestAnimationFrame(() => tabs.classList.add('ready')));   // the first placement does not slide
+    new ResizeObserver(place).observe(tabs);
+    void document.fonts?.ready.then(place);
+  }
+}
+/** Fades and lifts freshly drawn content into place. */
+export function swapIn(node: HTMLElement) { node.classList.remove('swap-in'); void node.offsetWidth; node.classList.add('swap-in'); }
+/** Fades the old content out, runs `change`, then fades whatever it drew in. */
+export function swapContent(node: HTMLElement, change: () => void) {
+  node.classList.add('swap-out');
+  setTimeout(() => { node.classList.remove('swap-out'); change(); swapIn(node); }, 120);
+}
 export function setTitle(t: string) { document.title = t ? `${t} · Wayframe` : 'Wayframe'; }
 export const slugCamera = cloud.slugify;
 export const isUuid = (s: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s);
