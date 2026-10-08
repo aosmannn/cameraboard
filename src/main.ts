@@ -740,14 +740,43 @@ q.addEventListener('keydown', e => {
 document.addEventListener('mousedown', e => { if (!qPeople.hidden && !qPeople.contains(e.target as Node) && e.target !== q) qPeople.hidden = true; });
 
 // ---------- map style ----------
+// Map style: a drop-down in the header (and a plain list inside the logo menu on narrow screens)
 const themeSel = $<HTMLSelectElement>('themeSel');
-for (const [k, t] of Object.entries(THEMES)) themeSel.append(new Option(t.name, k));
-themeSel.value = themeName;
-themeSel.onchange = () => { world.setTheme(themeSel.value as ThemeName); lsSet('wf-theme', themeSel.value); };
-document.addEventListener('click', e => {
-  const m = document.querySelector<HTMLDetailsElement>('.menu');
-  if (m?.open && !m.contains(e.target as Node)) m.open = false;
+const styleList = $('styleList'), styleBtn = $('styleBtn');
+for (const [k, t] of Object.entries(THEMES)) {
+  themeSel.append(new Option(t.name, k));
+  const b = el('button', '', t.name); b.type = 'button'; b.dataset.theme = k; b.setAttribute('role', 'menuitemradio');
+  b.onclick = () => setMapStyle(k);
+  styleList.append(b);
+}
+/** Shows which style is picked, in the header button, the list and the narrow-screen select. */
+function showStyle(v: string) {
+  themeSel.value = v; $('styleName').textContent = THEMES[v as ThemeName].name;
+  styleList.querySelectorAll<HTMLElement>('button').forEach(b => { b.classList.toggle('on', b.dataset.theme === v); b.setAttribute('aria-checked', String(b.dataset.theme === v)); });
+}
+function setMapStyle(v: string) { showStyle(v); world.setTheme(v as ThemeName); lsSet('wf-theme', v); }
+themeSel.onchange = () => setMapStyle(themeSel.value);
+showStyle(themeName);   // the starting choice, without redrawing the map
+
+// Drop-down menus (logo, map style): open on hover, keyboard focus or tap, and close when you click elsewhere
+const hoverMenus = [$('brandMenu'), $('styleMenu')];
+const closeMenus = () => hoverMenus.forEach(m => m.classList.remove('open'));
+const brandMenu = $('brandMenu');
+brandMenu.querySelector('.brand')!.addEventListener('click', e => {
+  if (matchMedia('(hover: none)').matches) { e.preventDefault(); brandMenu.classList.toggle('open'); }   // phones: the logo opens the menu
 });
+styleBtn.addEventListener('click', () => $('styleMenu').classList.toggle('open'));
+document.addEventListener('click', e => { for (const m of hoverMenus) if (!m.contains(e.target as Node)) m.classList.remove('open'); });
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeMenus(); });
+// after picking something, tuck the menu away even though the pointer is still over it
+for (const m of hoverMenus) {
+  m.querySelector('.hlist')!.addEventListener('click', () => { m.classList.remove('open'); m.classList.add('shut'); (document.activeElement as HTMLElement | null)?.blur(); });
+  for (const ev of ['mouseenter', 'mouseleave']) m.addEventListener(ev, () => m.classList.remove('shut'));
+}
+$('menuStories').onclick = () => {
+  const open = $('stories').hidden;
+  $('stories').hidden = !open; $('storiesShow').hidden = open; lsSet('wf-stories', open ? '1' : '0');
+};
 
 // ---------- upload ----------
 /** Adding allows many photos at once; Replace takes one. The input is visually hidden rather than display:none, which some phone browsers handle better. */
@@ -1241,7 +1270,6 @@ function tlStart() {
 }
 function tlClose() { tlStop(); timeBar.hidden = true; document.body.classList.remove('timeline'); timeLimit = null; render(); }
 $('timelineBtn').onclick = () => {
-  (document.querySelector('.menu') as HTMLDetailsElement).open = false;
   tlStops = tlDates();
   if (tlStops.length < 2) { showToast('Add a few dated photos with locations to use the timeline.'); return; }
   timeBar.hidden = false; document.body.classList.add('timeline'); tlRange.max = String(tlStops.length - 1);
@@ -1277,7 +1305,6 @@ function setupGifControls() {
   if (activeStory && list.some(s => s.name === activeStory)) posterPick.value = activeStory;
 }
 $('posterBtn').onclick = () => {
-  (document.querySelector('.menu') as HTMLDetailsElement).open = false;
   if (activeStory) posterTitle.value = activeStory;
   setupGifControls(); posterNote.hidden = true;
   $('posterModal').hidden = false; drawPoster();

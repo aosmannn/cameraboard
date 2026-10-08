@@ -14,7 +14,19 @@
 
 <header class="top">
   <div class="top-left">
-    <a class="brand" href="/" aria-label="Wayframe home"><img class="brand-mark" src="/logo-mark.svg" alt="" width="28" height="28"><span class="wordmark">Way<em>frame</em></span></a>
+    <div class="hmenu brand-menu" id="brandMenu">
+      <a class="brand" href="/" aria-label="Wayframe home" aria-haspopup="menu"><img class="brand-mark" src="/logo-mark.svg" alt="" width="28" height="28"><span class="wordmark">Way<em>frame</em></span><svg class="hcaret" viewBox="0 0 20 20" aria-hidden="true"><path d="M5 8l5 5 5-5"/></svg></a>
+      <div class="menu-list hlist" role="menu">
+        <button id="menuStories">Stories</button>
+        <a href="/explore" class="only-narrow">Gallery</a>
+        <label class="menu-row only-narrow">Map style <select id="themeSel"></select></label>
+        <a href="/cameras">Cameras</a>
+        <button id="timelineBtn">Travel timeline</button>
+        <button id="posterBtn">Make a poster</button>
+        <button id="exportBtn">Export backup</button>
+        <label>Import backup<input id="importFile" type="file" accept="application/json" hidden></label>
+      </div>
+    </div>
     <div class="search-wrap">
     <label class="search">
         <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="8.5" cy="8.5" r="5.5"/><path d="M13 13l4 4"/></svg>
@@ -25,6 +37,11 @@
       </label>
       <div id="qPeople" class="q-people" role="listbox" aria-label="People" hidden></div>
     </div>
+    <a class="btn hdr-wide" href="/explore">Gallery</a>
+    <div class="hmenu hdr-wide" id="styleMenu">
+      <button type="button" id="styleBtn" class="btn style-btn" aria-haspopup="menu" aria-label="Map style"><span id="styleName"></span><svg class="hcaret" viewBox="0 0 20 20" aria-hidden="true"><path d="M5 8l5 5 5-5"/></svg></button>
+      <div class="menu-list hlist style-list" id="styleList" role="menu"></div>
+    </div>
   </div>
   <div class="top-right">
     <button id="bellBtn" class="btn icon bell" aria-label="Notifications" aria-expanded="false" hidden>
@@ -33,20 +50,6 @@
     </button>
     <button id="acctBtn" class="btn acct" hidden>Sign in</button>
     <button id="addBtn" class="btn primary"><span class="add-long">Add photos</span><span class="add-short">Add</span></button>
-    <details class="menu">
-      <summary class="btn icon" aria-label="More options">
-        <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="4" cy="10" r="1.6"/><circle cx="10" cy="10" r="1.6"/><circle cx="16" cy="10" r="1.6"/></svg>
-      </summary>
-      <div class="menu-list">
-        <a href="/explore">Explore the gallery</a>
-        <a href="/cameras">Cameras</a>
-        <label class="menu-row">Map style <select id="themeSel"></select></label>
-        <button id="timelineBtn">Travel timeline</button>
-        <button id="posterBtn">Make a poster</button>
-        <button id="exportBtn">Export backup</button>
-        <label>Import backup<input id="importFile" type="file" accept="application/json" hidden></label>
-      </div>
-    </details>
   </div>
 </header>
 
