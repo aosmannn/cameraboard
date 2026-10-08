@@ -259,7 +259,9 @@ function renderMap() {
     });
     markers.set(k, m); photos.addLayer(m);
   });
-  $('empty').hidden = syncing || emptyOff || cards.some(c => c.img) || (showOthers() && others().length > 0);
+  // the Add photos bar stays at the bottom; once there are photos, or the message was dismissed, it shrinks to just the button
+  $('empty').hidden = syncing;
+  $('empty').classList.toggle('has-photos', emptyOff || cards.some(c => c.img) || (showOthers() && others().length > 0));
 }
 function markSelected() {
   const f = focusCard(), key = f && placed(f) ? keyOf(f) : '';
@@ -311,8 +313,8 @@ function renderStrings() {
 }
 
 function mapPadding() {
-  const left = !$('stories').hidden && wide() ? 340 : 0;
-  const right = !$('drawer').hidden && wide() ? 410 : 0;
+  const left = 0;
+  const right = (!$('drawer').hidden && wide() ? 410 : 0) + (!$('stories').hidden && wide() ? 340 : 0);   // both panels sit on the right
   const bottom = !$('drawer').hidden && !wide() ? window.innerHeight * 0.62 : (!$('tray').hidden ? 160 : 60);
   return { paddingTopLeft: L.point(left + 60, 110), paddingBottomRight: L.point(right + 60, bottom) };
 }
@@ -465,8 +467,18 @@ $('newStoryForm').onsubmit = e => {
   if (cur) { addToStory(cur, name); save(); }
   startConnect(name);
 };
-$('storiesHide').onclick = () => { $('stories').hidden = true; $('storiesShow').hidden = false; lsSet('wf-stories', '0'); };
-$('storiesShow').onclick = () => { $('stories').hidden = false; $('storiesShow').hidden = true; lsSet('wf-stories', '1'); };
+/** Opens or closes the stories panel with a short slide, remembering the choice. */
+function setStories(open: boolean) {
+  const st = $('stories');
+  st.classList.remove('closing');
+  if (open) { st.hidden = false; } else if (!st.hidden) {
+    st.classList.add('closing');
+    setTimeout(() => { if (st.classList.contains('closing')) { st.hidden = true; st.classList.remove('closing'); } }, 190);
+  }
+  $('storiesShow').hidden = open; lsSet('wf-stories', open ? '1' : '0');
+}
+$('storiesHide').onclick = () => setStories(false);
+$('storiesShow').onclick = () => setStories(true);
 
 function connectText() {
   if (!connecting) return;
@@ -773,16 +785,13 @@ for (const m of hoverMenus) {
   m.querySelector('.hlist')!.addEventListener('click', () => { m.classList.remove('open'); m.classList.add('shut'); (document.activeElement as HTMLElement | null)?.blur(); });
   for (const ev of ['mouseenter', 'mouseleave']) m.addEventListener(ev, () => m.classList.remove('shut'));
 }
-$('menuStories').onclick = () => {
-  const open = $('stories').hidden;
-  $('stories').hidden = !open; $('storiesShow').hidden = open; lsSet('wf-stories', open ? '1' : '0');
-};
+$('menuStories').onclick = () => setStories($('stories').hidden || $('stories').classList.contains('closing'));
 
 // ---------- upload ----------
 /** Adding allows many photos at once; Replace takes one. The input is visually hidden rather than display:none, which some phone browsers handle better. */
 function pick(c: Card | null) { pickTarget = c; if (c) picker.removeAttribute('multiple'); else picker.setAttribute('multiple', ''); picker.value = ''; picker.click(); }
-$('addBtn').onclick = $('emptyAdd').onclick = () => pick(null);
-$('emptyClose').onclick = () => { emptyOff = true; lsSet('wf-empty-off', '1'); $('empty').hidden = true; };
+$('emptyAdd').onclick = () => pick(null);
+$('emptyClose').onclick = () => { emptyOff = true; lsSet('wf-empty-off', '1'); $('empty').classList.add('has-photos'); };
 
 picker.onchange = () => addFiles([...(picker.files ?? [])], pickTarget);
 

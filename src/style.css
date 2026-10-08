@@ -20,7 +20,6 @@ body { background: var(--bg); color: var(--ink); font: 14px/1.45 var(--ui); over
 button, input, textarea, select { font: inherit; color: inherit; }
 button { cursor: pointer; }
 [hidden] { display: none !important; }
-.add-short { display: none; }
 :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .hint { font-size: 12px; color: var(--mute); margin: 6px 0 0; }
 
@@ -260,7 +259,6 @@ textarea { resize: vertical; font: 500 19px/1.3 var(--hand); }
   .d-photo { padding: 16px 40px 12px; }
   .tray, .stories:not([hidden]) ~ .tray { left: 8px; right: 8px; transform: none; width: auto; max-width: none; bottom: 8px; }
   .playcard { bottom: 12px; }
-  .add-long { display: none; } .add-short { display: inline; }
   .stories:not([hidden]) ~ .tray { display: none; }
   .pc-text { min-width: 0; }
 }
@@ -663,4 +661,43 @@ body.timeline #tray, body.timeline .stories-show { display: none; }
   .top-left { gap: 6px; }
   .top .btn { padding: 0 10px; }
   .top .btn.icon { padding: 0; }
+}
+
+/* ---------- Add photos lives in a bar at the bottom; the header keeps just navigation ---------- */
+.empty-state { top: auto; bottom: calc(24px + env(safe-area-inset-bottom)); transform: translateX(-50%); width: max-content; max-width: calc(100% - 32px); padding: 8px 8px 8px 20px; display: flex; align-items: center; gap: 16px; border-radius: 999px; text-align: left; }
+.empty-state h2 { margin: 0; font: 22px/1.1 var(--display); }
+.empty-state p { display: none; }
+.empty-state .empty-x { position: static; order: 3; }
+.empty-state .btn { border-radius: 999px; }
+.empty-state.has-photos { padding: 6px; }
+.empty-state.has-photos h2, .empty-state.has-photos .empty-x { display: none; }
+body:has(.tray:not([hidden])) .empty-state { bottom: 150px; }   /* photos not on the map yet sit at the very bottom */
+.empty-state .btn.primary:hover { box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 32%, transparent), 0 4px 18px color-mix(in srgb, var(--accent) 45%, transparent); }
+
+/* ---------- panels slide in and out, banners fade down ---------- */
+@keyframes slideInRight { from { opacity: 0; translate: 24px 0; } }
+@keyframes slideOutRight { to { opacity: 0; translate: 24px 0; } }
+@keyframes slideInUp { from { opacity: 0; translate: 0 24px; } }
+@keyframes slideOutDown { to { opacity: 0; translate: 0 24px; } }
+@keyframes fadeDown { from { opacity: 0; translate: 0 -8px; } }
+.stories:not([hidden]) { animation: slideInRight .22s ease-out; }
+.stories.closing { animation: slideOutRight .18s ease-in forwards; pointer-events: none; }
+.banner:not([hidden]), .empty-state { animation: fadeDown .2s ease-out; }
+.q-people:not([hidden]) { animation: fadeDown .15s ease-out; }
+
+/* ---------- wide screens: the stories panel sits on the right, so it never covers the logo menu ---------- */
+@media (min-width: 801px) {
+  .stories { left: auto; right: 16px; }
+  .stories-show { left: auto; right: 16px; }
+  .stories:not([hidden]) ~ .drawer { right: 352px; }
+  .stories:not([hidden]) ~ .tray { left: calc((100% - 336px) / 2); transform: translateX(-50%); max-width: min(760px, calc(100% - 368px)); }
+  body:has(.stories:not([hidden])) .empty-state { left: calc((100% - 336px) / 2); }
+  body:has(.stories:not([hidden])) .leaflet-control-zoom { margin-right: 352px !important; }
+}
+@media (max-width: 800px) {
+  .stories:not([hidden]) { animation-name: slideInUp; }
+  .stories.closing { animation-name: slideOutDown; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .stories:not([hidden]), .stories.closing, .banner:not([hidden]), .empty-state, .q-people:not([hidden]) { animation: none; }
 }
