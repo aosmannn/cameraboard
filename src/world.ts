@@ -5,20 +5,61 @@ import { feature, neighbors } from 'topojson-client';
 import topo from 'world-atlas/countries-50m.json';
 import { loadAdmin1, loadCounties, loadCities } from './atlas';
 import { Labels, type Item } from './labels';
+import { ReliefLayer, reliefWorld } from './relief';
+import { StreetsLayer, TERRAIN_STREETS, type StreetStyle } from './streets';
+import { ShadeLayer, rgb, type ShadeStyle } from './shade';
 
-export type ThemeName = 'paper' | 'atlas' | 'night';
+export type ThemeName = 'paper' | 'atlas' | 'night' | 'terrain';
 export interface Theme {
-  name: string; ocean: string; border: string; sea: string; label: string; halo: string; fills: string[];
+  name: string; ocean: string; border: string; sea: string; /** outline around sea names */ seaHalo: string; label: string; halo: string; fills: string[];
+  /** Draw live pixel relief, rivers and streets under the borders instead of flat country colors. */
+  terrain?: boolean;
+  /** Flat styles get extra detail on top of the country colors: hillshade, sea depth, lakes, rivers, roads, buildings. */
+  detail?: { shade: ShadeStyle; streets: StreetStyle };
 }
 export const THEMES: Record<ThemeName, Theme> = {
-  // a printed paper map, pinned to the board
-  paper: { name: 'Paper', ocean: '#bcd3d6', border: '#fbf6ea', sea: '#55777f', label: '#3a3226', halo: '#f7f0e1',
-    fills: ['#eadfc4', '#dccba6', '#d2dab8', '#e8cdb0', '#dbd0b8', '#c9d5c1', '#efdcbd', '#d8c7a2'] },
-  atlas: { name: 'Atlas', ocean: '#bde3f6', border: '#ffffff', sea: '#3f7fb0', label: '#2b2b2b', halo: '#ffffff',
-    fills: ['#f5a9a2', '#f7d56e', '#a4d8a4', '#f3b774', '#bba8e0', '#93d2da', '#eba8cb', '#cddf90'] },
-  night: { name: 'Night', ocean: '#121b22', border: '#0a1015', sea: '#6d8ea3', label: '#e6e1d6', halo: '#121b22',
-    fills: ['#3b3f3a', '#423d34', '#363f3c', '#433a37', '#3c3a42', '#353f42', '#45403a', '#3e4236'] }
+  // pixel-art relief heat map in Claude's cream and orange: lowlands pale, mountains deep terracotta
+  terrain: { name: 'Terrain', terrain: true, ocean: '#141f26', border: '#3b2a22', sea: '#f6ecd9', seaHalo: '#0d1a22', label: '#2a1d17', halo: '#f6ecd9',
+    fills: ['#e6c595'] },
+  // a printed paper map, pinned to the board: warm parchment, soft relief, brown ink roads
+  paper: { name: 'Paper', ocean: '#b3cfd3', border: '#b8a574', sea: '#2c5560', seaHalo: '#f4eedd', label: '#3a3226', halo: '#f7f0e1',
+    fills: ['#efe0b8', '#e3d0a0', '#cfdcb0', '#ecc9a0', '#dcd0af', '#bdd3b5', '#f1d9a7', '#d6c28f'],
+    detail: {
+      shade: { land: 0.4, seaShallow: rgb(0xd2e5e4), seaDeep: rgb(0x8cb1ba) },
+      streets: {
+        water: '#a4c6cd', sea: false, river: 'rgba(120,170,182,0.95)', rail: 'rgba(90,70,40,0.5)',
+        building: ['rgba(214,196,158,0.95)', 'rgba(110,90,55,0.55)'], casing: 'rgba(90,70,40,0.12)',
+        roads: { motorway: 'rgba(193,92,52,0.85)', trunk: 'rgba(204,120,70,0.8)', primary: 'rgba(120,96,60,0.7)', secondary: 'rgba(120,96,60,0.55)', minor: 'rgba(120,96,60,0.4)' }
+      } } },
+  // bright school-atlas colors with a blue sea that deepens offshore
+  atlas: { name: 'Atlas', ocean: '#a9d9f3', border: '#ffffff', sea: '#1d5a8f', seaHalo: '#eaf6fd', label: '#2b2b2b', halo: '#ffffff',
+    fills: ['#f5a09a', '#f7d05c', '#94d494', '#f3ad62', '#b39ee0', '#82cdd8', '#eb9cc6', '#c9e07c'],
+    detail: {
+      shade: { land: 0.3, seaShallow: rgb(0xcdeefb), seaDeep: rgb(0x62a9d8) },
+      streets: {
+        water: '#9fd3ee', sea: false, river: 'rgba(110,190,230,0.95)', rail: 'rgba(60,60,70,0.45)',
+        building: ['rgba(255,244,228,0.95)', 'rgba(70,60,50,0.4)'], casing: 'rgba(0,0,0,0.14)',
+        roads: { motorway: 'rgba(245,130,50,0.95)', trunk: 'rgba(250,170,70,0.9)', primary: 'rgba(255,255,255,0.95)', secondary: 'rgba(255,255,255,0.85)', minor: 'rgba(255,255,255,0.7)' }
+      } } },
+  // deep blues and purples with glowing amber roads
+  night: { name: 'Night', ocean: '#0d151b', border: '#7a95ad', sea: '#bcd6e8', seaHalo: '#070d12', label: '#e6e1d6', halo: '#121b22',
+    fills: ['#2f4a5c', '#43386b', '#2d5a52', '#5a3f63', '#33577a', '#4d6140', '#6a4448', '#37486e'],
+    detail: {
+      shade: { land: 0.7, light: 0.3, seaShallow: rgb(0x1a3a4c), seaDeep: rgb(0x060b10) },
+      streets: {
+        water: '#143142', sea: false, river: 'rgba(40,100,140,0.95)', rail: 'rgba(170,160,140,0.35)',
+        building: ['rgba(90,84,76,0.75)', 'rgba(200,190,170,0.25)'], casing: 'rgba(0,0,0,0.35)',
+        roads: { motorway: 'rgba(255,180,90,0.9)', trunk: 'rgba(255,195,120,0.8)', primary: 'rgba(250,225,170,0.7)', secondary: 'rgba(240,220,180,0.5)', minor: 'rgba(235,215,175,0.32)' }
+      } } }
 };
+
+// The poster is a flat picture, so it uses the whole world drawn once by the relief renderer (heights and climate zones).
+const TERRAIN_LAT = 85.0511287798;
+let reliefImg: HTMLCanvasElement | null = null;
+/** Draws the world relief for a theme that has one (a no-op for other themes). Await it before paintWorld. */
+export async function ensurePosterRelief(theme: Theme): Promise<void> {
+  if (theme.terrain && !reliefImg) reliefImg = await reliefWorld();
+}
 
 // name, lat, lng, min zoom, max zoom
 const SEAS: [string, number, number, number, number][] = [
@@ -133,6 +174,15 @@ export function paintWorld(ctx: CanvasRenderingContext2D, W: number, H: number,
   ctx.fillStyle = theme.ocean; ctx.fillRect(0, 0, W, H);
   const px = (lng: number) => ((lng - view.w) / (view.e - view.w)) * W;
   const py = (lat: number) => ((view.yTop - mercY(lat)) / (view.yTop - view.yBot)) * H;
+  const img = theme.terrain ? reliefImg : null;
+  if (img) {
+    ctx.imageSmoothingEnabled = false;
+    const top = mercY(TERRAIN_LAT);
+    for (const off of [-360, 0, 360]) {
+      const x0 = px(-180 + off), x1 = px(180 + off);
+      ctx.drawImage(img, x0, ((view.yTop - top) / (view.yTop - view.yBot)) * H, x1 - x0, ((2 * top) / (view.yTop - view.yBot)) * H);
+    }
+  }
   ctx.lineJoin = 'round'; ctx.lineWidth = Math.max(1, W / 1800); ctx.strokeStyle = theme.border;
   for (const f of fc.features) {
     if (f.properties.name === 'Antarctica') continue;
@@ -141,7 +191,8 @@ export function paintWorld(ctx: CanvasRenderingContext2D, W: number, H: number,
     for (const p of f._polys as Poly[]) {
       ctx.beginPath();
       for (const r of p.rings) r.forEach(([x, y], i) => i ? ctx.lineTo(px(x), py(y)) : ctx.moveTo(px(x), py(y)));
-      ctx.fill('evenodd'); ctx.stroke();
+      if (!theme.terrain) ctx.fill('evenodd');
+      ctx.stroke();
     }
   }
   ctx.globalAlpha = 1;
@@ -190,35 +241,64 @@ export function drawWorld(map: L.Map, initial: ThemeName): World {
   const applyChrome = () => {
     map.getContainer().style.background = T.ocean;
     root.setProperty('--lbl', T.label); root.setProperty('--sea', T.sea); root.setProperty('--halo', T.halo);
-    labels.setColors({ text: T.label, halo: T.halo, sea: T.sea });
+    labels.setColors({ text: T.label, halo: T.halo, sea: T.sea, seaHalo: T.seaHalo });
   };
   applyChrome();
-  for (const [name, z] of [['worldPane', 150], ['statePane', 160], ['countyPane', 170], ['hlPane', 180]] as [string, number][])
+  for (const [name, z] of [['terrainPane', 140], ['streetsPane', 145], ['worldPane', 150], ['statePane', 160], ['shadePane', 162], ['detailPane', 163], ['countyPane', 170], ['hlPane', 180]] as [string, number][])
     map.createPane(name).style.zIndex = String(z);
   map.getPane('hlPane')!.style.pointerEvents = 'none';
+  for (const n of ['terrainPane', 'streetsPane', 'shadePane', 'detailPane']) map.getPane(n)!.style.pointerEvents = 'none';
+
+  // ---- live map detail: pixel relief and streets on Terrain; hillshade, sea depth, lakes, roads on the flat styles ----
+  const relief = new ReliefLayer({ pane: 'terrainPane' });
+  const terrainStreets = new StreetsLayer(TERRAIN_STREETS, { pane: 'streetsPane' });
+  let seaShade: ShadeLayer | null = null, landShade: ShadeLayer | null = null, detailStreets: StreetsLayer | null = null;
+  let detailApplied: Theme['detail'] | undefined;
+  const syncRelief = () => {
+    if (T.terrain) { relief.addTo(map); terrainStreets.addTo(map); } else { relief.remove(); terrainStreets.remove(); }
+    const d = T.detail;
+    if (!d) { seaShade?.remove(); landShade?.remove(); detailStreets?.remove(); return; }
+    if (!seaShade) {
+      seaShade = new ShadeLayer('sea', d.shade, { pane: 'terrainPane' });
+      landShade = new ShadeLayer('land', d.shade, { pane: 'shadePane' });
+      detailStreets = new StreetsLayer(d.streets, { pane: 'detailPane' });
+    } else if (d !== detailApplied) { seaShade.setStyle(d.shade); landShade!.setStyle(d.shade); detailStreets!.setStyle(d.streets); }
+    detailApplied = d;
+    seaShade.addTo(map); landShade!.addTo(map); detailStreets!.addTo(map);
+  };
+
+  // The map wraps around the globe: every vector layer is drawn three times, one world to the left and right.
+  const OFFSETS = [-360, 0, 360];
+  const shifted = (off: number) => (c: number[]) => L.latLng(c[1], c[0] + off);
 
   // ---- countries ----
   const countryRenderer = L.canvas({ pane: 'worldPane' });
   const style = (f?: any): L.PathOptions => {
     const lit = !visited || !visited.size || visited.has(f.properties.name);
+    // on the relief map the land colors come from the picture; a country you haven't visited just gets a dark veil
+    if (T.terrain) return { fillColor: '#141f26', fillOpacity: lit ? 0 : 0.5,
+      color: lit && visited?.size ? '#e4572e' : T.border, weight: lit && visited?.size ? 1.6 : 0.8, opacity: 0.8 };
     return { fillColor: T.fills[f.properties.ci % T.fills.length], fillOpacity: lit ? 1 : 0.5,
       color: lit && visited?.size ? '#e4572e' : T.border, weight: lit && visited?.size ? 1.6 : 0.8 };
   };
   const countryLabels: Item[] = [];
-  const world: L.GeoJSON = L.geoJSON(fc, {
-    pane: 'worldPane', renderer: countryRenderer,
-    filter: f => f.properties?.name !== 'Antarctica',
-    style,
-    onEachFeature: (f, layer) => {
-      layer.on('mouseover', () => (layer as L.Path).setStyle({ weight: 2.2, color: '#fff' }));
-      layer.on('mouseout', () => world.resetStyle(layer as L.Path));
-      layer.bindTooltip(f.properties.name, { sticky: true, direction: 'top', className: 'ctip' });
-      layer.on('mouseover', () => { if (map.getZoom() >= 4.5) layer.closeTooltip(); });
-      const { area, lc } = f.properties;
-      if (lc) countryLabels.push({ text: f.properties.name, lat: lc[0], lng: lc[1], min: areaZoom(area, [600, 80, 14, 3]) === 3 ? 2 : areaZoom(area, [600, 80, 14, 3]) - 1, max: 6 });
-    }
-  } as L.GeoJSONOptions).addTo(map);
-  world.bringToBack();
+  const worlds: L.GeoJSON[] = OFFSETS.map(off => {
+    const g: L.GeoJSON = L.geoJSON(fc, {
+      pane: 'worldPane', renderer: countryRenderer,
+      filter: f => f.properties?.name !== 'Antarctica',
+      style, coordsToLatLng: shifted(off),
+      onEachFeature: (f, layer) => {
+        layer.on('mouseover', () => (layer as L.Path).setStyle({ weight: 2.2, color: '#fff' }));
+        layer.on('mouseout', () => g.resetStyle(layer as L.Path));
+        layer.bindTooltip(f.properties.name, { sticky: true, direction: 'top', className: 'ctip' });
+        layer.on('mouseover', () => { if (map.getZoom() >= 4.5) layer.closeTooltip(); });
+        const { area, lc } = f.properties;
+        if (lc && off === 0) countryLabels.push({ text: f.properties.name, lat: lc[0], lng: lc[1], min: areaZoom(area, [600, 80, 14, 3]) === 3 ? 2 : areaZoom(area, [600, 80, 14, 3]) - 1, max: 6 });
+      }
+    } as L.GeoJSONOptions).addTo(map);
+    g.bringToBack();
+    return g;
+  });
   labels.set('country', countryLabels);
   labels.set('sea', SEAS.map(([text, lat, lng, min, max]) => ({ text, lat, lng, min, max: Math.min(max, SEA_ZOOM_MAX) })));
 
@@ -230,13 +310,15 @@ export function drawWorld(map: L.Map, initial: ThemeName): World {
   };
   const stateStyle = (f?: any): L.PathOptions => {
     const lit = !visited || !visited.size || visited.has(f.properties.admin);
+    if (T.terrain) return { fillColor: '#141f26', fillOpacity: lit ? 0 : 0.5, color: T.border, weight: 1, opacity: 0.85, dashArray: '4 2' };
     return { fillColor: stateFill(f), fillOpacity: lit ? 1 : 0.5, color: T.border, weight: 0.7 };
   };
-  let states: L.GeoJSON | null = null, counties: L.GeoJSON | null = null;
+  let states: L.FeatureGroup | null = null, counties: L.FeatureGroup | null = null;
+  const stateRenderer = L.canvas({ pane: 'statePane' }), countyRenderer = L.canvas({ pane: 'countyPane' });
   const STATES_FROM = 4.5, COUNTIES_FROM = 7.5;
   loadAdmin1().then(fc1 => {
     prepareFeatures(fc1.features, false);
-    states = L.geoJSON(fc1, { pane: 'statePane', renderer: L.canvas({ pane: 'statePane' }), interactive: false, style: stateStyle } as L.GeoJSONOptions);
+    states = L.featureGroup(OFFSETS.map(off => L.geoJSON(fc1, { pane: 'statePane', renderer: stateRenderer, interactive: false, style: stateStyle, coordsToLatLng: shifted(off) } as L.GeoJSONOptions)));
     labels.set('state', fc1.features.filter((f: any) => f.properties.lc && f.properties.name).map((f: any) => ({
       text: f.properties.name, lat: f.properties.lc[0], lng: f.properties.lc[1],
       min: areaZoom(f.properties.area, [60, 12, 3, 0.6]) + 1, max: 12 })));
@@ -244,8 +326,8 @@ export function drawWorld(map: L.Map, initial: ThemeName): World {
   });
   // ---- US counties, from zoom 7.5 ----
   loadCounties().then(fc2 => {
-    counties = L.geoJSON(fc2, { pane: 'countyPane', renderer: L.canvas({ pane: 'countyPane' }), interactive: false,
-      style: () => ({ fill: false, color: T.border, weight: 0.5, opacity: 0.6 }) } as L.GeoJSONOptions);
+    counties = L.featureGroup(OFFSETS.map(off => L.geoJSON(fc2, { pane: 'countyPane', renderer: countyRenderer, interactive: false,
+      style: () => ({ fill: false, color: T.border, weight: T.terrain ? 0.8 : 0.5, opacity: T.terrain ? 0.8 : 0.6 }), coordsToLatLng: shifted(off) } as L.GeoJSONOptions)));
     labels.set('county', fc2.features.map((f: any) => {
       const g = f.geometry, polys = g.type === 'Polygon' ? [g.coordinates] : g.coordinates;
       let big: Ring | null = null, ba = 0;
@@ -265,7 +347,7 @@ export function drawWorld(map: L.Map, initial: ThemeName): World {
   /** Shows each detail layer only when it is useful, so the canvas stays fast. */
   function sync() {
     const z = map.getZoom();
-    const want = (layer: L.GeoJSON | null, on: boolean) => {
+    const want = (layer: L.FeatureGroup | null, on: boolean) => {
       if (!layer) return;
       if (on && !map.hasLayer(layer)) map.addLayer(layer); else if (!on && map.hasLayer(layer)) map.removeLayer(layer);
     };
@@ -291,13 +373,18 @@ export function drawWorld(map: L.Map, initial: ThemeName): World {
     if (!f) return;
     const accent = T === THEMES.night ? '#ff8a66' : '#d6402b';
     const common = { pane: 'hlPane', renderer: hlRenderer, interactive: false } as any;
-    L.geoJSON(f, { ...common, style: { color: accent, weight: 9, opacity: 0.22, fillColor: accent, fillOpacity: 0.1, lineJoin: 'round' } } as L.GeoJSONOptions).addTo(hlGroup);
-    L.geoJSON(f, { ...common, style: { color: accent, weight: 3, opacity: 1, fill: false, lineJoin: 'round' } } as L.GeoJSONOptions).addTo(hlGroup);
+    for (const off of OFFSETS) {
+      L.geoJSON(f, { ...common, coordsToLatLng: shifted(off), style: { color: accent, weight: 9, opacity: 0.22, fillColor: accent, fillOpacity: 0.1, lineJoin: 'round' } } as L.GeoJSONOptions).addTo(hlGroup);
+      L.geoJSON(f, { ...common, coordsToLatLng: shifted(off), style: { color: accent, weight: 3, opacity: 1, fill: false, lineJoin: 'round' } } as L.GeoJSONOptions).addTo(hlGroup);
+    }
   };
   const restyle = () => {
-    world.options.style = style; world.setStyle(style);
-    states?.setStyle(stateStyle); counties?.setStyle({ color: T.border });
+    syncRelief();
+    for (const w of worlds) { w.options.style = style; w.setStyle(style); }
+    states?.eachLayer(l => (l as L.GeoJSON).setStyle(stateStyle));
+    counties?.eachLayer(l => (l as L.GeoJSON).setStyle({ color: T.border, weight: T.terrain ? 0.8 : 0.5, opacity: T.terrain ? 0.8 : 0.6 }));
   };
+  syncRelief();
   return {
     setTheme(t) { T = THEMES[t]; applyChrome(); restyle(); drawHighlight(); },
     highlight(name) { hlName = name; drawHighlight(); },

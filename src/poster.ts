@@ -1,5 +1,5 @@
 import type { Card } from './types';
-import { THEMES, type ThemeName, paintWorld, mercY } from './world';
+import { THEMES, type ThemeName, paintWorld, mercY, ensurePosterRelief } from './world';
 import { placeKey } from './photo';
 import { GIFEncoder, quantize, applyPalette } from 'gifenc';
 
@@ -26,6 +26,7 @@ export async function preparePoster(cards: Card[], themeName: ThemeName, visited
   const base = document.createElement('canvas'); base.width = W; base.height = H;
   const ctx = base.getContext('2d')!;
   const theme = THEMES[themeName];
+  await ensurePosterRelief(theme);
 
   // one spot per place, showing the cover photo
   const groups = new Map<string, Card[]>();

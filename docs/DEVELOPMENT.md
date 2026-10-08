@@ -142,3 +142,27 @@ Map data © [Natural Earth](https://www.naturalearthdata.com) (public domain). U
 - Map shapes and populated places: [Natural Earth](https://www.naturalearthdata.com), public domain.
 - Extra city names and populations: [GeoNames](https://www.geonames.org), CC BY 4.0, via the MIT-licensed `all-the-cities` package.
 - US counties: us-atlas (US Census).
+
+## Map styles and the Terrain theme
+
+The Terrain theme draws live layers under the country borders, each a Leaflet grid layer:
+
+- `src/relief.ts`: pixel-art terrain. For every map tile it combines
+  - heights from Terrarium elevation tiles (`elevation-tiles-prod` on S3),
+  - climate zones from `public/data/biomes.png` (desert, steppe, savanna, forests, tundra, ice...), baked from Natural Earth II land cover by `scripts/build-biomes.mjs`,
+  - from zoom 7, OpenStreetMap land cover and land use (forest, fields, marsh, sand, rock, ice, towns),
+
+  then applies altitude (tree line, bare rock, snow line), steep-cliff rock, hillshade and dithering.
+- `src/streets.ts`: roads, rail, rivers, lakes and buildings from OpenFreeMap vector tiles (OpenStreetMap data). Roads start at zoom 8.5, one zoom after county lines.
+- `src/tiles.ts`: the shared vector tile download and cache.
+- Heights (`loadElevation` in `src/relief.ts`): land comes from Mapterhorn (`tiles.mapterhorn.com`, free, no key, Terrarium encoding, 512 px; global 30 m Copernicus data plus open national surveys). Mapterhorn has no seabed (the sea is flat zero), so the sea depth comes from the AWS Terrarium tiles, repaired as described next. If Mapterhorn is down, the AWS tiles are used for everything.
+- AWS Terrarium repair (`loadAws` in `src/relief.ts`): those tiles have known flaws, so every tile is checked against its coarser parent tile. Tiles in the last strip before the date line (east of 178.6 degrees) hold wrong land at zoom 8 and 9 (Fiji, East Cape of New Zealand), so their land is rebuilt from the zoom 10 tiles (the sea keeps the tile's own depth, and false land becomes sea). Tiles that clearly disagree with their parent about land and sea take the parent's data, and ocean with no depth data (flat zero) takes its depth from the zoom 7 tile. Within about 3.6 degrees of the date line the deep sea also blends smoothly toward the zoom 7 depth, because depth differs between tiles and between the two sides of the line. Known limit: some zoom 10 land tiles east of 178.6 degrees are simply smoother than their neighbours; that is the source data.
+- `src/shade.ts`: for the flat styles (Paper, Atlas, Night), hillshade over the land and depth in the sea, from the same elevation tiles. Each style's `detail` in `src/world.ts` also gives `streets.ts` its own colors for lakes, rivers, roads and buildings.
+
+Posters use `reliefWorld()` in `src/relief.ts`, which draws the whole world once (heights and climate zones only).
+
+The two tile sources are free and need no key, but they are third-party services: if one is down, that layer stays blank and the rest of the map still works. Credit is on the Credits page.
+
+## Panning around the globe
+
+The map has no sideways limit. Tile layers (relief, streets, shading) repeat on their own; vector layers do not, so countries, states, counties, the country outline, labels, photo pins and yarn are each drawn three times, one world to the left (-360), the middle and the right (+360). After every move the map centre is wrapped back into -180..180 (`map.on('moveend')` in `src/main.ts`), which is invisible because the copies look identical. Flights use `nearLng()` to take the short way round, and clicks are wrapped with `map.wrapLatLng` before they are used as real coordinates.

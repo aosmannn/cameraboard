@@ -4,7 +4,7 @@ import L from 'leaflet';
 
 export type Kind = 'sea' | 'country' | 'city' | 'state' | 'county';
 export interface Item { text: string; lat: number; lng: number; min: number; max: number; size?: number }
-export interface LabelColors { text: string; halo: string; sea: string }
+export interface LabelColors { text: string; halo: string; sea: string; seaHalo: string }
 
 const ORDER: Kind[] = ['sea', 'country', 'city', 'state', 'county'];
 
@@ -13,7 +13,7 @@ export class Labels {
   private ctx = this.canvas.getContext('2d')!;
   private items: Record<Kind, Item[]> = { sea: [], country: [], city: [], state: [], county: [] };
   private raf = 0;
-  private colors: LabelColors = { text: '#222', halo: '#fff', sea: '#357' };
+  private colors: LabelColors = { text: '#222', halo: '#fff', sea: '#357', seaHalo: '#fff' };
 
   constructor(private map: L.Map) {
     map.createPane('labelPane').style.zIndex = '450';
@@ -26,7 +26,11 @@ export class Labels {
     this.schedule();
   }
 
-  set(kind: Kind, items: Item[]) { this.items[kind] = items; this.schedule(); }
+  /** Names repeat one world to the left and right, so they show up while you pan around the globe. */
+  set(kind: Kind, items: Item[]) {
+    this.items[kind] = items.flatMap(it => [it, { ...it, lng: it.lng - 360 }, { ...it, lng: it.lng + 360 }]);
+    this.schedule();
+  }
   setColors(c: LabelColors) { this.colors = c; this.schedule(); }
   /** One redraw per frame. Never cancel a pending one: during a fly-to the map fires events every frame,
    *  and canceling would starve the redraw until the flight ends. */
@@ -47,7 +51,7 @@ export class Labels {
     ctx.clearRect(0, 0, size.x, size.y);
     const z = map.getZoom(), b = map.getBounds().pad(0.05);
     const south = b.getSouth(), north = b.getNorth(), west = b.getWest(), east = b.getEast();
-    const { text, halo, sea } = this.colors;
+    const { text, halo, sea, seaHalo } = this.colors;
 
     // spatial hash of drawn label boxes
     const CELL = 80, grid = new Map<string, number[][]>();
@@ -70,12 +74,12 @@ export class Labels {
       for (const it of this.items[kind]) {
         if (z < it.min || z > it.max || it.lat < south || it.lat > north || it.lng < west || it.lng > east) continue;
         const p = map.latLngToContainerPoint([it.lat, it.lng]);
-        let font = '', fill = text, label = it.text, dot = false, space = '0px';
+        let font = '', fill = text, label = it.text, dot = false, space = '0px', outline = halo, outlineW = 3;
         if (kind === 'country') { font = '700 12px "DM Sans", sans-serif'; label = label.toUpperCase(); space = '1.4px'; }
         else if (kind === 'state') { font = '500 10.5px "DM Sans", sans-serif'; label = label.toUpperCase(); space = '1.1px'; fill = text + 'b8'; }
         else if (kind === 'city') { font = `${(it.size ?? 12) > 13 ? 600 : 500} ${it.size ?? 12}px "DM Sans", sans-serif`; dot = true; }
         else if (kind === 'county') { font = '400 10px "DM Sans", sans-serif'; fill = text + '99'; }
-        else { font = 'italic 500 13px "DM Sans", serif'; fill = sea; space = '2px'; }
+        else { font = 'italic 600 13.5px "DM Sans", serif'; fill = sea; space = '2.2px'; outline = seaHalo; outlineW = 3.6; }   // sea names get their own outline so they read on any water
         ctx.font = font; (ctx as any).letterSpacing = space;
         const w = ctx.measureText(label).width, h = 14;
         const x0 = dot ? p.x + 6 : p.x - w / 2, y0 = p.y - h / 2;
@@ -86,7 +90,7 @@ export class Labels {
           ctx.beginPath(); ctx.arc(p.x, p.y, 2.6, 0, 7); ctx.fillStyle = text; ctx.fill();
           ctx.lineWidth = 1.5; ctx.strokeStyle = halo; ctx.stroke();
         }
-        ctx.lineWidth = 3; ctx.strokeStyle = halo; ctx.strokeText(label, x0, p.y);
+        ctx.lineWidth = outlineW; ctx.strokeStyle = outline; ctx.strokeText(label, x0, p.y);
         ctx.fillStyle = fill; ctx.fillText(label, x0, p.y);
       }
     }

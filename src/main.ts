@@ -140,9 +140,10 @@ function addToStory(c: Card, name: string) {
 function renumber(name: string, list: Card[]) { list.forEach((c, i) => { c.trip = name; c.seq = i + 1; }); }
 
 // ---------- map ----------
-const themeName = ((): ThemeName => { const t = lsGet('wf-theme'); return t && t in THEMES ? t as ThemeName : 'paper'; })();
+const themeName = ((): ThemeName => { const t = lsGet('wf-theme'); return t && t in THEMES ? t as ThemeName : 'terrain'; })();
+const WORLD_VIEW = { center: [30, 10] as L.LatLngTuple, zoom: 2 };   // the whole-world view the map opens on
 const map = L.map('map', { zoomControl: false, minZoom: 2, maxZoom: 16, preferCanvas: true,
-  maxBounds: [[-70, -220], [85, 220]], maxBoundsViscosity: 0.8 }).setView([30, 10], 2);
+  worldCopyJump: true, maxBounds: [[-70, -1e5], [85, 1e5]], maxBoundsViscosity: 0.8 }).setView(WORLD_VIEW.center, WORLD_VIEW.zoom);
 L.control.zoom({ position: 'bottomright' }).addTo(map);
 const world = drawWorld(map, themeName);
 map.attributionControl.setPrefix('').addAttribution('Wayframe');
@@ -151,10 +152,21 @@ map.createPane('stringPane').style.zIndex = '620';
 map.getPane('stringPane')!.style.pointerEvents = 'none';
 const stringRenderer = L.svg({ pane: 'stringPane' });
 const strings = L.layerGroup().addTo(map);
+// After any move (drag, fly, keys), step back into the main world. Every layer is drawn again one world over, so nothing visibly changes.
+map.on('moveend', () => {
+  const c = map.getCenter();
+  if (c.lng >= -180 && c.lng <= 180) return;
+  map.setView(map.wrapLatLng(c), map.getZoom(), { animate: false });
+});
+/** The map repeats around the globe. This picks the copy of a longitude nearest to where you are looking now, so flights take the short way. */
+const nearLng = (lng: number) => lng + 360 * Math.round((map.getCenter().lng - lng) / 360);
+/** Everything drawn on the map is also drawn one world to the left and right. Photos only need a copy when they sit near the date line. */
+const OFFSETS = [-360, 0, 360];
+const copiesOf = (lng: number) => lng > 40 ? [0, -360] : lng < -40 ? [0, 360] : [0];
 // keep the string drawn while the map flies between stops (same reason as the countries in world.ts)
 map.on('zoom', () => { const r = stringRenderer as any; if ((map as any)._flyToFrame && r._map) r._reset(); });
 const photos = L.layerGroup().addTo(map);
-const markers = new Map<string, L.Marker>();
+const markers = new Map<string, L.Marker[]>();
 
 /** Polaroids shrink when zoomed out so the board doesn't turn into a pile. */
 function sizeClass() {
@@ -172,23 +184,33 @@ function selectCountry(name: string | null) {
   const n = mapCards().filter(c => countryOf(c) === name).length;
   $('countryText').textContent = `${name} · ${n} ${n === 1 ? 'photo' : 'photos'}`;
 }
-$('countryClear').onclick = () => selectCountry(null);
-$('countryFit').onclick = () => {
-  const b = pickedCountry && countryBounds(pickedCountry);
-  if (b) map.flyToBounds(b, { ...mapPadding(), maxZoom: 8, duration: 1 });
-};
+/** Clears the country outline and zooms back out to the whole world, mirroring the zoom in on click. */
+function clearCountry() {
+  const had = pickedCountry; selectCountry(null);
+  if (had) map.flyTo([WORLD_VIEW.center[0], nearLng(WORLD_VIEW.center[1])], WORLD_VIEW.zoom, { duration: 1 });
+}
+$('countryClear').onclick = clearCountry;
 
 map.on('click', async e => {
+  const at = map.wrapLatLng(e.latlng);   // clicks on another copy of the world count as the real one
   if (!pinTargets.length) {
     if (connecting || pl.on) return;
-    const hit = countryAt(e.latlng.lat, e.latlng.lng, true);
-    selectCountry(hit && hit !== pickedCountry ? hit : null);
+    const hit = countryAt(at.lat, at.lng, true);
+    if (hit && hit !== pickedCountry) {
+      selectCountry(hit);
+      // clicking a country zooms to it
+      const b0 = countryBounds(hit);
+      if (b0) {
+        const sh = nearLng(b0.getCenter().lng) - b0.getCenter().lng;   // the copy of the country you are closest to
+        map.flyToBounds(L.latLngBounds([b0.getSouth(), b0.getWest() + sh], [b0.getNorth(), b0.getEast() + sh]), { ...mapPadding(), maxZoom: 8, duration: 1 });
+      }
+    } else clearCountry();   // the same country again, or the sea: zoom back out
     return;
   }
   const targets = pinTargets;
-  for (const c of targets) { c.lat = e.latlng.lat; c.lng = e.latlng.lng; }
+  for (const c of targets) { c.lat = at.lat; c.lng = at.lng; }
   stopPinning(); render(); locNote();
-  const name = await reverse(e.latlng.lat, e.latlng.lng) || 'Dropped pin';
+  const name = await reverse(at.lat, at.lng) || 'Dropped pin';
   for (const c of targets) c.place = name;
   if (cur && targets.includes(cur)) { fPlace.value = name; drawMeta(cur); }
   save(); renderStories();
@@ -221,28 +243,34 @@ function renderMap() {
     const inStory = hl ? g.some(c => c.owner === hl!.owner && c.trip === hl!.trip) : (!activeStory || g.some(c => !isFriendCard(c) && c.trip === activeStory));
     if (!inStory) box.classList.add('dim');
     if (focus && placed(focus) && keyOf(focus) === k) box.classList.add('sel');
-    const m = L.marker([rep.lat!, rep.lng!], {
-      icon: L.divIcon({ html: box, className: 'pol-icon', iconSize: [0, 0], iconAnchor: [0, 0] }),
-      zIndexOffset: inStory ? 100 : 0, title: rep.title || 'Photo'
-    });
-    m.on('click', () => {
+    const onClick = () => {
       if (connecting) {
         if (isFriendCard(rep)) return;
         const c = g.find(x => x.trip !== connecting) ?? rep;
         addToStory(c, connecting); save(); render(); connectText(); return;
       }
       openCard(rep);
+    };
+    const made = copiesOf(rep.lng!).map((off, i) => {
+      const m = L.marker([rep.lat!, rep.lng! + off], {
+        icon: L.divIcon({ html: i ? box.cloneNode(true) as HTMLElement : box, className: 'pol-icon', iconSize: [0, 0], iconAnchor: [0, 0] }),
+        zIndexOffset: inStory ? 100 : 0, title: rep.title || 'Photo'
+      });
+      m.on('click', onClick); photos.addLayer(m);
+      return m;
     });
-    markers.set(k, m); photos.addLayer(m);
+    markers.set(k, made);
   });
-  $('empty').hidden = cards.some(c => c.img) || (showOthers() && others().length > 0);
+  // the Add photos bar stays at the bottom; with photos on the map it shrinks to just the button
+  $('empty').hidden = false;
+  $('empty').classList.toggle('has-photos', cards.some(c => c.img) || (showOthers() && others().length > 0));
 }
 function markSelected() {
   const f = focusCard(), key = f && placed(f) ? keyOf(f) : '';
-  markers.forEach((m, k) => {
+  markers.forEach((ms, k) => ms.forEach(m => {
     m.getElement()?.querySelector('.pol')?.classList.toggle('sel', k === key);
     m.setZIndexOffset(k === key ? 1000 : 100);
-  });
+  }));
 }
 
 /** Red string between two stops, sagging a little like real yarn. */
@@ -265,11 +293,14 @@ function drawYarn(list: Card[], color: string, dim: boolean) {
   for (let i = 1; i < list.length; i++) {
     if (keyOf(list[i - 1]) === keyOf(list[i])) continue;
     const pts = yarn(list[i - 1], list[i]);
-    L.polyline(pts, { renderer: stringRenderer, color: '#000', weight: 3.5, opacity: opacity * 0.16, interactive: false, className: 'yarn-shadow' }).addTo(strings);
-    L.polyline(pts, { renderer: stringRenderer, color, weight: 2.2, opacity, interactive: false, lineCap: 'round' }).addTo(strings);
+    for (const off of OFFSETS) {
+      const at = off ? pts.map(p => L.latLng(p.lat, p.lng + off)) : pts;
+      L.polyline(at, { renderer: stringRenderer, color: '#000', weight: 3.5, opacity: opacity * 0.16, interactive: false, className: 'yarn-shadow' }).addTo(strings);
+      L.polyline(at, { renderer: stringRenderer, color, weight: 2.2, opacity, interactive: false, lineCap: 'round' }).addTo(strings);
+    }
   }
-  for (const c of list) {
-    L.circleMarker([c.lat!, c.lng!], { renderer: stringRenderer, radius: 3, color: '#0006', weight: 1,
+  for (const c of list) for (const off of OFFSETS) {
+    L.circleMarker([c.lat!, c.lng! + off], { renderer: stringRenderer, radius: 3, color: '#0006', weight: 1,
       fillColor: color, fillOpacity: dim ? 0.2 : 1, opacity: dim ? 0.2 : 1, interactive: false }).addTo(strings);
   }
 }
@@ -297,7 +328,7 @@ function fitCards(list: Card[], maxZoom = 6) {
   if (pts.length) map.flyToBounds(L.latLngBounds(pts), { ...mapPadding(), maxZoom, duration: 1 });
 }
 function flyTo(c: Card, zoom = 8) {
-  map.flyToBounds(L.latLngBounds([[c.lat!, c.lng!]]), { ...mapPadding(), maxZoom: Math.max(map.getZoom(), zoom), duration: 1.1 });
+  map.flyToBounds(L.latLngBounds([[c.lat!, nearLng(c.lng!)]]), { ...mapPadding(), maxZoom: Math.max(map.getZoom(), zoom), duration: 1.1 });
 }
 
 // ---------- stories panel ----------
@@ -432,8 +463,18 @@ $('newStoryForm').onsubmit = e => {
   if (cur) { addToStory(cur, name); save(); }
   startConnect(name);
 };
-$('storiesHide').onclick = () => { $('stories').hidden = true; $('storiesShow').hidden = false; lsSet('wf-stories', '0'); };
-$('storiesShow').onclick = () => { $('stories').hidden = false; $('storiesShow').hidden = true; lsSet('wf-stories', '1'); };
+/** Opens or closes the stories panel with a short slide, remembering the choice. */
+function setStories(open: boolean) {
+  const st = $('stories');
+  st.classList.remove('closing');
+  if (open) { st.hidden = false; } else if (!st.hidden) {
+    st.classList.add('closing');
+    setTimeout(() => { if (st.classList.contains('closing')) { st.hidden = true; st.classList.remove('closing'); } }, 190);
+  }
+  $('storiesShow').hidden = open; lsSet('wf-stories', open ? '1' : '0');
+}
+$('storiesHide').onclick = () => setStories(false);
+$('storiesShow').onclick = () => setStories(true);
 
 function connectText() {
   if (!connecting) return;
@@ -620,19 +661,50 @@ q.addEventListener('keydown', e => { if (e.key === 'Escape') qPeople.hidden = tr
 document.addEventListener('mousedown', e => { if (!qPeople.hidden && !qPeople.contains(e.target as Node) && e.target !== q) qPeople.hidden = true; });
 
 // ---------- map style ----------
-const themeSel = $<HTMLSelectElement>('themeSel');
-for (const [k, t] of Object.entries(THEMES)) themeSel.append(new Option(t.name, k));
-themeSel.value = themeName;
-themeSel.onchange = () => { world.setTheme(themeSel.value as ThemeName); lsSet('wf-theme', themeSel.value); };
-document.addEventListener('click', e => {
-  const m = document.querySelector<HTMLDetailsElement>('.menu');
-  if (m?.open && !m.contains(e.target as Node)) m.open = false;
+// Map style: a drop-down in the header (and a plain list inside the logo menu on narrow screens)
+let currentTheme: ThemeName = themeName;
+const styleList = $('styleList'), styleBtn = $('styleBtn');
+const themeSel2 = $<HTMLSelectElement>('themeSel2');
+for (const [k, t] of Object.entries(THEMES)) {
+  themeSel2.append(new Option(t.name, k));
+  const b = el('button', '', t.name); b.type = 'button'; b.dataset.theme = k; b.setAttribute('role', 'menuitemradio');
+  b.onclick = () => setMapStyle(k);
+  styleList.append(b);
+}
+function setMapStyle(v: string) {
+  currentTheme = v as ThemeName;
+  themeSel2.value = v; $('styleName').textContent = THEMES[currentTheme].name;
+  styleList.querySelectorAll<HTMLElement>('button').forEach(b => { b.classList.toggle('on', b.dataset.theme === v); b.setAttribute('aria-checked', String(b.dataset.theme === v)); });
+  world.setTheme(currentTheme); lsSet('wf-theme', v);
+}
+themeSel2.onchange = () => setMapStyle(themeSel2.value);
+{ // show the starting choice without redrawing the map
+  themeSel2.value = themeName; $('styleName').textContent = THEMES[themeName].name;
+  styleList.querySelectorAll<HTMLElement>('button').forEach(b => { b.classList.toggle('on', b.dataset.theme === themeName); b.setAttribute('aria-checked', String(b.dataset.theme === themeName)); });
+}
+
+// ---------- drop-down menus (logo, map style): open on hover, keyboard focus or tap, and close when you click elsewhere ----------
+const hoverMenus = [$('brandMenu'), $('styleMenu')];
+const closeMenus = () => hoverMenus.forEach(m => m.classList.remove('open'));
+const closeBrandMenu = closeMenus;
+const brandMenu = $('brandMenu');
+brandMenu.querySelector('.brand')!.addEventListener('click', e => {
+  if (matchMedia('(hover: none)').matches) { e.preventDefault(); brandMenu.classList.toggle('open'); }   // phones: the logo opens the menu
 });
+styleBtn.addEventListener('click', () => $('styleMenu').classList.toggle('open'));
+document.addEventListener('click', e => { for (const m of hoverMenus) if (!m.contains(e.target as Node)) m.classList.remove('open'); });
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeMenus(); });
+// after picking something, tuck the menu away even though the pointer is still over it
+for (const m of hoverMenus) {
+  m.querySelector('.hlist')!.addEventListener('click', () => { m.classList.remove('open'); m.classList.add('shut'); (document.activeElement as HTMLElement | null)?.blur(); });
+  for (const ev of ['mouseenter', 'mouseleave']) m.addEventListener(ev, () => m.classList.remove('shut'));
+}
+$('menuStories').onclick = () => setStories($('stories').hidden || $('stories').classList.contains('closing'));
 
 // ---------- upload ----------
 /** Adding allows many photos at once; Replace takes one. The input is visually hidden rather than display:none, which some phone browsers handle better. */
 function pick(c: Card | null) { pickTarget = c; if (c) picker.removeAttribute('multiple'); else picker.setAttribute('multiple', ''); picker.value = ''; picker.click(); }
-$('addBtn').onclick = $('emptyAdd').onclick = () => pick(null);
+$('emptyAdd').onclick = () => pick(null);
 
 picker.onchange = () => addFiles([...(picker.files ?? [])], pickTarget);
 
@@ -1061,7 +1133,7 @@ function playStep(i: number) {
   $('pcCount').textContent = `Stop ${pl.i + 1} of ${pl.list.length} · ${pl.story}`;
   const prev = pl.list[pl.i - 1];
   const far = prev ? map.distance([prev.lat!, prev.lng!], [c.lat!, c.lng!]) : 0;
-  map.flyTo([c.lat!, c.lng!], far > 3e6 ? 4 : far > 6e5 ? 5 : 7, { duration: 2.4 });
+  map.flyTo([c.lat!, nearLng(c.lng!)], far > 3e6 ? 4 : far > 6e5 ? 5 : 7, { duration: 2.4 });
   renderStrings(); markSelected();
   if (!pl.paused) pl.timer = window.setTimeout(() => playStep(pl.i + 1), 5000);
 }
@@ -1095,7 +1167,7 @@ const countriesOf = (list: Card[]) => new Set(list.map(countryOf).filter(Boolean
 const mappedStories = () => stories().filter(s => s.cards.filter(placed).length >= 2);
 function drawPoster() {
   const list = activeStory ? storyOf(activeStory) : cards.filter(visible);
-  void renderPoster(posterCv, list, posterTitle.value.trim(), themeSel.value as ThemeName, null, countriesOf(list), { handle: posterHandle() }).then(r => {
+  void renderPoster(posterCv, list, posterTitle.value.trim(), currentTheme, null, countriesOf(list), { handle: posterHandle() }).then(r => {
     const a = $<HTMLAnchorElement>('posterLink'); a.href = location.origin + '/';
     a.style.left = r.x * 100 + '%'; a.style.top = r.y * 100 + '%'; a.style.width = r.w * 100 + '%'; a.style.height = r.h * 100 + '%';
   });
@@ -1110,7 +1182,7 @@ function setupGifControls() {
   if (activeStory && list.some(s => s.name === activeStory)) posterPick.value = activeStory;
 }
 $('posterBtn').onclick = () => {
-  (document.querySelector('.menu') as HTMLDetailsElement).open = false;
+  closeBrandMenu();
   if (activeStory) posterTitle.value = activeStory;
   setupGifControls(); posterNote.hidden = true;
   $('posterModal').hidden = false; drawPoster();
@@ -1131,7 +1203,7 @@ posterGif.onclick = async () => {
   if (!list.length) return;
   posterGif.disabled = true; posterNote.hidden = false;
   try {
-    const blob = await renderStoryGif(list, posterTitle.value.trim() || name!, themeSel.value as ThemeName, countriesOf(list), { handle: posterHandle() },
+    const blob = await renderStoryGif(list, posterTitle.value.trim() || name!, currentTheme, countriesOf(list), { handle: posterHandle() },
       (d, t) => { posterNote.textContent = `Making your GIF… ${Math.round((d / t) * 100)}%`; });
     saveBlob(blob, `wayframe-${fileSlug(name!)}.gif`);
     posterNote.textContent = `Saved ${(blob.size / 1048576).toFixed(1)} MB GIF. It plays the route stop by stop.`;
@@ -1148,7 +1220,7 @@ document.addEventListener('keydown', e => {
   else if (!$('posterModal').hidden) $('posterModal').hidden = true;
   else if (viewerIsOpen()) closeViewer();
   else if (pinTargets.length) stopPinning();
-  else if (pickedCountry) selectCountry(null);
+  else if (pickedCountry) clearCountry();
   else if (connecting) stopConnect();
   else if (pl.on) stopPlay();
   else if (!$('drawer').hidden) closeDrawer();
