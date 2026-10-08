@@ -1,4 +1,5 @@
 // Photo tiles and the lightbox, shared by Explore, profiles and camera pages.
+import { mountReactions } from './reactions';
 import type { Card } from './types';
 import * as cloud from './cloud';
 import { el, fmtDate, shortPlace, slugCamera } from './site';
@@ -56,6 +57,7 @@ export function openLightbox(list: Card[], start: number, owners: Map<string, st
       const chips = shotChips(c); if (chips) so.append(chips);
       side.append(so);
     }
+    if (cloud.cloudEnabled && c.id) side.append(mountReactions(c.id, { onSignIn: () => { location.href = '/app.html?account=1'; }, open: true }));
     const act = el('div', 'lb-actions');
     if (c.trip && c.owner && opts.storyLink !== false) { const a = el('a', 'btn small primary', 'See the whole story'); a.href = `/s/${c.owner}?t=${encodeURIComponent(c.trip)}`; act.append(a); }
     if (cloud.me() && c.owner && c.owner !== cloud.me()!.id) {

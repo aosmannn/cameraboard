@@ -243,6 +243,38 @@ export async function friendPhotos(ids: string[]): Promise<Card[]> {
   return rows.filter(r => url.get(r.image_path!)).map(r => fromRow(r, url.get(r.image_path!)!));
 }
 
+// ---------- likes and comments under photos ----------
+const reactionsError = (msg: string) => new Error(/schema cache|does not exist/i.test(msg) ? 'Likes and comments need the latest database update (supabase/schema.sql).' : msg);
+export interface PhotoComment { id: string; author: string; name: string; username: string | null; body: string; at: string; mine: boolean; canDelete: boolean }
+export async function photoComments(photoId: string): Promise<PhotoComment[]> {
+  if (!sb) return [];
+  const { data, error } = await sb.rpc('photo_comments', { pid: photoId });
+  if (error) throw reactionsError(error.message);
+  return ((data ?? []) as { id: string; author: string; author_name: string; username: string | null; body: string; created_at: string; mine: boolean; can_delete: boolean }[])
+    .map(r => ({ id: r.id, author: r.author, name: r.author_name, username: r.username, body: r.body, at: r.created_at, mine: r.mine, canDelete: r.can_delete }));
+}
+export async function addComment(photoId: string, body: string): Promise<void> {
+  const text = body.trim();
+  if (!sb || !me() || !text) return;
+  const { error } = await sb.from('comments').insert({ photo_id: photoId, body: text.slice(0, 500) });
+  if (error) throw reactionsError(error.message);
+}
+export async function deleteComment(id: string): Promise<void> {
+  if (!sb || !me()) return;
+  const { error } = await sb.from('comments').delete().eq('id', id);
+  if (error) throw reactionsError(error.message);
+}
+export interface Reactions { likes: number; comments: number; mine: boolean }
+/** Like and comment counts for photos, and whether you liked each. Works without signing in for community gallery photos. */
+export async function reactionCounts(ids: string[]): Promise<Map<string, Reactions>> {
+  const out = new Map<string, Reactions>();
+  if (!sb || !ids.length) return out;
+  const { data, error } = await sb.rpc('reaction_counts', { ids: ids.slice(0, 100) });
+  if (error) throw reactionsError(error.message);
+  for (const r of (data ?? []) as { photo_id: string; likes: number; comments: number; mine: boolean }[]) out.set(r.photo_id, { likes: Number(r.likes), comments: Number(r.comments), mine: !!r.mine });
+  return out;
+}
+
 // ---------- likes ----------
 export async function likeInfo(ids: string[]): Promise<Map<string, { n: number; mine: boolean }>> {
   const out = new Map<string, { n: number; mine: boolean }>();

@@ -1,0 +1,36 @@
+/* Hearts and comments under a photo. Uses the colors both the map and the site pages already define. */
+.rx { display: grid; gap: 10px; margin-top: 6px; }
+.rx-bar { display: flex; gap: 8px; flex-wrap: wrap; }
+.rx-btn { display: inline-flex; align-items: center; gap: 7px; padding: 6px 14px; border: 1px solid var(--line); border-radius: 999px; background: none; color: var(--ink); font: inherit; font-weight: 500; cursor: pointer; transition: background .15s, border-color .15s, color .15s, transform .15s; }
+.rx-btn:hover { background: var(--panel-2); border-color: var(--mute); }
+.rx-btn:active { transform: scale(.96); }
+.rx-heart { color: var(--accent); }
+.rx-heart.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+.rx-heart.on:hover { filter: brightness(1.08); }
+.rx-chat.on { background: var(--panel-2); border-color: var(--mute); }
+.rx-ico { font-size: 15px; line-height: 1; }
+.rx-n { font-variant-numeric: tabular-nums; }
+.rx-thread { display: grid; gap: 10px; animation: rxIn .18s ease-out; }
+@keyframes rxIn { from { opacity: 0; translate: 0 -6px; } }
+.rx-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; max-height: 260px; overflow: auto; }
+.rx-item { padding: 9px 12px; border-radius: 12px; background: var(--panel-2); }
+.rx-head { display: flex; align-items: baseline; gap: 8px; font-size: 13.5px; }
+.rx-head b { font-weight: 600; }
+.rx-user, .rx-time { color: var(--mute); font-size: 12.5px; }
+.rx-time { margin-left: auto; }
+.rx-del { border: 0; background: none; color: var(--mute); cursor: pointer; padding: 0 2px; font-size: 12px; }
+.rx-del:hover { color: var(--accent); }
+.rx-body { margin: 3px 0 0; white-space: pre-wrap; overflow-wrap: anywhere; font-size: 14.5px; line-height: 1.4; }
+.rx-empty { color: var(--mute); font-size: 14px; list-style: none; }
+.rx-form { display: flex; gap: 8px; }
+.rx-input { flex: 1; min-width: 0; padding: 9px 14px; border: 1px solid var(--line); border-radius: 999px; background: var(--panel); color: var(--ink); font: inherit; }
+.rx-input:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.rx-post, .rx-signin { padding: 8px 16px; border: 1px solid var(--accent); border-radius: 999px; background: var(--accent); color: #fff; font: inherit; font-weight: 500; cursor: pointer; }
+.rx-post:disabled { opacity: .55; cursor: default; }
+.rx-signin { justify-self: start; background: none; color: var(--accent); }
+.rx-signin:hover { background: var(--accent); color: #fff; }
+.rx-note { margin: 0; color: var(--mute); font-size: 13px; }
+[hidden].rx-thread, .rx [hidden] { display: none !important; }
+@media (prefers-reduced-motion: reduce) { .rx-thread { animation: none; } .rx-btn { transition: none; } }
+.d-react { margin-top: 10px; }
+.d-react:empty { display: none; }

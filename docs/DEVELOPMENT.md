@@ -166,3 +166,14 @@ The two tile sources are free and need no key, but they are third-party services
 ## Panning around the globe
 
 The map has no sideways limit. Tile layers (relief, streets, shading) repeat on their own; vector layers do not, so countries, states, counties, the country outline, labels, photo pins and yarn are each drawn three times, one world to the left (-360), the middle and the right (+360). After every move the map centre is wrapped back into -180..180 (`map.on('moveend')` in `src/main.ts`), which is invisible because the copies look identical. Flights use `nearLng()` to take the short way round, and clicks are wrapped with `map.wrapLatLng` before they are used as real coordinates.
+
+## Likes and comments
+
+Under other people's photos there is a heart and a comment thread (`src/reactions.ts`, styles in `src/reactions.css`). It appears in the Explore photo viewer (also used on profile, story and camera pages), and in the map's photo panel as a comments section under the existing heart.
+
+Who can like or comment on a photo is decided in the database by `can_see_photo(pid)` (migration `20261008010000_likes_and_comments.sql`; run `npm run db:push` once): the owner, people who follow the owner (friends and public photos), and anyone signed in for photos the owner listed in the community gallery. Blocked people never see each other's reactions. Private photos are never reachable.
+
+- Comments are read through `photo_comments(pid)` (adds names, hides blocked people; works without signing in for community gallery photos) and counted with `reaction_counts(ids)`. There is deliberately no select policy on the `comments` table.
+- 1 to 500 characters, at most 8 a minute per person. The photo's owner can remove any comment on their photo; everyone can remove their own.
+- Comment text is always inserted as text, never as HTML.
+- Until the migration is applied the heart and comments show a short "needs the latest database update" message instead of failing quietly.
