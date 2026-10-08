@@ -28,6 +28,9 @@
 .bucket-pin.done span { background: #2e9e5b; }
 .bucket-pin.planned span { background: #e8b422; }
 
+/* Been and Bucket have plain rows, not cards like stories, so give them the same side margin as the tabs above (18px). */
+.story-list.travel { padding: 6px 18px 18px; }
+
 /* Four tabs fit alongside the story controls, including on phones. */
 .st-head { flex-wrap: wrap; }
 .st-tabs { flex-wrap: wrap; min-width: 0; gap: 8px; }
