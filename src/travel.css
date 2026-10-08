@@ -37,3 +37,8 @@
 .tv-opts { display: grid; gap: 6px; margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--line); font-size: 14px; color: var(--mute); }
 .tv-star { background: none; border: 0; }
 .tv-star span { display: grid; place-items: center; width: 26px; height: 26px; border-radius: 50%; background: #fffdf8; color: #e8b422; font-size: 17px; box-shadow: 0 2px 6px #0005; border: 2px solid #e8b422; }
+
+/* switching between Been and Bucket list: the new list eases in under the toggle */
+.tv-tabs button { transition: background-color .2s, color .2s, box-shadow .2s; }
+.travel.swap .tv-tabs ~ * { animation: tabIn .3s ease-out both; }
+@media (prefers-reduced-motion: reduce) { .travel.swap .tv-tabs ~ *, .tv-tabs button { animation: none; transition: none; } }

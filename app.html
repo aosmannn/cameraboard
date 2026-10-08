@@ -62,16 +62,18 @@
       <button role="tab" id="tabFeed" class="st-tab" hidden>Friends</button>
       <button role="tab" id="tabTravel" class="st-tab">Travel</button>
     </div>
-    <button id="newStory" class="btn small">New story</button>
     <button id="storiesHide" class="x2" aria-label="Hide panel">✕</button>
   </div>
-  <form id="newStoryForm" class="new-story" hidden>
-    <input id="newStoryName" placeholder="Name it, e.g. Summer in Spain" aria-label="Story name" autocomplete="off">
-    <button class="btn small primary">Start</button>
-  </form>
   <div id="storyList" class="story-list"></div>
   <div id="feedList" class="story-list feed" hidden></div>
   <div id="travelList" class="story-list travel" hidden></div>
+  <div id="stFoot" class="st-foot">
+    <form id="newStoryForm" class="new-story" hidden>
+      <input id="newStoryName" placeholder="Name it, e.g. Summer in Spain" aria-label="Story name" autocomplete="off">
+      <button class="btn small primary">Start</button>
+    </form>
+    <button id="newStory" class="btn">＋ New story</button>
+  </div>
 </aside>
 <button id="storiesShow" class="stories-show" hidden>Stories</button>
 

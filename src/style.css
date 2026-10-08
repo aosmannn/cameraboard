@@ -584,11 +584,27 @@ body.timeline #tray, body.timeline .stories-show { display: none; }
 /* the "pin your first photo" card can be dismissed */
 .empty-state { position: fixed; }
 .empty-x { position: absolute; top: 10px; right: 10px; }
-/* panel header: tabs on one row, "New story" under them, so nothing is cut off */
+/* panel header: the tabs have the whole top row; "New story" sits at the bottom of the panel */
 .st-head { flex-wrap: wrap; position: relative; row-gap: 6px; }
-.st-tabs { flex: 1 1 100%; padding-right: 34px; }
+.st-tabs { position: relative; flex: 1 1 100%; flex-wrap: wrap; min-width: 0; gap: 4px 8px; padding: 0 34px 8px 0; }
 #storiesHide { position: absolute; top: 14px; right: 12px; }
-#newStory { margin-left: 0; }
+.st-tab { transition: color .2s; }
+.st-foot { padding: 10px 18px 16px; border-top: 1px solid var(--line); display: grid; gap: 10px; }
+.st-foot .new-story { padding: 0; }
+.st-foot > .btn { width: 100%; justify-content: center; }
+
+/* the list you switch to eases in */
+.story-list.tab-in { animation: tabIn .3s ease-out both; }
+@keyframes tabIn { from { opacity: 0; translate: 0 10px; } }
+
+/* a pen-stroke underline under the chosen tab: slides to it and draws itself */
+.st-scribble { position: absolute; height: 10px; overflow: visible; pointer-events: none; transition: left .32s cubic-bezier(.3, .8, .3, 1), top .32s cubic-bezier(.3, .8, .3, 1), width .32s cubic-bezier(.3, .8, .3, 1); }
+.st-scribble.still { transition: none; }
+.st-scribble path { fill: none; stroke: var(--yarn); stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; stroke-dasharray: 1; stroke-dashoffset: 0; opacity: .9; }
+.st-scribble.draw path { animation: scribbleDraw .5s .08s ease-out both; }
+@keyframes scribbleDraw { from { stroke-dashoffset: 1; } to { stroke-dashoffset: 0; } }
+@media (prefers-color-scheme: dark) { .st-scribble path { stroke: #e0705f; } }
+@media (prefers-reduced-motion: reduce) { .story-list.tab-in, .st-scribble.draw path { animation: none; } .st-scribble, .st-tab { transition: none; } }
 
 /* ---------- search results: countries, places, photos ---------- */
 .q-hit { display: flex; align-items: center; gap: 10px; }

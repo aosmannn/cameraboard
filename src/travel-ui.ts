@@ -196,7 +196,7 @@ export function initTravel(ctx: TravelCtx) {
     box.innerHTML = '';
     const tabs = el('div', 'tv-tabs');
     for (const [k, t] of [['been', 'Been'], ['bucket', 'Bucket list']] as const) {
-      const b = el('button', tab === k ? 'on' : '', t); b.type = 'button'; b.onclick = () => { tab = k; paint(); }; tabs.append(b);
+      const b = el('button', tab === k ? 'on' : '', t); b.type = 'button'; b.onclick = () => { if (tab === k) return; tab = k; paint(); box.classList.remove('swap'); void box.offsetWidth; box.classList.add('swap'); }; tabs.append(b);
     }
     box.append(tabs);
     (tab === 'been' ? paintBeen : paintBucket)(box);

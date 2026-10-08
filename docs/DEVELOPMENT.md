@@ -199,3 +199,7 @@ Who can like or comment on a photo is decided in the database by `can_see_photo(
 - Comment text is always inserted as text, never as HTML.
 - Each polaroid on the Explore and camera walls has its own heart on the caption row (`heartFor` in `src/gallery-ui.ts`); one `reaction_counts` call fills all of them. The `wf-like` event keeps a polaroid's heart and the viewer's heart in step.
 - Until the migration is applied the heart and comments show a short "needs the latest database update" message instead of failing quietly.
+
+## The Stories / Friends / Travel panel
+
+The tabs have the whole top row. "New story" (and its name box) sits at the bottom of the panel and only shows on the Stories tab. Switching tabs eases the new list in, and a pen-stroke underline (`.st-scribble`, built in `setPanelTab` in `src/main.ts`) slides under the chosen tab and draws itself. The Been / Bucket list toggle inside Travel eases its list in too. Reduced motion turns the movement off.

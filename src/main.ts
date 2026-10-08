@@ -492,11 +492,31 @@ function timeAgo(c: Card) {
   const d = Math.round((Date.now() - t) / 864e5);
   return d <= 0 ? 'today' : d === 1 ? 'yesterday' : d < 30 ? `${d} days ago` : fmtDate(c);
 }
+// a hand-drawn underline under the chosen tab, like a pen stroke in a journal
+const tabsBar = $('tabStories').parentElement as HTMLElement;
+const scribble = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+scribble.setAttribute('class', 'st-scribble'); scribble.setAttribute('viewBox', '0 0 100 12'); scribble.setAttribute('preserveAspectRatio', 'none'); scribble.setAttribute('aria-hidden', 'true');
+scribble.innerHTML = '<path pathLength="1" vector-effect="non-scaling-stroke" d="M2 7.5C9 3.5 15 10 24 6.2S40 4.6 50 7.4 66 9.6 76 6S91 4.8 98 7.2"/>';
+tabsBar.append(scribble);
+function moveScribble(redraw: boolean) {
+  const on = tabsBar.querySelector<HTMLElement>('.st-tab.on'); if (!on || !on.offsetWidth) return;
+  scribble.style.left = on.offsetLeft + 'px'; scribble.style.top = on.offsetTop + on.offsetHeight - 3 + 'px'; scribble.style.width = on.offsetWidth - 10 + 'px';
+  if (redraw) { scribble.classList.remove('draw'); void (scribble as unknown as HTMLElement).getBoundingClientRect(); scribble.classList.add('draw'); }
+}
+new ResizeObserver(() => { scribble.classList.add('still'); moveScribble(false); requestAnimationFrame(() => scribble.classList.remove('still')); }).observe(tabsBar);
+void document.fonts?.ready.then(() => moveScribble(false));
+let shownTab: 'stories' | 'feed' | 'travel' | null = null;
 function setPanelTab(t: 'stories' | 'feed' | 'travel') {
   panelTab = t === 'feed' && !signedIn ? 'stories' : t;
   $('tabStories').classList.toggle('on', panelTab === 'stories'); $('tabFeed').classList.toggle('on', panelTab === 'feed'); $('tabTravel').classList.toggle('on', panelTab === 'travel');
   $('storyList').hidden = panelTab !== 'stories'; $('feedList').hidden = panelTab !== 'feed'; $('travelList').hidden = panelTab !== 'travel';
-  $('newStory').hidden = panelTab !== 'stories'; if (panelTab !== 'stories') $('newStoryForm').hidden = true;
+  $('stFoot').hidden = panelTab !== 'stories'; if (panelTab !== 'stories') $('newStoryForm').hidden = true;
+  // the list you switched to eases in, and the pen underline moves to the new tab
+  if (shownTab && shownTab !== panelTab) {
+    const box = $({ stories: 'storyList', feed: 'feedList', travel: 'travelList' }[panelTab]);
+    box.classList.remove('tab-in'); void box.offsetWidth; box.classList.add('tab-in');
+  }
+  shownTab = panelTab; moveScribble(true);
   if (panelTab === 'travel') travel.render();
   renderFeed();
 }
