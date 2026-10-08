@@ -242,3 +242,11 @@ img { max-width: 100%; }
 @keyframes grow { from { transform: scaleX(0); } }
 .rank-note { margin-top: 18px; }
 @media (prefers-reduced-motion: reduce) { .meter i { animation: none; } }
+
+/* ---------- placeholders shown on a first visit, while the first answer is on its way ---------- */
+@keyframes shimmer { 0% { background-position: 120% 0; } 100% { background-position: -120% 0; } }
+.skel .thumb, .skel .body, .skel-tile { background: linear-gradient(100deg, var(--panel-2) 30%, var(--panel) 50%, var(--panel-2) 70%) 0 0 / 240% 100%; animation: shimmer 1.4s linear infinite; }
+.skel .body { height: 74px; padding: 0; }
+.skel-wall { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 22px; columns: unset; }
+.skel-tile { aspect-ratio: 4 / 5; border-radius: 6px; }
+@media (prefers-reduced-motion: reduce) { .skel .thumb, .skel .body, .skel-tile { animation: none; } }

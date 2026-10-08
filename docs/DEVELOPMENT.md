@@ -172,3 +172,12 @@ The map has no sideways limit. Tile layers (relief, streets, shading) repeat on 
 `/cameras` (`cameras.html`, `src/cameras.ts`) lists the cameras people shot community photos on, as cards with a cover photo, ranked by how many photos were taken with them: today, this week (from Monday), this month, this year, or all time. It counts public photos from people who turned on the community gallery, minus people you have blocked. A photo counts for the day it was taken (`taken_at`), not the day it was uploaded. Each camera has its own page at `/cameras/<camera>`.
 
 All time uses `explore_cameras()`. The other periods use the database function `camera_leaderboard(from_day, to_day)` (migration `20261008000000_camera_leaderboard.sql`; run `npm run db:push` once). The page sends local dates, so "today" follows the visitor's own clock. Until the migration is applied, `cloud.cameraLeaderboard` counts from the newest 768 community photos instead and says so.
+
+## Keeping Explore and Cameras fast
+
+The community pages start with two network steps (the list, then signing the image links) and then download full photos, so they used to show "Loading…" for a second or more. To feel instant:
+
+- `src/cache.ts` remembers the last community data in `localStorage` (public data only, never private photos), for up to 50 minutes because signed image links last an hour. Explore and Cameras draw from it at once and then refresh quietly, redrawing only if something changed.
+- `signPaths` in `src/cloud.ts` reuses a signed link until shortly before it expires. The same image keeps the same address, so the browser's own cache serves it.
+- `cloud.warmCommunity()` fetches the first page of Explore and Cameras (and the first photos) when a site page has settled, and when the pointer reaches a nav link, so the next tab opens already filled.
+- On a first visit, placeholder cards show instead of "Loading…".

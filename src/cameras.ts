@@ -59,42 +59,56 @@ async function index() {
       b.onclick = () => choose(key); tabs.append(b);
     }
   }
+  type Stat = cloud.CameraStat; type Board = { rows: cloud.BoardRow[]; partial: boolean };
+  /** Placeholder cards, so there is something to look at from the first moment on the very first visit. */
+  const skeleton = () => {
+    box.innerHTML = ''; note.textContent = '';
+    const grid = el('div', 'cards'); grid.setAttribute('aria-hidden', 'true');
+    for (let i = 0; i < 6; i++) { const c = el('div', 'card skel'); c.append(el('div', 'thumb'), el('div', 'body')); grid.append(c); }
+    box.append(grid);
+  };
+  function paint(all: Stat[], board: Board | null) {
+    box.innerHTML = '';
+    if (!all.length) {
+      const e = el('div', 'empty');
+      e.append(el('h2', '', 'No cameras yet'), el('p', '', 'Cameras appear here once people share photos to the community gallery. Wayframe reads the camera, shutter speed, aperture and ISO from every photo that includes them.'));
+      const a = el('a', 'btn primary', 'Open the map'); a.href = '/app.html'; e.append(a); box.append(e); tabs.hidden = true; return;
+    }
+    tabs.hidden = false;
+    const cover = new Map(all.map(c => [c.slug, c.cover]));
+    const rows = board ? board.rows : all.map(c => ({ camera: c.camera, slug: c.slug, photos: c.photos, people: c.people }));
+    if (!rows.length) {
+      const e = el('div', 'empty'); e.append(el('p', '', EMPTY[period]));
+      const a = el('button', 'btn small', 'See all time'); a.type = 'button'; a.onclick = () => choose('all'); e.append(a); box.append(e); note.textContent = ''; return;
+    }
+    const top = rows[0].photos, grid = el('div', 'cards');
+    rows.forEach((c, i) => {
+      const a = el('a', 'card'); a.href = '/cameras/' + c.slug;
+      const th = el('div', 'thumb'); const src = cover.get(c.slug);
+      if (src) { const im = new Image(); im.src = src; im.alt = ''; im.loading = i < 6 ? 'eager' : 'lazy'; im.decoding = 'async'; th.append(im); }
+      th.append(el('span', 'rank-tag' + (i < 3 ? ' p' + (i + 1) : ''), '#' + (i + 1)));
+      const body = el('div', 'body'); body.append(el('h3', '', c.camera), el('small', '', `${c.photos.toLocaleString()} ${c.photos === 1 ? 'photo' : 'photos'} · ${c.people} ${c.people === 1 ? 'person' : 'people'}`));
+      const meter = el('span', 'meter'), fill = el('i'); fill.style.width = Math.max(4, Math.round((c.photos / top) * 100)) + '%'; meter.append(fill); body.append(meter);
+      a.append(th, body); grid.append(a);
+    });
+    box.append(grid);
+    note.textContent = period === 'all' ? 'Counts every photo shared to the community gallery.' : 'Counted by the day each photo was taken.';
+    if (board?.partial) note.textContent += ' This count is based on the newest community photos only.';
+  }
   async function load() {
     const my = ++token;
-    box.innerHTML = ''; box.append(el('p', 'status', 'Counting…')); note.textContent = '';
+    const [from, to] = range(period);
+    // Show what we saw last time straight away, then check for news in the background.
+    const seenAll = cloud.peekCameras(), seenBoard = period === 'all' ? null : cloud.peekBoard(from, to);
+    const seen = seenAll && (period === 'all' || seenBoard) ? JSON.stringify([seenAll, seenBoard]) : '';
+    if (seen) paint(seenAll!, seenBoard); else skeleton();
     try {
-      const [from, to] = range(period);
       const [all, board] = await Promise.all([cloud.exploreCameras(), period === 'all' ? null : cloud.cameraLeaderboard(from, to)]);
       if (my !== token) return;
-      box.innerHTML = '';
-      if (!all.length) {
-        const e = el('div', 'empty');
-        e.append(el('h2', '', 'No cameras yet'), el('p', '', 'Cameras appear here once people share photos to the community gallery. Wayframe reads the camera, shutter speed, aperture and ISO from every photo that includes them.'));
-        const a = el('a', 'btn primary', 'Open the map'); a.href = '/app.html'; e.append(a); box.append(e); tabs.hidden = true; return;
-      }
-      tabs.hidden = false;
-      const cover = new Map(all.map(c => [c.slug, c.cover]));
-      const rows = board ? board.rows : all.map(c => ({ camera: c.camera, slug: c.slug, photos: c.photos, people: c.people }));
-      if (!rows.length) {
-        const e = el('div', 'empty'); e.append(el('p', '', EMPTY[period]));
-        const a = el('button', 'btn small', 'See all time'); a.type = 'button'; a.onclick = () => choose('all'); e.append(a); box.append(e); return;
-      }
-      const top = rows[0].photos, grid = el('div', 'cards');
-      rows.forEach((c, i) => {
-        const a = el('a', 'card'); a.href = '/cameras/' + c.slug;
-        const th = el('div', 'thumb'); const src = cover.get(c.slug);
-        if (src) { const im = new Image(); im.src = src; im.alt = ''; im.loading = 'lazy'; th.append(im); }
-        th.append(el('span', 'rank-tag' + (i < 3 ? ' p' + (i + 1) : ''), '#' + (i + 1)));
-        const body = el('div', 'body'); body.append(el('h3', '', c.camera), el('small', '', `${c.photos.toLocaleString()} ${c.photos === 1 ? 'photo' : 'photos'} · ${c.people} ${c.people === 1 ? 'person' : 'people'}`));
-        const meter = el('span', 'meter'), fill = el('i'); fill.style.width = Math.max(4, Math.round((c.photos / top) * 100)) + '%'; meter.append(fill); body.append(meter);
-        a.append(th, body); grid.append(a);
-      });
-      box.append(grid);
-      note.textContent = period === 'all' ? 'Counts every photo shared to the community gallery.' : 'Counted by the day each photo was taken.';
-      if (board?.partial) note.textContent += ' This count is based on the newest community photos only.';
+      if (JSON.stringify([all, board]) !== seen) paint(all, board);
     } catch (err) {
       if (my !== token) return;
-      box.innerHTML = ''; box.append(el('p', 'status', 'Couldn’t load the cameras: ' + (err as Error).message));
+      if (!seen) { box.innerHTML = ''; box.append(el('p', 'status', 'Couldn’t load the cameras: ' + (err as Error).message)); }
     }
   }
   drawTabs(); await load();

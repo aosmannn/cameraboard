@@ -48,6 +48,9 @@ export function mountShell(active: Section) {
     const a = el('a', '', label); a.href = href; if (key === active) a.setAttribute('aria-current', 'page'); links.append(a);
   }
   const mapLink = el('a', '', 'Map'); mapLink.href = '/app.html'; links.append(mapLink);
+  // Get the next tab ready: on hover or touch, and quietly once this page has settled.
+  for (const a of links.querySelectorAll('a')) for (const ev of ['pointerenter', 'focus', 'touchstart']) a.addEventListener(ev, () => cloud.warmCommunity(), { passive: true });
+  (window.requestIdleCallback ?? ((f: () => void) => setTimeout(f, 1200)))(() => cloud.warmCommunity());
   const end = el('div', 'nav-end');
   const who = el('a', 'who'); who.id = 'whoBtn'; who.hidden = true; who.href = '/app.html?account=1';
   const signIn = el('a', 'btn small', 'Sign in'); signIn.id = 'signInBtn'; signIn.href = '/app.html?account=1'; signIn.hidden = !cloud.cloudEnabled;

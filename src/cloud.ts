@@ -1,5 +1,6 @@
 // Accounts (email code sign-in), profiles, following, sync and likes, through Supabase (project psuykzkrakkdqhulrqig).
 // The app works fully without this: if no key is configured, everything stays in the browser.
+import { remember, recall, ageOf } from './cache';
 import { createClient, type Session } from '@supabase/supabase-js';
 import type { Card } from './types';
 import { normalize } from './photo';
@@ -261,12 +262,25 @@ export async function setLike(id: string, on: boolean) {
 }
 
 /** Image links that work for anyone: public images can be signed without an account. */
+// A signed link is reused until shortly before it expires, so the same image keeps the same address: the browser then
+// keeps it in its own cache, and pages that are opened again (or the next tab) show their photos at once.
+type Signed = Record<string, [string, number]>;   // path -> [link, expires at (ms)]
+let signed: Signed | null = null;
+const loadSigned = (): Signed => signed ??= recall<Signed>('signed', Infinity) ?? {};
 async function signPaths(paths: string[]): Promise<Map<string, string>> {
   const out = new Map<string, string>();
   const list = [...new Set(paths.filter(Boolean))];
   if (!sb || !list.length) return out;
-  const { data } = await sb.storage.from(BUCKET).createSignedUrls(list, 3600);
-  for (const s of data ?? []) if (s.signedUrl && s.path) out.set(s.path, s.signedUrl);
+  const known = loadSigned(), now = Date.now();
+  const missing: string[] = [];
+  for (const p of list) { const k = known[p]; if (k && k[1] - now > 5 * 60 * 1000) out.set(p, k[0]); else missing.push(p); }
+  if (missing.length) {
+    const { data } = await sb.storage.from(BUCKET).createSignedUrls(missing, 3600);
+    for (const s of data ?? []) if (s.signedUrl && s.path) { out.set(s.path, s.signedUrl); known[s.path] = [s.signedUrl, now + 3500 * 1000]; }
+    for (const p of Object.keys(known)) if (known[p][1] < now) delete known[p];   // forget links that have expired
+    if (Object.keys(known).length > 600) for (const p of Object.keys(known).slice(0, Object.keys(known).length - 600)) delete known[p];
+    remember('signed', known);
+  }
   return out;
 }
 type PublicRow = Row & { owner_name: string };
@@ -302,7 +316,15 @@ export async function explorePhotos(o: { limit?: number; offset?: number; camera
   const { data, error } = await sb.rpc('explore_photos', { lim: limit, off: o.offset ?? 0, cam: o.camera || null, q: o.q?.trim() || null });
   if (error) throw galleryError(error.message);
   const rows = (data ?? []) as PublicRow[];
-  return { ...(await rowsToCards(rows)), more: rows.length >= limit };
+  const result = { ...(await rowsToCards(rows)), more: rows.length >= limit };
+  if (!o.offset) remember(photosKey(o), { cards: result.cards, owners: [...result.owners], more: result.more });
+  return result;
+}
+const photosKey = (o: { limit?: number; camera?: string; q?: string }) => `photos:${o.limit ?? 48}:${o.camera ?? ''}:${(o.q ?? '').trim()}`;
+/** The first page of photos as last seen, ready to show before the network answers. Null if there is none. */
+export function peekPhotos(o: { limit?: number; camera?: string; q?: string } = {}) {
+  const v = recall<{ cards: Card[]; owners: [string, string][]; more: boolean }>(photosKey(o));
+  return v ? { cards: v.cards, owners: new Map(v.owners), more: v.more } : null;
 }
 export interface GalleryStory { owner: string; owner_name: string; trip: string; stops: number; places: string[]; cover: string; updated: string }
 export async function exploreStories(limit = 24, offset = 0): Promise<{ stories: GalleryStory[]; more: boolean }> {
@@ -311,11 +333,14 @@ export async function exploreStories(limit = 24, offset = 0): Promise<{ stories:
   if (error) throw galleryError(error.message);
   const rows = (data ?? []) as { owner: string; owner_name: string; trip: string; stops: number; places: string[]; cover_path: string; updated: string }[];
   const url = await signPaths(rows.map(r => r.cover_path));
-  return {
+  const result = {
     more: rows.length >= limit,
     stories: rows.map(r => ({ owner: r.owner, owner_name: r.owner_name || 'A traveler', trip: r.trip, stops: Number(r.stops), places: r.places ?? [], cover: url.get(r.cover_path) ?? '', updated: r.updated }))
   };
+  if (!offset) remember(`stories:${limit}`, result);
+  return result;
 }
+export const peekStories = (limit = 24) => recall<{ stories: GalleryStory[]; more: boolean }>(`stories:${limit}`);
 export interface CameraStat { camera: string; slug: string; photos: number; people: number; cover: string }
 export async function exploreCameras(): Promise<CameraStat[]> {
   if (!sb) return [];
@@ -323,15 +348,24 @@ export async function exploreCameras(): Promise<CameraStat[]> {
   if (error) throw galleryError(error.message);
   const rows = (data ?? []) as { camera: string; slug: string; photos: number; people: number; cover_path: string }[];
   const url = await signPaths(rows.map(r => r.cover_path));
-  return rows.map(r => ({ camera: r.camera, slug: r.slug, photos: Number(r.photos), people: Number(r.people), cover: url.get(r.cover_path) ?? '' }));
+  const list = rows.map(r => ({ camera: r.camera, slug: r.slug, photos: Number(r.photos), people: Number(r.people), cover: url.get(r.cover_path) ?? '' }));
+  remember('cameras', list);
+  return list;
 }
+export const peekCameras = () => recall<CameraStat[]>('cameras');
 export interface BoardRow { camera: string; slug: string; photos: number; people: number }
 /**
  * Cameras ranked by how many community photos were taken in a period. `from` is included and `to` is not, both local
  * dates ('YYYY-MM-DD'); leave both empty for all time. If the database doesn't have `camera_leaderboard` yet, the
  * ranking is counted here from the newest community photos instead, and `partial` says it may be incomplete.
  */
+export const peekBoard = (from = '', to = '') => recall<{ rows: BoardRow[]; partial: boolean }>(`board:${from}:${to}`);
 export async function cameraLeaderboard(from = '', to = ''): Promise<{ rows: BoardRow[]; partial: boolean }> {
+  const result = await cameraLeaderboardFresh(from, to);
+  remember(`board:${from}:${to}`, result);
+  return result;
+}
+async function cameraLeaderboardFresh(from: string, to: string): Promise<{ rows: BoardRow[]; partial: boolean }> {
   if (!sb) return { rows: [], partial: false };
   const { data, error } = await sb.rpc('camera_leaderboard', { from_day: from || null, to_day: to || null });
   if (!error) {
@@ -386,4 +420,20 @@ export async function removeAvatar() {
   const { error } = await sb!.from('profiles').update({ avatar_path: null }).eq('id', u.id);
   if (error) throw new Error(error.message);
   if (old) await sb!.storage.from('avatars').remove([old]).catch(() => { /* harmless */ });
+}
+
+// ---------- getting the next tab ready ----------
+const warmed = new Map<string, number>();
+/**
+ * Fetches the community data the Explore and Cameras pages start with, and the first few photos, while the visitor is
+ * still looking at something else. Opening those pages then shows content at once. Safe to call often.
+ */
+export function warmCommunity(): void {
+  if (!sb || (navigator as Navigator & { connection?: { saveData?: boolean } }).connection?.saveData) return;
+  const run = (key: string, ageKey: string, job: () => Promise<unknown>) => {
+    if (Date.now() - (warmed.get(key) ?? 0) < 60_000 || ageOf(ageKey) < 60_000) return;
+    warmed.set(key, Date.now()); job().catch(() => {});
+  };
+  run('cameras', 'cameras', async () => { const list = await exploreCameras(); for (const c of list.slice(0, 6)) if (c.cover) new Image().src = c.cover; });
+  run('photos', photosKey({ limit: 48 }), async () => { const r = await explorePhotos({ limit: 48 }); for (const c of r.cards.slice(0, 8)) if (c.img) new Image().src = c.img; });
 }
