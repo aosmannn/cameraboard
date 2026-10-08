@@ -25,6 +25,10 @@
       "destination": "/cameras.html"
     },
     {
+      "source": "/leaderboard",
+      "destination": "/leaderboard.html"
+    },
+    {
       "source": "/s/:key",
       "destination": "/api/share?kind=story&key=:key"
     },

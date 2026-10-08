@@ -166,3 +166,9 @@ The two tile sources are free and need no key, but they are third-party services
 ## Panning around the globe
 
 The map has no sideways limit. Tile layers (relief, streets, shading) repeat on their own; vector layers do not, so countries, states, counties, the country outline, labels, photo pins and yarn are each drawn three times, one world to the left (-360), the middle and the right (+360). After every move the map centre is wrapped back into -180..180 (`map.on('moveend')` in `src/main.ts`), which is invisible because the copies look identical. Flights use `nearLng()` to take the short way round, and clicks are wrapped with `map.wrapLatLng` before they are used as real coordinates.
+
+## Camera leaderboard
+
+`/leaderboard` (`leaderboard.html`, `src/leaderboard.ts`) ranks cameras by how many community photos were taken with them: today, this week (from Monday), this month, this year, and all time. It counts the same photos as the Cameras page: public photos from people who turned on the community gallery, minus people you have blocked. A photo counts for the day it was taken (`taken_at`), not the day it was uploaded.
+
+The ranking comes from the database function `camera_leaderboard(from_day, to_day)` (migration `20261008000000_camera_leaderboard.sql`; run `npm run db:push` once). The page sends local dates, so "today" follows the visitor's own clock. Until the migration is applied, `cloud.cameraLeaderboard` counts from the newest 768 community photos instead and says so.

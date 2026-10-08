@@ -15,7 +15,7 @@ import { inject as trackVisits } from '@vercel/analytics';
 export const countVisit = () => { try { trackVisits(); } catch { /* analytics must never break a page */ } };
 countVisit();
 
-export type Section = 'home' | 'explore' | 'cameras' | '';
+export type Section = 'home' | 'explore' | 'cameras' | 'leaderboard' | '';
 
 export function el<K extends keyof HTMLElementTagNameMap>(tag: K, cls = '', text = ''): HTMLElementTagNameMap[K] {
   const e = document.createElement(tag);
@@ -35,7 +35,7 @@ function wordmark() {
   const w = el('span', 'wordmark', 'Way'); w.append(el('em', '', 'frame'));
   return w;
 }
-const LINKS: [Section, string, string][] = [['explore', 'Explore', '/explore'], ['cameras', 'Cameras', '/cameras']];
+const LINKS: [Section, string, string][] = [['explore', 'Explore', '/explore'], ['cameras', 'Cameras', '/cameras'], ['leaderboard', 'Leaderboard', '/leaderboard']];
 
 /** Adds the header and footer, and shows who is signed in. */
 export function mountShell(active: Section) {
@@ -73,7 +73,7 @@ export function mountShell(active: Section) {
   };
   foot.append(
     about,
-    col('Product', [['Open the map', '/app.html'], ['Explore', '/explore'], ['Stories', '/explore?tab=stories'], ['Cameras', '/cameras']]),
+    col('Product', [['Open the map', '/app.html'], ['Explore', '/explore'], ['Stories', '/explore?tab=stories'], ['Cameras', '/cameras'], ['Leaderboard', '/leaderboard']]),
     col('Company', [['Privacy', '/privacy'], ['Terms', '/terms'], ['Credits', '/credits'], ['Contact', 'mailto:' + CONTACT_EMAIL]])
   );
   foot.append(el('p', 'credit', `© ${new Date().getFullYear()} Wayframe. Photos belong to the people who took them.`));

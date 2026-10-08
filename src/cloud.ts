@@ -325,6 +325,37 @@ export async function exploreCameras(): Promise<CameraStat[]> {
   const url = await signPaths(rows.map(r => r.cover_path));
   return rows.map(r => ({ camera: r.camera, slug: r.slug, photos: Number(r.photos), people: Number(r.people), cover: url.get(r.cover_path) ?? '' }));
 }
+export interface BoardRow { camera: string; slug: string; photos: number; people: number }
+/**
+ * Cameras ranked by how many community photos were taken in a period. `from` is included and `to` is not, both local
+ * dates ('YYYY-MM-DD'); leave both empty for all time. If the database doesn't have `camera_leaderboard` yet, the
+ * ranking is counted here from the newest community photos instead, and `partial` says it may be incomplete.
+ */
+export async function cameraLeaderboard(from = '', to = ''): Promise<{ rows: BoardRow[]; partial: boolean }> {
+  if (!sb) return { rows: [], partial: false };
+  const { data, error } = await sb.rpc('camera_leaderboard', { from_day: from || null, to_day: to || null });
+  if (!error) {
+    const rows = (data ?? []) as BoardRow[];
+    return { rows: rows.map(r => ({ camera: r.camera, slug: r.slug, photos: Number(r.photos), people: Number(r.people) })), partial: false };
+  }
+  if (!/camera_leaderboard|schema cache|does not exist/i.test(error.message)) throw galleryError(error.message);
+  if (!from && !to) return { rows: (await exploreCameras()).map(c => ({ camera: c.camera, slug: c.slug, photos: c.photos, people: c.people })), partial: false };
+  const tally = new Map<string, { camera: string; slug: string; photos: number; owners: Set<string> }>();
+  let partial = false;
+  for (let page = 0, offset = 0; page < 8; page++, offset += 96) {
+    const r = await explorePhotos({ limit: 96, offset });
+    for (const c of r.cards) {
+      const camera = String(c.meta?.camera ?? '').trim(), slug = slugify(camera), day = (c.date || '').slice(0, 10);
+      if (!slug || !/^\d{4}-\d{2}-\d{2}$/.test(day) || (from && day < from) || (to && day >= to)) continue;
+      const t = tally.get(slug) ?? { camera, slug, photos: 0, owners: new Set<string>() };
+      t.photos++; t.owners.add(c.owner); tally.set(slug, t);
+    }
+    if (!r.more) break;
+    if (page === 7) partial = true;
+  }
+  const rows = [...tally.values()].map(t => ({ camera: t.camera, slug: t.slug, photos: t.photos, people: t.owners.size })).sort((a, b) => b.photos - a.photos || a.camera.localeCompare(b.camera));
+  return { rows, partial };
+}
 export interface PublicCard { id: string; display_name: string; username: string | null; bio: string; avatar_path: string | null; photos: number; stories: number; followers: number; following: number }
 /** A name, bio and counts for a profile page. Works without signing in. */
 export async function publicCard(who: { code?: string; handle?: string; id?: string }): Promise<PublicCard | null> {
