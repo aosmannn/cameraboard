@@ -638,3 +638,8 @@ h3.first { margin-top: 12px !important; }
 .q-hint.pre { opacity: 0; transform: translateY(70%); transition: none; }
 .q-field input:not(:placeholder-shown) + .q-hint { opacity: 0; }   /* hide it once something is typed */
 @media (prefers-reduced-motion: reduce) { .q-hint { transition: none; } }
+
+/* Coming from or going to Explore and Cameras: the page fades instead of cutting (see the same rule in site.css). */
+@view-transition { navigation: auto; }
+::view-transition-old(root), ::view-transition-new(root) { animation-duration: .22s; }
+@media (prefers-reduced-motion: reduce) { ::view-transition-group(*), ::view-transition-old(*), ::view-transition-new(*) { animation: none !important; } }

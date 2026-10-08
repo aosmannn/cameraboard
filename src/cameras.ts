@@ -1,7 +1,7 @@
 // Cameras: every camera people shot community photos on, and a page per camera.
 import * as cloud from './cloud';
 import type { Card } from './types';
-import { mountShell, el, $, setTitle, pathPart } from './site';
+import { mountShell, el, $, setTitle, pathPart, slideTabs, swapContent } from './site';
 import { tile, openLightbox } from './gallery-ui';
 
 mountShell('cameras');
@@ -50,14 +50,17 @@ async function index() {
 
   const choose = (key: Period) => {
     if (key === period) return;
-    period = key; history.replaceState(null, '', key === 'all' ? location.pathname : `?period=${key}`); drawTabs(); void load();
+    period = key; history.replaceState(null, '', key === 'all' ? location.pathname : `?period=${key}`); drawTabs();
+    swapContent(box, () => void load());
   };
+  const tabButtons = new Map<Period, HTMLButtonElement>();
   function drawTabs() {
-    tabs.innerHTML = '';
-    for (const [key, label] of PERIODS) {
-      const b = el('button', '', label); b.type = 'button'; b.setAttribute('role', 'tab'); b.setAttribute('aria-selected', String(key === period));
-      b.onclick = () => choose(key); tabs.append(b);
+    if (!tabButtons.size) for (const [key, label] of PERIODS) {
+      const b = el('button', '', label); b.type = 'button'; b.setAttribute('role', 'tab'); b.onclick = () => choose(key);
+      tabButtons.set(key, b); tabs.append(b);
     }
+    tabButtons.forEach((b, k) => b.setAttribute('aria-selected', String(k === period)));
+    slideTabs(tabs);
   }
   type Stat = cloud.CameraStat; type Board = { rows: cloud.BoardRow[]; partial: boolean };
   /** Placeholder cards, so there is something to look at from the first moment on the very first visit. */
@@ -74,7 +77,7 @@ async function index() {
       e.append(el('h2', '', 'No cameras yet'), el('p', '', 'Cameras appear here once people share photos to the community gallery. Wayframe reads the camera, shutter speed, aperture and ISO from every photo that includes them.'));
       const a = el('a', 'btn primary', 'Open the map'); a.href = '/app.html'; e.append(a); box.append(e); tabs.hidden = true; return;
     }
-    tabs.hidden = false;
+    tabs.hidden = false; slideTabs(tabs);
     const cover = new Map(all.map(c => [c.slug, c.cover]));
     const rows = board ? board.rows : all.map(c => ({ camera: c.camera, slug: c.slug, photos: c.photos, people: c.people }));
     if (!rows.length) {

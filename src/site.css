@@ -75,6 +75,12 @@ img { max-width: 100%; }
 .tabs { display: inline-flex; gap: 4px; padding: 4px; background: var(--panel-2); border-radius: 999px; }
 .tabs button, .tabs a { border: 0; background: none; padding: 8px 18px; border-radius: 999px; text-decoration: none; color: var(--mute); font-weight: 500; }
 .tabs [aria-selected="true"], .tabs [aria-current="page"] { background: var(--panel); color: var(--ink); box-shadow: var(--shadow-sm); }
+/* sliding highlight: one pill that glides to the chosen tab (see slideTabs in site.ts) */
+.tabs.slide { position: relative; }
+.tabs.slide::before { content: ''; position: absolute; top: 4px; bottom: 4px; left: var(--pill-x, 4px); width: var(--pill-w, 0); border-radius: 999px; background: var(--panel); box-shadow: var(--shadow-sm); }
+.tabs.slide.ready::before { transition: left .3s cubic-bezier(.3, .8, .3, 1), width .3s cubic-bezier(.3, .8, .3, 1); }
+.tabs.slide button, .tabs.slide a { position: relative; z-index: 1; transition: color .2s; }
+.tabs.slide [aria-selected="true"] { background: none; box-shadow: none; }
 .filters { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 26px; }
 .filters .field { width: auto; flex: 1 1 220px; max-width: 360px; }
 .status { color: var(--mute); padding: 40px 0; text-align: center; }
@@ -250,3 +256,22 @@ img { max-width: 100%; }
 .skel-wall { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 22px; columns: unset; }
 .skel-tile { aspect-ratio: 4 / 5; border-radius: 6px; }
 @media (prefers-reduced-motion: reduce) { .skel .thumb, .skel .body, .skel-tile { animation: none; } }
+
+/* ---------- moving between things ---------- */
+.swap-out { opacity: 0; translate: 0 6px; transition: opacity .12s ease, translate .12s ease; }
+.swap-in { animation: swapIn .3s ease-out both; }
+@keyframes swapIn { from { opacity: 0; translate: 0 10px; } }
+
+/* Going from one page to the next (Explore, Cameras, Map): the page fades and the header's highlight glides to the new tab.
+   Browsers without cross-page transitions just get the page gently fading in. */
+@view-transition { navigation: auto; }
+.nav nav a[aria-current="page"] { view-transition-name: nav-pill; }
+::view-transition-old(root), ::view-transition-new(root) { animation-duration: .22s; }
+::view-transition-group(nav-pill) { animation-duration: .3s; animation-timing-function: cubic-bezier(.3, .8, .3, 1); }
+@supports not (view-transition-name: none) { body > main { animation: pageIn .3s ease-out both; } }
+@keyframes pageIn { from { opacity: 0; translate: 0 8px; } }
+@media (prefers-reduced-motion: reduce) {
+  .swap-out, .swap-in, body > main { transition: none; animation: none; translate: none; }
+  ::view-transition-group(*), ::view-transition-old(*), ::view-transition-new(*) { animation: none !important; }
+  .tabs.slide.ready::before { transition: none; }
+}

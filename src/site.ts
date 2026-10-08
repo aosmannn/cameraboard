@@ -108,6 +108,28 @@ export function routeOf(places: string[]) {
 }
 export const shortPlace = (p: string) => (p || '').split(',').slice(0, 2).join(',').trim();
 export const pathPart = (n: number) => decodeURIComponent(location.pathname.split('/').filter(Boolean)[n] ?? '');
+/** Makes a pill-style tab bar slide its highlight from one tab to the next. Call it again whenever the selected tab changes. */
+export function slideTabs(tabs: HTMLElement) {
+  tabs.classList.add('slide');
+  const place = () => {
+    const sel = tabs.querySelector<HTMLElement>('[aria-selected="true"]'); if (!sel || !sel.offsetWidth) return;
+    tabs.style.setProperty('--pill-x', sel.offsetLeft + 'px'); tabs.style.setProperty('--pill-w', sel.offsetWidth + 'px');
+  };
+  place();
+  if (!tabs.dataset.watched) {
+    tabs.dataset.watched = '1';
+    requestAnimationFrame(() => requestAnimationFrame(() => tabs.classList.add('ready')));   // the first placement does not slide
+    new ResizeObserver(place).observe(tabs);
+    void document.fonts?.ready.then(place);
+  }
+}
+/** Fades and lifts freshly drawn content into place. */
+export function swapIn(node: HTMLElement) { node.classList.remove('swap-in'); void node.offsetWidth; node.classList.add('swap-in'); }
+/** Fades the old content out, runs `change`, then fades whatever it drew in. */
+export function swapContent(node: HTMLElement, change: () => void) {
+  node.classList.add('swap-out');
+  setTimeout(() => { node.classList.remove('swap-out'); change(); swapIn(node); }, 120);
+}
 export function setTitle(t: string) { document.title = t ? `${t} · Wayframe` : 'Wayframe'; }
 export const slugCamera = cloud.slugify;
 export const isUuid = (s: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s);

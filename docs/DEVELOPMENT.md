@@ -181,3 +181,8 @@ The community pages start with two network steps (the list, then signing the ima
 - `signPaths` in `src/cloud.ts` reuses a signed link until shortly before it expires. The same image keeps the same address, so the browser's own cache serves it.
 - `cloud.warmCommunity()` fetches the first page of Explore and Cameras (and the first photos) when a site page has settled, and when the pointer reaches a nav link, so the next tab opens already filled.
 - On a first visit, placeholder cards show instead of "Loading…".
+
+## Motion between tabs and pages
+
+- Pill tab bars (Explore's Photos/Stories, the Cameras periods) have a highlight that glides to the chosen tab (`slideTabs` in `src/site.ts`), and the content under them fades out and the new content fades in (`swapContent`).
+- Going between Explore, Cameras and the map uses cross-page view transitions (`@view-transition` in `src/site.css` and `src/style.css`): the page fades and the header's highlight (`view-transition-name: nav-pill`) glides to the new tab. Browsers without them (for example Firefox) get a short fade-in of the page instead. Everything is turned off for people who prefer reduced motion.

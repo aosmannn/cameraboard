@@ -1,7 +1,7 @@
 // Explore: a wall of community photos and a list of community stories.
 import * as cloud from './cloud';
 import type { Card } from './types';
-import { mountShell, el, $, routeOf, fmtDate, setTitle } from './site';
+import { mountShell, el, $, routeOf, fmtDate, setTitle, slideTabs, swapContent } from './site';
 import { tile, openLightbox } from './gallery-ui';
 
 mountShell('explore'); setTitle('Explore');
@@ -33,15 +33,16 @@ function emptyState(what: string) {
   const a = el('a', 'btn primary', 'Open the map'); a.href = '/app.html'; e.append(a);
   return e;
 }
-function setTab(t: typeof tab) {
+function setTab(t: typeof tab, animate = true) {
   tab = t;
   tPhotos.setAttribute('aria-selected', String(t === 'photos')); tStories.setAttribute('aria-selected', String(t === 'stories'));
   filters.hidden = t !== 'photos';
   const u = new URL(location.href); if (t === 'stories') u.searchParams.set('tab', 'stories'); else u.searchParams.delete('tab');
   history.replaceState(null, '', u);
-  load(true);
+  slideTabs(tabs);
+  if (animate && out.childElementCount) swapContent(out, () => void load(true)); else void load(true);
 }
-tPhotos.onclick = () => setTab('photos'); tStories.onclick = () => setTab('stories');
+tPhotos.onclick = () => { if (tab !== 'photos') setTab('photos'); }; tStories.onclick = () => { if (tab !== 'stories') setTab('stories'); };
 
 /** Placeholder tiles, so there is something to look at from the first moment on the very first visit. */
 function skeleton() {
@@ -124,4 +125,4 @@ cloud.exploreCameras().then(list => {
   for (const c of list) camSel.append(new Option(`${c.camera} (${c.photos})`, c.slug));
   camSel.value = camera;
 }).catch(() => { /* the camera filter is optional */ });
-setTab(tab);
+setTab(tab, false);
