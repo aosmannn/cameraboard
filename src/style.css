@@ -522,6 +522,10 @@ h3.first { margin-top: 12px !important; }
     top: 112px; left: 12px; right: 12px; transform: none; max-width: none; width: auto;
     flex-wrap: wrap; border-radius: 18px; padding: 12px 12px 12px 16px; row-gap: 8px;
   }
+  /* the country chip is just a name and a close button, so it stays a small pill instead of a full-width card */
+  body .country-chip { left: 50%; right: auto; transform: translateX(-50%); width: max-content; max-width: calc(100% - 24px);
+    flex-wrap: nowrap; border-radius: 999px; padding: 6px 6px 6px 16px; row-gap: 0; }
+  body .country-chip > span { flex: 0 1 auto; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .banner > span, .invite-banner > span { flex: 1 1 100%; min-width: 0; overflow-wrap: anywhere; line-height: 1.35; }
   .banner .btn { flex: none; }
 }
@@ -585,3 +589,20 @@ body.timeline #tray, body.timeline .stories-show { display: none; }
 .st-tabs { flex: 1 1 100%; padding-right: 34px; }
 #storiesHide { position: absolute; top: 14px; right: 12px; }
 #newStory { margin-left: 0; }
+
+/* ---------- search results: countries, places, photos ---------- */
+.q-hit { display: flex; align-items: center; gap: 10px; }
+.q-hit img { width: 38px; height: 38px; border-radius: 6px; object-fit: cover; flex: none; }
+.q-text { display: flex; flex-direction: column; min-width: 0; }
+.q-text b { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.q-text small { color: var(--mute); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* ---------- search bar hint: one suggestion at a time ---------- */
+.q-field { position: relative; flex: 1; min-width: 0; display: block; }
+.q-field input { width: 100%; }
+.q-hint { position: absolute; left: 0; top: 50%; translate: 0 -50%; max-width: 100%; color: var(--mute); pointer-events: none; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  transition: opacity .26s ease, transform .26s ease; }
+.q-hint.out { opacity: 0; transform: translateY(-70%); }
+.q-hint.pre { opacity: 0; transform: translateY(70%); transition: none; }
+.q-field input:not(:placeholder-shown) + .q-hint { opacity: 0; }   /* hide it once something is typed */
+@media (prefers-reduced-motion: reduce) { .q-hint { transition: none; } }

@@ -16,7 +16,7 @@ import { blankCard, fillCard, normalize, cameraName, dayOf, timeOf, stampText, p
 import { initTravel } from './travel-ui';
 import { initComments, initNotices } from './social-ui';
 import { drawSummary, drawHighlights, loadExtras, type Shot } from './profile-extras';
-import { drawWorld, countryAt, countryBounds, THEMES, type ThemeName } from './world';
+import { drawWorld, countryAt, countryBounds, listCountries, THEMES, type ThemeName } from './world';
 import { loadCities, searchPlaces, nameAt, type Place } from './atlas';
 import { initViewer, openViewer, closeViewer, viewerIsOpen } from './viewer';
 import { renderPoster, renderStoryGif } from './poster';
@@ -104,12 +104,16 @@ function countryOf(c: Card): string | null {
 function fillCountries() {
   for (const c of cards) if (c.lat != null && c.lng != null) { const n = countryOf(c) ?? ''; if (c.country !== n) c.country = n; }
 }
+/** Does this photo match the words typed in the search bar? Title, story, place, trip, camera and country count. */
+function matchesText(c: Card, text: string) {
+  const hay = [c.title, c.story, c.place, c.trip, cameraName(c), countryOf(c) ?? ''].join(' ').toLowerCase();
+  return text.toLowerCase().split(/\s+/).filter(Boolean).every(w => hay.includes(w));
+}
 function visible(c: Card) {
   if (!c.img) return false;
   if (timeLimit != null && timeOf(c) > timeLimit) return false;     // the travel timeline hides what hadn't happened yet
   if (!query) return true;
-  const hay = [c.title, c.story, c.place, c.trip, cameraName(c), countryOf(c) ?? ''].join(' ').toLowerCase();
-  return query.toLowerCase().split(/\s+/).every(w => hay.includes(w));
+  return matchesText(c, query);
 }
 const visiblePlaced = () => cards.filter(c => placed(c) && visible(c));
 /** Photos by other people that are on screen: friends' shared photos plus any public ones being viewed. */
@@ -190,6 +194,13 @@ $('countryFit').onclick = () => {
   const b = pickedCountry && countryBounds(pickedCountry);
   if (b) map.flyToBounds(b, { ...mapPadding(), maxZoom: 8, duration: 1 });
 };
+
+/** Outlines a country and flies to it. Used by clicking the map and by the search bar. */
+function zoomToCountry(name: string) {
+  selectCountry(name);
+  const b = countryBounds(name);
+  if (b) map.flyToBounds(b, { ...mapPadding(), maxZoom: 8, duration: 1 });
+}
 
 map.on('click', async e => {
   if (!pinTargets.length) {
@@ -598,11 +609,93 @@ function render() {
 }
 const q = $<HTMLInputElement>('q');
 const qPeople = $('qPeople');
-let qPeopleT = 0, qPeopleToken = 0;
+// The dropdown has two parts: results we can work out on the spot (countries, places, photos) and people (asked of the server).
+const qLocal = el('div'), qWho = el('div');
+qPeople.append(qLocal, qWho);
+const syncQ = () => { qPeople.hidden = !(qLocal.children.length || qWho.children.length); };
+let qPeopleT = 0, qPeopleToken = 0, qLocalToken = 0;
+
+// The search bar suggests one thing at a time (photos, places, people), switching every few seconds.
+{
+  const hint = $('qHint'), HINTS = ['Search photos', 'Search places', 'Search @people'];
+  if (matchMedia('(prefers-reduced-motion: reduce)').matches) hint.textContent = 'Search photos, places, @people';   // no motion: show them all, still
+  else {
+    let i = 0; hint.textContent = HINTS[0];
+    setInterval(() => {
+      if (q.value || document.hidden) return;
+      hint.classList.add('out');
+      setTimeout(() => {
+        hint.textContent = HINTS[i = (i + 1) % HINTS.length];
+        hint.classList.add('pre'); hint.classList.remove('out');   // jump below, then slide up into place
+        void hint.offsetWidth; hint.classList.remove('pre');
+      }, 270);
+    }, 2800);
+  }
+}
+
+/** Lower case, no accents or dots, and the short forms in the map's country names spelled out ("S. Sudan" is "south sudan"). */
+const fold = (t: string) => t.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[.,'’]/g, ' ').replace(/\s+/g, ' ').trim();
+const expandName = (t: string) => fold(t).replace(/\bdem rep\b/, 'democratic republic of the').replace(/\brep\b/, 'republic')
+  .replace(/\bs\b/, 'south').replace(/\bn\b/, 'north').replace(/\bw\b/, 'western').replace(/\beq\b/, 'equatorial')
+  .replace(/\bherz\b/, 'herzegovina').replace(/\bis\b/, 'islands').replace(/\bst\b/, 'saint');
+/** Other names people type for a country. */
+const COUNTRY_ALIASES: Record<string, string> = {
+  usa: 'united states of america', us: 'united states of america', america: 'united states of america', 'united states': 'united states of america',
+  uk: 'united kingdom', britain: 'united kingdom', 'great britain': 'united kingdom', england: 'united kingdom', scotland: 'united kingdom', wales: 'united kingdom',
+  uae: 'united arab emirates', holland: 'netherlands', 'czech republic': 'czechia', burma: 'myanmar', 'ivory coast': 'cote d ivoire',
+  drc: 'democratic republic of the congo', 'east timor': 'timor leste', swaziland: 'eswatini', 'cape verde': 'cabo verde', macedonia: 'north macedonia'
+};
+let countryIndex: { name: string; key: string }[] | null = null;
+function findCountries(text: string, max = 4): string[] {
+  const t = fold(text);
+  if (t.length < 2) return [];
+  countryIndex ??= listCountries().map(name => ({ name, key: expandName(name) }));
+  const alias = COUNTRY_ALIASES[t], words = t.split(' ');
+  const scored: { name: string; s: number }[] = [];
+  for (const c of countryIndex) {
+    const w = c.key.split(' ');
+    if (alias && c.key === alias) { scored.push({ name: c.name, s: 100 }); continue; }
+    if (!words.every(x => w.some(y => y.startsWith(x)))) continue;
+    scored.push({ name: c.name, s: c.key === t ? 90 : c.key.startsWith(t) ? 60 - c.key.length / 10 : 30 - c.key.length / 10 });
+  }
+  return scored.sort((a, b) => b.s - a.s).slice(0, max).map(x => x.name);
+}
+
+/** A row in the results list. */
+function resultRow(title: string, note: string, onPick: () => void, thumb?: string): HTMLElement {
+  const b = el('button', 'q-row q-hit');
+  if (thumb) { const im = new Image(); im.src = thumb; im.alt = ''; b.append(im); }
+  const t = el('span', 'q-text'); t.append(el('b', '', title)); if (note) t.append(el('small', '', note));
+  b.append(t);
+  b.onclick = () => {
+    // picking a result ends the search: the typed words stop hiding photos on the map
+    q.value = ''; query = ''; render(); qLocal.innerHTML = ''; qWho.innerHTML = ''; qPeopleToken++; syncQ(); q.blur();
+    onPick();
+  };
+  return b;
+}
+/** Countries, places and photos that match what is typed. Shown straight away, no server needed. */
+async function searchLocalBar() {
+  const raw = q.value.trim(), my = ++qLocalToken;
+  qLocal.innerHTML = '';
+  if (raw.length < 2) { syncQ(); return; }
+  await loadCities().catch(() => {});
+  if (my !== qLocalToken) return;
+  const countries = findCountries(raw);
+  const places = searchPlaces(raw, 5).filter(p => !countries.some(c => fold(c) === fold(p.short)));
+  const photos = [...cards, ...others()].filter(c => c.img && matchesText(c, raw)).sort(byDate).slice(0, 5);
+  const section = (title: string, rows: HTMLElement[]) => { if (rows.length) qLocal.append(el('p', 'q-head', title), ...rows); };
+  section('Countries', countries.map(name => resultRow(name, 'Country', () => zoomToCountry(name))));
+  section('Places', places.map(p => resultRow(p.short, p.label !== p.short ? p.label : '', () => {
+    map.flyTo([p.lat, p.lng], 10, { duration: 1.2 });
+  })));
+  section('Photos', photos.map(c => resultRow(c.title || placeName(c) || 'Untitled', [placeName(c), fmtDate(c)].filter(Boolean).join(' · '), () => openCard(c), c.img!)));
+  syncQ();
+}
 async function searchPeopleBar() {
   const raw = q.value.trim(), term = cloud.cleanUsername(raw), my = ++qPeopleToken, at = raw.startsWith('@');
-  qPeople.innerHTML = '';
-  if (!cloud.cloudEnabled || term.length < 2) { qPeople.hidden = true; return; }
+  qWho.innerHTML = '';
+  if (!cloud.cloudEnabled || term.length < 2) { syncQ(); return; }
   const rows: HTMLElement[] = [], seen = new Set<string>();
   try {
     // An exact username works for anyone, signed in or not (it opens that person's public page).
@@ -629,18 +722,21 @@ async function searchPeopleBar() {
       for (const p of found) { const row = personRow(p, followButton(p)); row.classList.add('q-person'); rows.push(row); }
     }
     if (!rows.length) {
-      if (at) { qPeople.append(el('p', 'hint', signedIn ? `No one with the username “${term}”. People only appear if they chose to be found. Ask them for their invite link.` : `No one with the exact username “${term}”.`)); qPeople.hidden = false; if (!signedIn) { const b = el('button', 'q-row', 'Sign in to search by the first letters'); b.onclick = () => { qPeople.hidden = true; openAcct(); }; qPeople.append(b); } }
-      else qPeople.hidden = true;
+      if (at) { qWho.append(el('p', 'hint', signedIn ? `No one with the username “${term}”. People only appear if they chose to be found. Ask them for their invite link.` : `No one with the exact username “${term}”.`)); syncQ(); if (!signedIn) { const b = el('button', 'q-row', 'Sign in to search by the first letters'); b.onclick = () => { qPeople.hidden = true; openAcct(); }; qWho.append(b); } }
+      else syncQ();
       return;
     }
-    qPeople.append(el('p', 'q-head', 'People'), ...rows);
-    if (!signedIn) { const b = el('button', 'q-row', 'Sign in to follow people and search by the first letters'); b.onclick = () => { qPeople.hidden = true; openAcct(); }; qPeople.append(b); }
-    qPeople.hidden = false;
-  } catch (err) { if (my === qPeopleToken && at) { qPeople.append(el('p', 'hint', (err as Error).message)); qPeople.hidden = false; } }
+    qWho.append(el('p', 'q-head', 'People'), ...rows);
+    if (!signedIn) { const b = el('button', 'q-row', 'Sign in to follow people and search by the first letters'); b.onclick = () => { qPeople.hidden = true; openAcct(); }; qWho.append(b); }
+    syncQ();
+  } catch (err) { if (my === qPeopleToken && at) { qWho.append(el('p', 'hint', (err as Error).message)); syncQ(); } }
 }
-q.oninput = () => { query = q.value.trim(); render(); clearTimeout(qPeopleT); qPeopleT = window.setTimeout(searchPeopleBar, 350); };
-q.onfocus = () => { if (qPeople.children.length) qPeople.hidden = false; };
-q.addEventListener('keydown', e => { if (e.key === 'Escape') qPeople.hidden = true; });
+q.oninput = () => { query = q.value.trim(); render(); void searchLocalBar(); clearTimeout(qPeopleT); qPeopleT = window.setTimeout(searchPeopleBar, 350); };
+q.onfocus = () => { syncQ(); };
+q.addEventListener('keydown', e => {
+  if (e.key === 'Escape') qPeople.hidden = true;
+  if (e.key === 'Enter') { const first = qLocal.querySelector<HTMLElement>('.q-hit'); if (first) { e.preventDefault(); first.click(); } }   // Enter takes the top result
+});
 document.addEventListener('mousedown', e => { if (!qPeople.hidden && !qPeople.contains(e.target as Node) && e.target !== q) qPeople.hidden = true; });
 
 // ---------- map style ----------
