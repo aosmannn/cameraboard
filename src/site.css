@@ -293,3 +293,22 @@ img { max-width: 100%; }
   .tabs.slide.ready::before { transition: none; }
 }
 @media (prefers-reduced-motion: reduce) { .nav-pill.glide, .nav nav.has-pill a { transition: none; } }
+
+/* ---------- a drop-down that animates (see dropdown.ts) ---------- */
+.dd { position: relative; width: auto; flex: 1 1 220px; max-width: 360px; }
+.dd-btn { display: flex; align-items: center; justify-content: space-between; gap: 10px; width: 100%; padding: 10px 14px; border: 1px solid var(--line); border-radius: 12px; background: var(--panel); text-align: left; cursor: pointer; transition: border-color .15s, box-shadow .15s; }
+.dd-btn:hover { border-color: var(--mute); }
+.dd-btn:focus-visible, .dd.open .dd-btn { outline: 2px solid var(--accent); outline-offset: 1px; border-color: transparent; }
+.dd-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dd-caret { flex: none; width: 16px; height: 16px; fill: none; stroke: var(--mute); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; transition: transform .22s ease; }
+.dd.open .dd-caret { transform: rotate(180deg); }
+.dd-list { position: absolute; left: 0; right: 0; top: calc(100% + 6px); z-index: 30; margin: 0; padding: 6px; list-style: none; max-height: min(340px, 52vh); overflow: auto;
+  background: var(--panel); border: 1px solid var(--line); border-radius: 14px; box-shadow: var(--shadow);
+  opacity: 0; visibility: hidden; pointer-events: none; transform: translateY(-6px) scale(.98); transform-origin: top center;
+  transition: opacity .16s ease, transform .16s ease, visibility 0s linear .16s; }
+.dd.open .dd-list { opacity: 1; visibility: visible; pointer-events: auto; transform: none; transition-delay: 0s; }
+.dd-item { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 9px 12px; border-radius: 9px; cursor: pointer; }
+.dd-item.active { background: var(--panel-2); }
+.dd-item[aria-selected="true"] { font-weight: 600; }
+.dd-item[aria-selected="true"]::after { content: ''; flex: none; width: 14px; height: 14px; background: no-repeat center / contain url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='none' stroke='%23e0533f' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4 10.5l4 4 8-9'/%3E%3C/svg%3E"); }
+@media (prefers-reduced-motion: reduce) { .dd-list, .dd-caret { transition: none; } }
