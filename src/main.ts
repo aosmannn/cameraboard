@@ -158,8 +158,9 @@ function renumber(name: string, list: Card[]) { list.forEach((c, i) => { c.trip 
 
 // ---------- map ----------
 const themeName = ((): ThemeName => { const t = lsGet('wf-theme'); return t && t in THEMES ? t as ThemeName : 'terrain'; })();
+const WORLD_VIEW = { center: [30, 10] as L.LatLngTuple, zoom: 2 };   // the whole-world view the map opens on
 const map = L.map('map', { zoomControl: false, minZoom: 2, maxZoom: 16, preferCanvas: true,
-  worldCopyJump: true, maxBounds: [[-70, -1e5], [85, 1e5]], maxBoundsViscosity: 0.8 }).setView([30, 10], 2);
+  worldCopyJump: true, maxBounds: [[-70, -1e5], [85, 1e5]], maxBoundsViscosity: 0.8 }).setView(WORLD_VIEW.center, WORLD_VIEW.zoom);
 L.control.zoom({ position: 'bottomright' }).addTo(map);
 const world = drawWorld(map, themeName);
 map.attributionControl.setPrefix('').addAttribution('Wayframe');
@@ -200,11 +201,6 @@ function selectCountry(name: string | null) {
   const n = mapCards().filter(c => countryOf(c) === name).length;
   $('countryText').textContent = `${name} · ${n} ${n === 1 ? 'photo' : 'photos'}`;
 }
-$('countryClear').onclick = () => selectCountry(null);
-$('countryFit').onclick = () => {
-  const b = pickedCountry && countryBounds(pickedCountry);
-  if (b) map.flyToBounds(nearBounds(b), { ...mapPadding(), maxZoom: 8, duration: 1 });
-};
 
 /** A country's box on the copy of the world you are closest to, so flights take the short way round. */
 function nearBounds(b: L.LatLngBounds) {
@@ -218,13 +214,20 @@ function zoomToCountry(name: string) {
   const b = countryBounds(name);
   if (b) map.flyToBounds(nearBounds(b), { ...mapPadding(), maxZoom: 8, duration: 1 });
 }
+/** Clears the outline and, if a country was picked, zooms back out to the whole world. */
+function clearCountry() {
+  const had = !!pickedCountry;
+  selectCountry(null);
+  if (had) map.flyTo([WORLD_VIEW.center[0], nearLng(WORLD_VIEW.center[1])], WORLD_VIEW.zoom, { duration: 1 });
+}
+$('countryClear').onclick = clearCountry;
 
 map.on('click', async e => {
   const at = map.wrapLatLng(e.latlng);   // clicks on another copy of the world count as the real one
   if (!pinTargets.length) {
     if (connecting || pl.on) return;
     const hit = countryAt(at.lat, at.lng, true);
-    selectCountry(hit && hit !== pickedCountry ? hit : null);
+    if (hit && hit !== pickedCountry) zoomToCountry(hit); else clearCountry();   // the same country again, or the sea: zoom back out
     return;
   }
   const targets = pinTargets;
@@ -1341,7 +1344,7 @@ document.addEventListener('keydown', e => {
   else if (!timeBar.hidden) tlClose();
   else if (viewerIsOpen()) closeViewer();
   else if (pinTargets.length) stopPinning();
-  else if (pickedCountry) selectCountry(null);
+  else if (pickedCountry) clearCountry();
   else if (connecting) stopConnect();
   else if (pl.on) stopPlay();
   else if (!$('drawer').hidden) closeDrawer();
