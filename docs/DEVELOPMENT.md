@@ -206,3 +206,8 @@ Who can like or comment on a photo is decided in the database by `can_see_photo(
 - Map style (`#styleMenu`) is the same kind of drop-down. `themeSel` stays as a plain select inside the logo menu for narrow screens and is what the poster code reads. `setMapStyle` in `src/main.ts` keeps all three in step and remembers the choice (`wf-theme`).
 - The header stays on one row at every width: the search bar shrinks with the page, and below 520 px the wordmark hides so the search still fits.
 - Header and bottom controls have a thin white ring (`--ring`) so they stand out on the colorful map, and buttons light up on hover (`--glow`). Reduced motion turns the menu animation off.
+
+## Layout: Add photos at the bottom, panel on the right
+
+- Add photos is not in the header. A bar at the bottom (`#empty`) says "Pin your first photo" with the button; once there are photos (or the message is dismissed) it shrinks to just the button. When the unplaced-photos tray is showing, the bar lifts above it.
+- The stories panel sits on the right on wide screens, so it never covers the logo menu; the photo drawer slides in next to it and the zoom buttons step aside. `setStories()` in `src/main.ts` slides the panel in and out (the `closing` class), and the logo menu's Stories item uses it too. On phones the panel is a bottom sheet.
