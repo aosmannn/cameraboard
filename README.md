@@ -16,6 +16,7 @@ Wayframe hangs your photos on a world map, right where they were taken. Connect 
 - **Share it your way.** Keep everything private, show it to friends, or make it public with a link. Anyone can open a public story, no account needed.
 - **See the camera behind the shot.** Wayframe reads the camera, shutter speed, aperture and ISO from each photo and shows them like a caption.
 - **Explore.** Browse photos and stories from other people, see where they've been, and find photos by camera.
+- **Track where you've been.** A Been tab checks off the countries you've visited, from your photos or by hand, and a Bucket tab keeps a wishlist of places. Both are saved in your browser for now.
 - **Follow friends.** Find people by username and see their stories on your map next to your own.
 
 ## Made for old cameras

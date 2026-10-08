@@ -164,6 +164,14 @@ export function countryAt(lat: number, lng: number, strict = false): string | nu
   return best;
 }
 
+/** All country names on the map (Natural Earth), excluding Antarctica. */
+export function allCountryNames(): string[] {
+  return fc.features
+    .map((f: { properties: { name: string } }) => f.properties.name)
+    .filter((n: string) => n && n !== 'Antarctica')
+    .sort((a: string, b: string) => a.localeCompare(b));
+}
+
 // ---- Mercator helpers (shared with the poster) ----
 export const mercY = (lat: number) => Math.log(Math.tan(Math.PI / 4 + (Math.max(-85, Math.min(85, lat)) * Math.PI) / 360));
 export const invMercY = (y: number) => (2 * Math.atan(Math.exp(y)) - Math.PI / 2) * 180 / Math.PI;

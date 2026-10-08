@@ -200,3 +200,19 @@ Who can like or comment on a photo is decided in the database by `can_see_photo(
 - Comment text is always inserted as text, never as HTML.
 - Each polaroid on the Explore and camera walls has its own heart on the caption row (`heartFor` in `src/gallery-ui.ts`); one `reaction_counts` call fills all of them. The `wf-like` event keeps a polaroid's heart and the viewer's heart in step.
 - Until the migration is applied the heart and comments show a short "needs the latest database update" message instead of failing quietly.
+
+## Been & Bucket
+
+The Been tab lists the map's countries and territories, tracks your own placed photos,
+and lets you mark visits by hand. Removing or moving a photo updates its automatic visit.
+The Bucket tab saves wishlist, planned and done items. Choose a city search result to
+pin a city or place; a photo within 40 km checks it off. Country items match a photo
+anywhere in that country. Experiences and items without a location are checked off
+manually. Reopening an item disables automatic completion for that item.
+
+Visits and bucket items are saved in this browser's local storage (`wf-visited` and
+`wf-bucket`). They do not sync to accounts or appear in photo-only exports yet.
+Friends' photos are not used to mark your visits or complete your wishlist.
+
+Run travel rule regression checks with `node --test tests/travel.test.mjs`, then
+`npm run build` for TypeScript and all production pages.

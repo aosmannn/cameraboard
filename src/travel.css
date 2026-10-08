@@ -1,0 +1,38 @@
+/* been / bucket travel panels */
+.travel .tv-stat { margin: 4px 0 14px; color: var(--mute); font-size: 13.5px; line-height: 1.4; }
+.travel .tv-stat b { color: var(--ink); font-weight: 600; }
+.tv-search { width: 100%; margin-bottom: 10px; }
+.tv-row { display: flex; align-items: center; gap: 10px; width: 100%; padding: 10px 10px; margin: 0 0 6px; border: 1px solid transparent; border-radius: 12px; background: none; text-align: left; color: inherit; }
+.tv-row:hover { background: var(--panel-2); }
+.tv-row.on { background: var(--panel-2); border-color: var(--line); }
+.tv-check { flex: none; width: 22px; height: 22px; border-radius: 6px; border: 1.5px solid var(--line); display: grid; place-items: center; font-size: 13px; color: transparent; background: var(--panel); }
+.tv-row.on .tv-check { background: #e4572e; border-color: #e4572e; color: #fff; }
+.tv-row .tv-name { flex: 1; min-width: 0; font-weight: 500; }
+.tv-row .tv-meta { color: var(--mute); font-size: 12px; white-space: nowrap; }
+.tv-form { display: flex; flex-direction: column; gap: 8px; margin-bottom: 14px; padding: 12px; border-radius: 14px; background: var(--panel-2); }
+.tv-form .row { gap: 8px; }
+.tv-form select.plain { flex: none; width: auto; }
+.bucket-item { padding: 12px; margin: 0 0 8px; border-radius: 14px; background: var(--panel-2); }
+.bucket-item.done { opacity: .72; }
+.bucket-item .bi-top { display: flex; align-items: baseline; gap: 8px; }
+.bucket-item .bi-top b { flex: 1; min-width: 0; font: 700 22px/1.15 var(--hand); }
+.bucket-item .bi-kind { color: var(--mute); font-size: 12px; text-transform: uppercase; letter-spacing: .04em; }
+.bucket-item .bi-meta { margin: 4px 0 0; color: var(--mute); font-size: 13px; }
+.bucket-item .bi-notes { margin: 8px 0 0; font-size: 13.5px; line-height: 1.4; }
+.bucket-item .st-actions { margin-top: 10px; }
+.bucket-pin { background: none; border: 0; }
+.bucket-pin span {
+  display: block; width: 28px; height: 28px; margin: -14px 0 0 -14px; border-radius: 50% 50% 50% 0; transform: rotate(-45deg);
+  background: #2f6fd1; border: 2px solid #fff; box-shadow: 0 2px 6px #0004;
+}
+.bucket-pin.done span { background: #2e9e5b; }
+.bucket-pin.planned span { background: #e8b422; }
+
+/* Four tabs fit alongside the story controls, including on phones. */
+.st-head { flex-wrap: wrap; }
+.st-tabs { flex-wrap: wrap; min-width: 0; gap: 8px; }
+.st-tab { font-size: 24px; }
+.tv-results { display: flex; flex-direction: column; gap: 6px; }
+.tv-results .btn { text-align: left; white-space: normal; }
+.tv-form input { min-width: 0; width: 100%; }
+.bucket-item .bi-top b, .bucket-item .bi-notes { overflow-wrap: anywhere; }

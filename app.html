@@ -51,6 +51,8 @@
   <div class="st-head">
     <div class="st-tabs" role="tablist" aria-label="Panel">
       <button role="tab" id="tabStories" class="st-tab on">Stories</button>
+      <button role="tab" id="tabBeen" class="st-tab">Been</button>
+      <button role="tab" id="tabBucket" class="st-tab">Bucket</button>
       <button role="tab" id="tabFeed" class="st-tab" hidden>Friends</button>
     </div>
     <button id="newStory" class="btn small">New story</button>
@@ -61,6 +63,12 @@
     <button class="btn small primary">Start</button>
   </form>
   <div id="storyList" class="story-list"></div>
+  <div id="beenList" class="story-list travel" hidden>
+    <p id="beenStat" class="tv-stat"></p>
+    <input id="beenSearch" class="plain tv-search" type="search" placeholder="Find a country" aria-label="Find a country">
+    <div id="beenRows"></div>
+  </div>
+  <div id="bucketList" class="story-list travel" hidden></div>
   <div id="feedList" class="story-list feed" hidden></div>
 </aside>
 <button id="storiesShow" class="stories-show" hidden>Stories</button>
