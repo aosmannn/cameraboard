@@ -185,4 +185,16 @@ The community pages start with two network steps (the list, then signing the ima
 ## Motion between tabs and pages
 
 - Pill tab bars (Explore's Photos/Stories, the Cameras periods) have a highlight that glides to the chosen tab (`slideTabs` in `src/site.ts`), and the content under them fades out and the new content fades in (`swapContent`).
-- Going between Explore, Cameras and the map uses cross-page view transitions (`@view-transition` in `src/site.css` and `src/style.css`): the page fades and the header's highlight (`view-transition-name: nav-pill`) glides to the new tab. Browsers without them (for example Firefox) get a short fade-in of the page instead. Everything is turned off for people who prefer reduced motion.
+- The site header's highlight is one pill that glides to the link you click (Explore, Cameras, Map) before the page changes (`glideNav` in `src/site.ts`; about 150 ms). It is not used in the narrow drop-down menu. Pages also fade into each other with cross-page view transitions (`@view-transition` in `src/site.css` and `src/style.css`); browsers without them (for example Firefox) get a short fade-in of the page instead. Everything is turned off for people who prefer reduced motion.
+
+## Likes and comments
+
+Under other people's photos there is a heart and a comment thread (`src/reactions.ts`, styles in `src/reactions.css`). It appears in the Explore photo viewer (also used on profile, story and camera pages), and in the map's photo panel as a comments section under the existing heart.
+
+Who can like or comment on a photo is decided in the database by `can_see_photo(pid)` (migration `20261008010000_likes_and_comments.sql`; run `npm run db:push` once): the owner, people who follow the owner (friends and public photos), and anyone signed in for photos the owner listed in the community gallery. Blocked people never see each other's reactions. Private photos are never reachable.
+
+- Comments are read through `photo_comments(pid)` (adds names, hides blocked people; works without signing in for community gallery photos) and counted with `reaction_counts(ids)`. There is deliberately no select policy on the `comments` table.
+- 1 to 500 characters, at most 8 a minute per person. The photo's owner can remove any comment on their photo; everyone can remove their own.
+- Comment text is always inserted as text, never as HTML.
+- Each polaroid on the Explore and camera walls has its own heart on the caption row (`heartFor` in `src/gallery-ui.ts`); one `reaction_counts` call fills all of them. The `wf-like` event keeps a polaroid's heart and the viewer's heart in step.
+- Until the migration is applied the heart and comments show a short "needs the latest database update" message instead of failing quietly.
