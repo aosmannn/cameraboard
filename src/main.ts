@@ -13,6 +13,7 @@ import './style.css';
 import type { Card, Look } from './types';
 import { openStore, loadCards, saveCards } from './storage';
 import { blankCard, fillCard, normalize, cameraName, dayOf, timeOf, stampText, placeKey, squareAvatar } from './photo';
+import { mountReactions } from './reactions';
 import { drawWorld, countryAt, countryBounds, listCountries, THEMES, type ThemeName } from './world';
 import { loadCities, searchPlaces, nameAt, type Place } from './atlas';
 import { initViewer, openViewer, closeViewer, viewerIsOpen } from './viewer';
@@ -1023,6 +1024,9 @@ function openCard(c: Card, fly = true) {
   fTripName.value = c.trip; fCamera.value = c.meta?.camera ?? '';
   $<HTMLInputElement>('coverBox').checked = c.cover;
   $<HTMLSelectElement>('lookSel').value = c.look; $<HTMLInputElement>('stampBox').checked = c.stamp;
+  // comments under photos other people can see (the heart is the like button above)
+  { const box = $('dReact'); box.innerHTML = '';
+    if (signedIn && c.owner && c.imgPath && (isFriendCard(c) || c.visibility !== 'private')) box.append(mountReactions(c.id, { heart: false, onSignIn: openAcct })); }
   drawLike(); locNote(); buildSwatches(); drawLookAndStamp(c); drawShotOn(c); drawStoryNav(c); drawMeta(c);
   const m = c.meta || {};
   const meta = $('meta'); meta.innerHTML = '';
