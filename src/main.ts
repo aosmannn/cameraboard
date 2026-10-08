@@ -157,7 +157,7 @@ function addToStory(c: Card, name: string) {
 function renumber(name: string, list: Card[]) { list.forEach((c, i) => { c.trip = name; c.seq = i + 1; }); }
 
 // ---------- map ----------
-const themeName = ((): ThemeName => { const t = lsGet('wf-theme'); return t && t in THEMES ? t as ThemeName : 'paper'; })();
+const themeName = ((): ThemeName => { const t = lsGet('wf-theme'); return t && t in THEMES ? t as ThemeName : 'terrain'; })();
 const map = L.map('map', { zoomControl: false, minZoom: 2, maxZoom: 16, preferCanvas: true,
   maxBounds: [[-70, -220], [85, 220]], maxBoundsViscosity: 0.8 }).setView([30, 10], 2);
 L.control.zoom({ position: 'bottomright' }).addTo(map);

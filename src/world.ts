@@ -5,12 +5,18 @@ import { feature, neighbors } from 'topojson-client';
 import topo from 'world-atlas/countries-50m.json';
 import { loadAdmin1, loadCounties, loadCities } from './atlas';
 import { Labels, type Item } from './labels';
+import { addNature } from './nature';
 
-export type ThemeName = 'paper' | 'atlas' | 'night';
+export type ThemeName = 'terrain' | 'paper' | 'atlas' | 'night';
 export interface Theme {
   name: string; ocean: string; border: string; sea: string; label: string; halo: string; fills: string[];
+  /** Terrain: neutral land with deserts, forests, mountains and so on drawn over it (see nature.ts and the zone layer below). */
+  terrain?: boolean;
 }
 export const THEMES: Record<ThemeName, Theme> = {
+  // land colored by what grows on it: forests, grassland, desert, tundra, ice; with mountains, rivers and lakes
+  terrain: { name: 'Terrain', ocean: '#a8c8d2', border: '#f6f0de', sea: '#4d7683', label: '#33301f', halo: '#f4efe0', terrain: true,
+    fills: ['#eee6cf', '#e9e0c6', '#ede4cc', '#e7dec5', '#ece3ca', '#e8dfc8', '#eee5cd', '#e6ddc3'] },
   // a printed paper map, pinned to the board
   paper: { name: 'Paper', ocean: '#bcd3d6', border: '#fbf6ea', sea: '#55777f', label: '#3a3226', halo: '#f7f0e1',
     fills: ['#eadfc4', '#dccba6', '#d2dab8', '#e8cdb0', '#dbd0b8', '#c9d5c1', '#efdcbd', '#d8c7a2'] },
@@ -190,6 +196,75 @@ const cityFont = (pop: number) => pop >= 5e6 ? 14 : pop >= 1e6 ? 13 : 12;
 const areaZoom = (a: number, z: number[]) => a > z[0] ? 3 : a > z[1] ? 4 : a > z[2] ? 5 : a > z[3] ? 6 : 7;
 
 
+// ---- what grows on the land: forests, grassland, desert, tundra, ice (the Terrain style) ----
+// public/data/biomes.png is a world grid of climate zones made from Natural Earth II land cover (public domain) by Steven (@vcanp);
+// each pixel's red value is a zone number. We color the land by zone and clip it to the country shapes, so it never spills into the sea.
+const ZONE_COLORS = ['#f3f7fa', '#cfccb6', '#86a28b', '#a4c184', '#659d6d', '#d0cc8f', '#dcd498', '#dcc79f', '#f0dfae', '#d6ac82']
+  .map(h => [parseInt(h.slice(1, 3), 16), parseInt(h.slice(3, 5), 16), parseInt(h.slice(5, 7), 16)]);
+let zones: Uint8Array | null = null, zw = 2048, zh = 1024;
+const zonesReady: Promise<void> = new Promise(res => {
+  const im = new Image();
+  im.onload = () => {
+    zw = im.width; zh = im.height;
+    const c = document.createElement('canvas'); c.width = zw; c.height = zh;
+    const x = c.getContext('2d', { willReadFrequently: true })!; x.drawImage(im, 0, 0);
+    const d = x.getImageData(0, 0, zw, zh).data; zones = new Uint8Array(zw * zh);
+    for (let i = 0; i < zones.length; i++) zones[i] = d[i * 4];
+    res();
+  };
+  im.onerror = () => res();
+  im.src = `${import.meta.env.BASE_URL}data/biomes.png`;
+});
+/** Soft blend of the four nearest grid cells, so one zone fades into the next like a real transition. */
+function zoneAt(lat: number, lng: number, out: number[]) {
+  const u = ((((lng + 180) % 360) + 360) % 360) / 360 * zw - 0.5, v = ((90 - lat) / 180) * zh - 0.5;
+  const x0 = Math.floor(u), y0 = Math.floor(v), fx = u - x0, fy = v - y0;
+  const at = (x: number, y: number) => ZONE_COLORS[Math.min(9, zones![Math.min(zh - 1, Math.max(0, y)) * zw + (((x % zw) + zw) % zw)])];
+  const a = at(x0, y0), b = at(x0 + 1, y0), c = at(x0, y0 + 1), d = at(x0 + 1, y0 + 1);
+  for (let k = 0; k < 3; k++) out[k] = (a[k] * (1 - fx) + b[k] * fx) * (1 - fy) + (c[k] * (1 - fx) + d[k] * fx) * fy;
+}
+const ZONE_CELLS = 64;   // each map tile is sampled 64 x 64 and stretched smoothly to the tile size
+const ZoneLayer = L.GridLayer.extend({
+  createTile(coords: L.Coords, done: (e: Error | null, t: HTMLElement) => void) {
+    const size = 256, tile = document.createElement('canvas'); tile.width = tile.height = size;
+    zonesReady.then(() => {
+      if (!zones) { done(null, tile); return; }
+      const n = 2 ** coords.z, small = document.createElement('canvas'); small.width = small.height = ZONE_CELLS;
+      const sctx = small.getContext('2d')!, img = sctx.createImageData(ZONE_CELLS, ZONE_CELLS), rgb = [0, 0, 0];
+      for (let j = 0; j < ZONE_CELLS; j++) {
+        const lat = Math.atan(Math.sinh(Math.PI * (1 - 2 * (coords.y + (j + 0.5) / ZONE_CELLS) / n))) * 180 / Math.PI;
+        for (let i = 0; i < ZONE_CELLS; i++) {
+          zoneAt(lat, (coords.x + (i + 0.5) / ZONE_CELLS) / n * 360 - 180, rgb);
+          const o = (j * ZONE_CELLS + i) * 4; img.data[o] = rgb[0]; img.data[o + 1] = rgb[1]; img.data[o + 2] = rgb[2]; img.data[o + 3] = 255;
+        }
+      }
+      sctx.putImageData(img, 0, 0);
+      const ctx = tile.getContext('2d')!;
+      // land only: the outline of every country that touches this tile
+      const lng0 = coords.x / n * 360 - 180, lng1 = (coords.x + 1) / n * 360 - 180;
+      const latTop = Math.atan(Math.sinh(Math.PI * (1 - 2 * coords.y / n))) * 180 / Math.PI;
+      const latBot = Math.atan(Math.sinh(Math.PI * (1 - 2 * (coords.y + 1) / n))) * 180 / Math.PI;
+      const px = (lng: number) => ((lng + 180) / 360 * n - coords.x) * size;
+      const py = (lat: number) => ((1 - mercY(lat) / Math.PI) / 2 * n - coords.y) * size;
+      ctx.beginPath();
+      for (const f of fc.features) {
+        if (f.properties.name === 'Antarctica') continue;
+        for (const p of f._polys as Poly[]) for (const shift of [-360, 0, 360]) {
+          const [x0, y0, x1, y1] = p.bbox;
+          if (x1 + shift < lng0 || x0 + shift > lng1 || y1 < latBot || y0 > latTop) continue;
+          for (const ring of p.rings) {
+            ring.forEach(([x, y], k) => (k ? ctx.lineTo(px(x + shift), py(y)) : ctx.moveTo(px(x + shift), py(y))));
+            ctx.closePath();
+          }
+        }
+      }
+      ctx.save(); ctx.clip('evenodd'); ctx.imageSmoothingEnabled = true; ctx.drawImage(small, 0, 0, size, size); ctx.restore();
+      done(null, tile);
+    });
+    return tile;
+  }
+});
+
 export function drawWorld(map: L.Map, initial: ThemeName): World {
   let T = THEMES[initial];
   let visited: Set<string> | null = null;
@@ -201,9 +276,17 @@ export function drawWorld(map: L.Map, initial: ThemeName): World {
     labels.setColors({ text: T.label, halo: T.halo, sea: T.sea });
   };
   applyChrome();
-  for (const [name, z] of [['worldPane', 150], ['statePane', 160], ['countyPane', 170], ['hlPane', 180]] as [string, number][])
+  for (const [name, z] of [['worldPane', 150], ['statePane', 160], ['zonePane', 164], ['countyPane', 170], ['hlPane', 180]] as [string, number][])
     map.createPane(name).style.zIndex = String(z);
   map.getPane('hlPane')!.style.pointerEvents = 'none';
+  map.getPane('zonePane')!.style.pointerEvents = 'none';
+  // the Terrain style: land colored by what grows on it, plus deserts, mountains, rivers and lakes (all bundled data)
+  const zoneLayer = new (ZoneLayer as any)({ pane: 'zonePane', tileSize: 256, minZoom: 2, maxZoom: 16, keepBuffer: 2 }) as L.GridLayer;
+  const zoneFade = () => { const z = map.getZoom(); zoneLayer.setOpacity(z <= 5 ? 0.72 : Math.max(0.3, 0.72 - (z - 5) * 0.1)); };
+  const syncZones = () => { if (T.terrain) { if (!map.hasLayer(zoneLayer)) zoneLayer.addTo(map); zoneFade(); } else if (map.hasLayer(zoneLayer)) map.removeLayer(zoneLayer); };
+  map.on('zoomend', zoneFade);
+  const nature = addNature(map, T);
+  syncZones();
 
   // ---- countries ----
   const countryRenderer = L.canvas({ pane: 'worldPane' });
@@ -307,7 +390,7 @@ export function drawWorld(map: L.Map, initial: ThemeName): World {
     states?.setStyle(stateStyle); counties?.setStyle({ color: T.border });
   };
   return {
-    setTheme(t) { T = THEMES[t]; applyChrome(); restyle(); drawHighlight(); },
+    setTheme(t) { T = THEMES[t]; applyChrome(); restyle(); drawHighlight(); syncZones(); nature.setTheme(T); },
     highlight(name) { hlName = name; drawHighlight(); },
     setVisited(names) { visited = names; restyle(); }
   };
