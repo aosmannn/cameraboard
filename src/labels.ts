@@ -26,7 +26,11 @@ export class Labels {
     this.schedule();
   }
 
-  set(kind: Kind, items: Item[]) { this.items[kind] = items; this.schedule(); }
+  /** Names repeat one world to the left and right, so they show up while you pan around the globe. */
+  set(kind: Kind, items: Item[]) {
+    this.items[kind] = items.flatMap(it => [it, { ...it, lng: it.lng - 360 }, { ...it, lng: it.lng + 360 }]);
+    this.schedule();
+  }
   setColors(c: LabelColors) { this.colors = c; this.schedule(); }
   /** One redraw per frame. Never cancel a pending one: during a fly-to the map fires events every frame,
    *  and canceling would starve the redraw until the flight ends. */

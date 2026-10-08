@@ -159,7 +159,7 @@ function renumber(name: string, list: Card[]) { list.forEach((c, i) => { c.trip 
 // ---------- map ----------
 const themeName = ((): ThemeName => { const t = lsGet('wf-theme'); return t && t in THEMES ? t as ThemeName : 'terrain'; })();
 const map = L.map('map', { zoomControl: false, minZoom: 2, maxZoom: 16, preferCanvas: true,
-  maxBounds: [[-70, -220], [85, 220]], maxBoundsViscosity: 0.8 }).setView([30, 10], 2);
+  worldCopyJump: true, maxBounds: [[-70, -1e5], [85, 1e5]], maxBoundsViscosity: 0.8 }).setView([30, 10], 2);
 L.control.zoom({ position: 'bottomright' }).addTo(map);
 const world = drawWorld(map, themeName);
 map.attributionControl.setPrefix('').addAttribution('Wayframe');
@@ -168,10 +168,21 @@ map.createPane('stringPane').style.zIndex = '620';
 map.getPane('stringPane')!.style.pointerEvents = 'none';
 const stringRenderer = L.svg({ pane: 'stringPane' });
 const strings = L.layerGroup().addTo(map);
+// After any move (drag, fly, keys), step back into the main world. Every layer is drawn again one world over, so nothing visibly changes.
+map.on('moveend', () => {
+  const c = map.getCenter();
+  if (c.lng >= -180 && c.lng <= 180) return;
+  map.setView(map.wrapLatLng(c), map.getZoom(), { animate: false });
+});
+/** The map repeats around the globe. This picks the copy of a longitude nearest to where you are looking now, so flights take the short way. */
+const nearLng = (lng: number) => lng + 360 * Math.round((map.getCenter().lng - lng) / 360);
+/** Everything drawn on the map is also drawn one world to the left and right. Photos only need a copy when they sit near the date line. */
+const OFFSETS = [-360, 0, 360];
+const copiesOf = (lng: number) => lng > 40 ? [0, -360] : lng < -40 ? [0, 360] : [0];
 // keep the string drawn while the map flies between stops (same reason as the countries in world.ts)
 map.on('zoom', () => { const r = stringRenderer as any; if ((map as any)._flyToFrame && r._map) r._reset(); });
 const photos = L.layerGroup().addTo(map);
-const markers = new Map<string, L.Marker>();
+const markers = new Map<string, L.Marker[]>();
 
 /** Polaroids shrink when zoomed out so the board doesn't turn into a pile. */
 function sizeClass() {
@@ -192,27 +203,34 @@ function selectCountry(name: string | null) {
 $('countryClear').onclick = () => selectCountry(null);
 $('countryFit').onclick = () => {
   const b = pickedCountry && countryBounds(pickedCountry);
-  if (b) map.flyToBounds(b, { ...mapPadding(), maxZoom: 8, duration: 1 });
+  if (b) map.flyToBounds(nearBounds(b), { ...mapPadding(), maxZoom: 8, duration: 1 });
 };
+
+/** A country's box on the copy of the world you are closest to, so flights take the short way round. */
+function nearBounds(b: L.LatLngBounds) {
+  const sh = nearLng(b.getCenter().lng) - b.getCenter().lng;
+  return L.latLngBounds([b.getSouth(), b.getWest() + sh], [b.getNorth(), b.getEast() + sh]);
+}
 
 /** Outlines a country and flies to it. Used by clicking the map and by the search bar. */
 function zoomToCountry(name: string) {
   selectCountry(name);
   const b = countryBounds(name);
-  if (b) map.flyToBounds(b, { ...mapPadding(), maxZoom: 8, duration: 1 });
+  if (b) map.flyToBounds(nearBounds(b), { ...mapPadding(), maxZoom: 8, duration: 1 });
 }
 
 map.on('click', async e => {
+  const at = map.wrapLatLng(e.latlng);   // clicks on another copy of the world count as the real one
   if (!pinTargets.length) {
     if (connecting || pl.on) return;
-    const hit = countryAt(e.latlng.lat, e.latlng.lng, true);
+    const hit = countryAt(at.lat, at.lng, true);
     selectCountry(hit && hit !== pickedCountry ? hit : null);
     return;
   }
   const targets = pinTargets;
-  for (const c of targets) { c.lat = e.latlng.lat; c.lng = e.latlng.lng; }
+  for (const c of targets) { c.lat = at.lat; c.lng = at.lng; }
   stopPinning(); render(); locNote();
-  const name = await reverse(e.latlng.lat, e.latlng.lng) || 'Dropped pin';
+  const name = await reverse(at.lat, at.lng) || 'Dropped pin';
   for (const c of targets) c.place = name;
   if (cur && targets.includes(cur)) { fPlace.value = name; drawMeta(cur); }
   save(); renderStories();
@@ -245,28 +263,32 @@ function renderMap() {
     const inStory = hl ? g.some(c => c.owner === hl!.owner && c.trip === hl!.trip) : (!activeStory || g.some(c => !isFriendCard(c) && c.trip === activeStory));
     if (!inStory) box.classList.add('dim');
     if (focus && placed(focus) && keyOf(focus) === k) box.classList.add('sel');
-    const m = L.marker([rep.lat!, rep.lng!], {
-      icon: L.divIcon({ html: box, className: 'pol-icon', iconSize: [0, 0], iconAnchor: [0, 0] }),
-      zIndexOffset: inStory ? 100 : 0, title: rep.title || 'Photo'
-    });
-    m.on('click', () => {
+    const onClick = () => {
       if (connecting) {
         if (isFriendCard(rep)) return;
         const c = g.find(x => x.trip !== connecting) ?? rep;
         addToStory(c, connecting); save(); render(); connectText(); return;
       }
       openCard(rep);
+    };
+    const made = copiesOf(rep.lng!).map((off, i) => {
+      const m = L.marker([rep.lat!, rep.lng! + off], {
+        icon: L.divIcon({ html: i ? box.cloneNode(true) as HTMLElement : box, className: 'pol-icon', iconSize: [0, 0], iconAnchor: [0, 0] }),
+        zIndexOffset: inStory ? 100 : 0, title: rep.title || 'Photo'
+      });
+      m.on('click', onClick); photos.addLayer(m);
+      return m;
     });
-    markers.set(k, m); photos.addLayer(m);
+    markers.set(k, made);
   });
   $('empty').hidden = syncing || emptyOff || cards.some(c => c.img) || (showOthers() && others().length > 0);
 }
 function markSelected() {
   const f = focusCard(), key = f && placed(f) ? keyOf(f) : '';
-  markers.forEach((m, k) => {
+  markers.forEach((ms, k) => ms.forEach(m => {
     m.getElement()?.querySelector('.pol')?.classList.toggle('sel', k === key);
     m.setZIndexOffset(k === key ? 1000 : 100);
-  });
+  }));
 }
 
 /** Red string between two stops, sagging a little like real yarn. */
@@ -289,11 +311,14 @@ function drawYarn(list: Card[], color: string, dim: boolean) {
   for (let i = 1; i < list.length; i++) {
     if (keyOf(list[i - 1]) === keyOf(list[i])) continue;
     const pts = yarn(list[i - 1], list[i]);
-    L.polyline(pts, { renderer: stringRenderer, color: '#000', weight: 3.5, opacity: opacity * 0.16, interactive: false, className: 'yarn-shadow' }).addTo(strings);
-    L.polyline(pts, { renderer: stringRenderer, color, weight: 2.2, opacity, interactive: false, lineCap: 'round' }).addTo(strings);
+    for (const off of OFFSETS) {
+      const at = off ? pts.map(p => L.latLng(p.lat, p.lng + off)) : pts;
+      L.polyline(at, { renderer: stringRenderer, color: '#000', weight: 3.5, opacity: opacity * 0.16, interactive: false, className: 'yarn-shadow' }).addTo(strings);
+      L.polyline(at, { renderer: stringRenderer, color, weight: 2.2, opacity, interactive: false, lineCap: 'round' }).addTo(strings);
+    }
   }
-  for (const c of list) {
-    L.circleMarker([c.lat!, c.lng!], { renderer: stringRenderer, radius: 3, color: '#0006', weight: 1,
+  for (const c of list) for (const off of OFFSETS) {
+    L.circleMarker([c.lat!, c.lng! + off], { renderer: stringRenderer, radius: 3, color: '#0006', weight: 1,
       fillColor: color, fillOpacity: dim ? 0.2 : 1, opacity: dim ? 0.2 : 1, interactive: false }).addTo(strings);
   }
 }
@@ -318,16 +343,16 @@ function mapPadding() {
 }
 function fitCards(list: Card[], maxZoom = 6) {
   const pts = list.filter(placed).map(c => [c.lat!, c.lng!] as L.LatLngTuple);
-  if (pts.length) map.flyToBounds(L.latLngBounds(pts), { ...mapPadding(), maxZoom, duration: 1 });
+  if (pts.length) map.flyToBounds(L.latLngBounds(pts.map(p => [p[0], nearLng(p[1])] as L.LatLngTuple)), { ...mapPadding(), maxZoom, duration: 1 });
 }
 function flyTo(c: Card, zoom = 8) {
-  map.flyToBounds(L.latLngBounds([[c.lat!, c.lng!]]), { ...mapPadding(), maxZoom: Math.max(map.getZoom(), zoom), duration: 1.1 });
+  map.flyToBounds(L.latLngBounds([[c.lat!, nearLng(c.lng!)]]), { ...mapPadding(), maxZoom: Math.max(map.getZoom(), zoom), duration: 1.1 });
 }
 
 // ---------- travel: countries you've been to, and the bucket list ----------
 const travel = initTravel({
   map, cards: () => cards, signedIn: () => signedIn, setVisited: n => world.setVisited(n),
-  flyToCountry: name => { const b = countryBounds(name); if (b) map.flyToBounds(b, { ...mapPadding(), maxZoom: 6, duration: 1 }); },
+  flyToCountry: name => { const b = countryBounds(name); if (b) map.flyToBounds(nearBounds(b), { ...mapPadding(), maxZoom: 6, duration: 1 }); },
   openCard: id => { const c = cards.find(x => x.id === id); if (c) openCard(c); },
   note: t => showToast(t)
 });
@@ -687,7 +712,7 @@ async function searchLocalBar() {
   const section = (title: string, rows: HTMLElement[]) => { if (rows.length) qLocal.append(el('p', 'q-head', title), ...rows); };
   section('Countries', countries.map(name => resultRow(name, 'Country', () => zoomToCountry(name))));
   section('Places', places.map(p => resultRow(p.short, p.label !== p.short ? p.label : '', () => {
-    map.flyTo([p.lat, p.lng], 10, { duration: 1.2 });
+    map.flyTo([p.lat, nearLng(p.lng)], 10, { duration: 1.2 });
   })));
   section('Photos', photos.map(c => resultRow(c.title || placeName(c) || 'Untitled', [placeName(c), fmtDate(c)].filter(Boolean).join(' · '), () => openCard(c), c.img!)));
   syncQ();
@@ -1200,7 +1225,7 @@ function playStep(i: number) {
   $('pcCount').textContent = `Stop ${pl.i + 1} of ${pl.list.length} · ${pl.story}`;
   const prev = pl.list[pl.i - 1];
   const far = prev ? map.distance([prev.lat!, prev.lng!], [c.lat!, c.lng!]) : 0;
-  map.flyTo([c.lat!, c.lng!], far > 3e6 ? 4 : far > 6e5 ? 5 : 7, { duration: 2.4 });
+  map.flyTo([c.lat!, nearLng(c.lng!)], far > 3e6 ? 4 : far > 6e5 ? 5 : 7, { duration: 2.4 });
   renderStrings(); markSelected();
   if (!pl.paused) pl.timer = window.setTimeout(() => playStep(pl.i + 1), 5000);
 }
