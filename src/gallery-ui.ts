@@ -6,17 +6,55 @@ import { el, fmtDate, shortPlace, slugCamera } from './site';
 
 const STAMP = (c: Card) => c.meta?.camera?.trim() || '';
 
-/** A polaroid for the wall. */
-export function tile(c: Card, owner: string, open: () => void): HTMLButtonElement {
+// ---------- the heart on each polaroid ----------
+const heartLive = new Map<string, { likes: number; mine: boolean }>();
+const heartButtons = new Map<string, Set<HTMLButtonElement>>();
+const heartQueue = new Set<string>();
+let heartTimer = 0;
+function paintHeart(btn: HTMLButtonElement, v?: { likes: number; mine: boolean }) {
+  btn.classList.toggle('on', !!v?.mine); btn.setAttribute('aria-pressed', String(!!v?.mine)); btn.setAttribute('aria-label', v?.mine ? 'Unlike' : 'Like');
+  btn.querySelector('.ico')!.textContent = v?.mine ? '♥' : '♡';
+  btn.querySelector('.n')!.textContent = v && v.likes > 0 ? String(v.likes) : '';
+}
+function setHeart(id: string, v: { likes: number; mine: boolean }) { heartLive.set(id, v); heartButtons.get(id)?.forEach(b => paintHeart(b, v)); }
+/** One request for every heart that appeared in the last moment (up to 100 photos at a time). */
+function flushHearts() {
+  const ids = [...heartQueue]; heartQueue.clear();
+  for (let i = 0; i < ids.length; i += 100) cloud.reactionCounts(ids.slice(i, i + 100)).then(m => m.forEach((r, id) => setHeart(id, { likes: r.likes, mine: r.mine }))).catch(() => { /* hearts just stay empty */ });
+}
+// the viewer's heart and a polaroid's heart for the same photo stay in step
+document.addEventListener('wf-like', e => { const d = (e as CustomEvent<{ id: string; likes: number; mine: boolean }>).detail; setHeart(d.id, { likes: d.likes, mine: d.mine }); });
+function heartFor(id: string): HTMLButtonElement {
+  const b = el('button', 'tile-heart'); b.type = 'button';
+  b.append(el('span', 'ico', '♡'), el('span', 'n'));
+  (heartButtons.get(id) ?? heartButtons.set(id, new Set()).get(id)!).add(b);
+  paintHeart(b, heartLive.get(id));
+  if (!heartLive.has(id)) { heartQueue.add(id); clearTimeout(heartTimer); heartTimer = window.setTimeout(flushHearts, 40); }
+  b.onclick = e => {
+    e.stopPropagation();
+    if (!cloud.me()) { location.href = '/app.html?account=1'; return; }
+    const was = heartLive.get(id) ?? { likes: 0, mine: false };
+    const now = { mine: !was.mine, likes: Math.max(0, was.likes + (was.mine ? -1 : 1)) };
+    setHeart(id, now); document.dispatchEvent(new CustomEvent('wf-like', { detail: { id, ...now } }));
+    cloud.setLike(id, now.mine).catch(() => { setHeart(id, was); document.dispatchEvent(new CustomEvent('wf-like', { detail: { id, ...was } })); });
+  };
+  return b;
+}
+
+/** A polaroid for the wall, with a heart on the caption row. */
+export function tile(c: Card, owner: string, open: () => void): HTMLElement {
+  const wrap = el('div', 'tile-wrap');
+  wrap.style.setProperty('--rot', (c.rot || 0) * 0.6 + 'deg');
   const b = el('button', 'tile'); b.type = 'button';
-  b.style.setProperty('--rot', (c.rot || 0) * 0.6 + 'deg');
   b.setAttribute('aria-label', [c.title || 'Untitled', shortPlace(c.place), owner && 'by ' + owner].filter(Boolean).join(', '));
   const frame = el('span', 'frame');
   const im = new Image(); im.src = c.img!; im.alt = ''; im.loading = 'lazy'; im.className = 'look-' + c.look;
   const cap = el('span', 'cap'); cap.append(el('b', '', c.title || 'Untitled'), el('small', '', [shortPlace(c.place), owner].filter(Boolean).join(' · ')));
   frame.append(im, cap); b.append(frame);
   b.onclick = open;
-  return b;
+  wrap.append(b);
+  if (cloud.cloudEnabled && c.id) wrap.append(heartFor(c.id));
+  return wrap;
 }
 
 export function shotChips(c: Card): HTMLElement | null {

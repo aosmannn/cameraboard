@@ -59,7 +59,9 @@ export function mountReactions(photoId: string, opts: ReactionOptions): HTMLElem
     if (!cloud.me()) { opts.onSignIn(); return; }
     const was = { likes, mine };
     mine = !mine; likes = Math.max(0, likes + (mine ? 1 : -1)); paintHeart();
-    cloud.setLike(photoId, mine).catch(err => { likes = was.likes; mine = was.mine; paintHeart(); say((err as Error).message); });
+    const tell = () => document.dispatchEvent(new CustomEvent('wf-like', { detail: { id: photoId, likes, mine } }));
+    tell();
+    cloud.setLike(photoId, mine).catch(err => { likes = was.likes; mine = was.mine; paintHeart(); tell(); say((err as Error).message); });
   };
 
   // thread
