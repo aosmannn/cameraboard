@@ -627,6 +627,24 @@ qPeople.append(qLocal, qWho);
 const syncQ = () => { qPeople.hidden = !(qLocal.children.length || qWho.children.length); };
 let qPeopleT = 0, qPeopleToken = 0, qLocalToken = 0;
 
+// The search bar suggests one thing at a time (photos, places, people), switching every few seconds.
+{
+  const hint = $('qHint'), HINTS = ['Search photos', 'Search places', 'Search @people'];
+  if (matchMedia('(prefers-reduced-motion: reduce)').matches) hint.textContent = 'Search photos, places, @people';   // no motion: show them all, still
+  else {
+    let i = 0; hint.textContent = HINTS[0];
+    setInterval(() => {
+      if (q.value || document.hidden) return;
+      hint.classList.add('out');
+      setTimeout(() => {
+        hint.textContent = HINTS[i = (i + 1) % HINTS.length];
+        hint.classList.add('pre'); hint.classList.remove('out');   // jump below, then slide up into place
+        void hint.offsetWidth; hint.classList.remove('pre');
+      }, 270);
+    }, 2800);
+  }
+}
+
 /** Lower case, no accents or dots, and the short forms in the map's country names spelled out ("S. Sudan" is "south sudan"). */
 const fold = (t: string) => t.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[.,'’]/g, ' ').replace(/\s+/g, ' ').trim();
 const expandName = (t: string) => fold(t).replace(/\bdem rep\b/, 'democratic republic of the').replace(/\brep\b/, 'republic')

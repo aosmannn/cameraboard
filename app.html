@@ -29,7 +29,10 @@
     <div class="search-wrap">
       <label class="search">
         <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="8.5" cy="8.5" r="5.5"/><path d="M13 13l4 4"/></svg>
-        <input id="q" type="search" placeholder="Search photos, places, @people" aria-label="Search photos, places and people" autocomplete="off">
+        <span class="q-field">
+          <input id="q" type="search" placeholder=" " aria-label="Search photos, places and people" autocomplete="off">
+          <span id="qHint" class="q-hint" aria-hidden="true">Search photos, places, @people</span>
+        </span>
       </label>
       <div id="qPeople" class="q-people" role="listbox" aria-label="People" hidden></div>
     </div>
