@@ -7,13 +7,14 @@ import { el, fmtDate, shortPlace, slugCamera } from './site';
 const STAMP = (c: Card) => c.meta?.camera?.trim() || '';
 
 // ---------- the heart on each polaroid ----------
+/** A slightly wobbly, hand-drawn heart, to sit next to the handwritten title. */
+const HEART = '<svg viewBox="0 0 28 26" aria-hidden="true"><path d="M14.2 23.4C8.6 19.2 3.4 15.3 3.3 10c0-3.3 2.5-5.8 5.6-5.8 2.1 0 4.2 1.2 5.3 3.2 1.2-2 3.2-3.2 5.3-3.2 3.2 0 5.7 2.5 5.6 5.8-.1 5.3-5.3 9.1-10.9 13.4z"/></svg>';
 const heartLive = new Map<string, { likes: number; mine: boolean }>();
 const heartButtons = new Map<string, Set<HTMLButtonElement>>();
 const heartQueue = new Set<string>();
 let heartTimer = 0;
 function paintHeart(btn: HTMLButtonElement, v?: { likes: number; mine: boolean }) {
   btn.classList.toggle('on', !!v?.mine); btn.setAttribute('aria-pressed', String(!!v?.mine)); btn.setAttribute('aria-label', v?.mine ? 'Unlike' : 'Like');
-  btn.querySelector('.ico')!.textContent = v?.mine ? '♥' : '♡';
   btn.querySelector('.n')!.textContent = v && v.likes > 0 ? String(v.likes) : '';
 }
 function setHeart(id: string, v: { likes: number; mine: boolean }) { heartLive.set(id, v); heartButtons.get(id)?.forEach(b => paintHeart(b, v)); }
@@ -26,7 +27,8 @@ function flushHearts() {
 document.addEventListener('wf-like', e => { const d = (e as CustomEvent<{ id: string; likes: number; mine: boolean }>).detail; setHeart(d.id, { likes: d.likes, mine: d.mine }); });
 function heartFor(id: string): HTMLButtonElement {
   const b = el('button', 'tile-heart'); b.type = 'button';
-  b.append(el('span', 'ico', '♡'), el('span', 'n'));
+  const ico = el('span', 'ico'); ico.innerHTML = HEART;   // fixed markup, no user text
+  b.append(ico, el('span', 'n'));
   (heartButtons.get(id) ?? heartButtons.set(id, new Set()).get(id)!).add(b);
   paintHeart(b, heartLive.get(id));
   if (!heartLive.has(id)) { heartQueue.add(id); clearTimeout(heartTimer); heartTimer = window.setTimeout(flushHearts, 40); }
