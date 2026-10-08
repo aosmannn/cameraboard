@@ -9,6 +9,8 @@ import '@fontsource/vt323/400.css';
 import '@fontsource/instrument-serif/400.css';
 import '@fontsource/instrument-serif/400-italic.css';
 import './style.css';
+import './travel.css';
+import { installTravel, type PanelTab } from './travel-ui';
 import type { Card, Look } from './types';
 import { openStore, loadCards, saveCards } from './storage';
 import { blankCard, fillCard, normalize, cameraName, dayOf, timeOf, stampText, placeKey, squareAvatar } from './photo';
@@ -52,7 +54,6 @@ let showFriends = lsGet('wf-friends') !== '0';
 const likeCache = new Map<string, { n: number; mine: boolean }>();
 const FRIEND_YARN = '#2f5fb3';
 let hl: { owner: string; trip: string } | null = null;   // a friend's story picked from the feed
-let panelTab: 'stories' | 'feed' = 'stories';
 let feedShown = 20;
 
 let pushT: number;
@@ -457,18 +458,16 @@ function timeAgo(c: Card) {
   const d = Math.round((Date.now() - t) / 864e5);
   return d <= 0 ? 'today' : d === 1 ? 'yesterday' : d < 30 ? `${d} days ago` : fmtDate(c);
 }
-function setPanelTab(t: 'stories' | 'feed') {
-  panelTab = signedIn ? t : 'stories';
-  $('tabStories').classList.toggle('on', panelTab === 'stories'); $('tabFeed').classList.toggle('on', panelTab === 'feed');
-  $('storyList').hidden = panelTab !== 'stories'; $('feedList').hidden = panelTab !== 'feed';
-  $('newStory').hidden = panelTab !== 'stories'; if (panelTab !== 'stories') $('newStoryForm').hidden = true;
-  renderFeed();
-}
-$('tabStories').onclick = () => setPanelTab('stories');
-$('tabFeed').onclick = () => setPanelTab('feed');
+const travel = installTravel({
+  $, el, map, world, placed, countryOf, openCard, flyTo,
+  getCards: () => cards, getSignedIn: () => signedIn, renderFeed,
+});
+travel.bucketLayer.addTo(map);
+travel.setPanelTab('stories');
+function setPanelTab(t: PanelTab) { travel.setPanelTab(t); }
 function renderFeed() {
   $('tabFeed').hidden = !signedIn;
-  if (panelTab === 'feed' && !signedIn) { panelTab = 'stories'; setPanelTab('stories'); return; }
+  if (travel.getPanelTab() === 'feed' && !signedIn) { setPanelTab('stories'); return; }
   const box = $('feedList'); if (box.hidden) return;
   box.innerHTML = '';
   const posts = friendCards.filter(c => c.img).sort((a, b) => (timeOf(b) || 0) - (timeOf(a) || 0));
@@ -565,6 +564,7 @@ $('trayToggle').onclick = () => { trayOpen = !trayOpen; renderTray(); };
 
 // ---------- everything that depends on the cards ----------
 function render() {
+  travel.refreshTravel();
   renderMap(); renderStrings(); renderStories(); renderFeed(); renderTray();
   if (pickedCountry) selectCountry(pickedCountry);
   const dl = $('tripList'); dl.innerHTML = '';

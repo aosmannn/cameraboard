@@ -26,6 +26,8 @@ export interface BucketItem {
   status: BucketStatus;
   createdAt: string;
   fulfilledPhotoId: string | null;
+  /** Reopened items stay open until the user checks them off again. */
+  autoComplete?: boolean;
 }
 
 const VISIT_KEY = 'wf-visited';
@@ -67,14 +69,15 @@ export function saveBucket(items: BucketItem[]): void {
 
 /** Auto-mark countries from placed photos; keep manual visits. */
 export function syncVisitsFromPhotos(cards: Card[]): Visit[] {
-  const byName = new Map(loadVisits().map((v) => [v.name, { ...v }]));
+  const byName = new Map(loadVisits().map((v) => [v.name, { ...v, photoCount: 0 }]));
   const counts = new Map<string, { n: number; first: string }>();
 
   for (const c of cards) {
     if (c.lat == null || c.lng == null || !c.img) continue;
     const name = countryAt(c.lat, c.lng);
     if (!name) continue;
-    const at = c.date ? new Date(c.date).toISOString() : new Date().toISOString();
+    const date = new Date(c.date);
+    const at = Number.isFinite(date.getTime()) ? date.toISOString() : new Date().toISOString();
     const cur = counts.get(name);
     if (!cur) counts.set(name, { n: 1, first: at });
     else {
@@ -91,7 +94,7 @@ export function syncVisitsFromPhotos(cards: Card[]): Visit[] {
         // keep manual, but attach photo count
       } else {
         existing.source = 'photo';
-        if (Date.parse(meta.first) < Date.parse(existing.firstAt)) existing.firstAt = meta.first;
+        existing.firstAt = meta.first;
       }
     } else {
       byName.set(name, {
@@ -181,19 +184,20 @@ export function matchBucketHits(
   cards: Card[],
   radiusKm = 40,
 ): { item: BucketItem; photoId: string }[] {
-  const open = items.filter((i) => i.status !== 'done');
+  const open = items.filter((i) => i.status !== 'done' && i.autoComplete !== false);
   const hits: { item: BucketItem; photoId: string }[] = [];
   for (const item of open) {
     for (const c of cards) {
       if (!c.img || c.lat == null || c.lng == null) continue;
-      if (item.country) {
+      if (item.kind === 'experience') continue;
+      if (item.kind === 'country' && item.country) {
         const name = countryAt(c.lat, c.lng);
         if (name === item.country) {
           hits.push({ item, photoId: c.id });
           break;
         }
       }
-      if (item.lat != null && item.lng != null) {
+      if (item.kind !== 'country' && item.lat != null && item.lng != null) {
         const d = haversineKm(item.lat, item.lng, c.lat, c.lng);
         if (d <= radiusKm) {
           hits.push({ item, photoId: c.id });

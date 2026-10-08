@@ -27,3 +27,12 @@
 }
 .bucket-pin.done span { background: #2e9e5b; }
 .bucket-pin.planned span { background: #e8b422; }
+
+/* Four tabs fit alongside the story controls, including on phones. */
+.st-head { flex-wrap: wrap; }
+.st-tabs { flex-wrap: wrap; min-width: 0; gap: 8px; }
+.st-tab { font-size: 24px; }
+.tv-results { display: flex; flex-direction: column; gap: 6px; }
+.tv-results .btn { text-align: left; white-space: normal; }
+.tv-form input { min-width: 0; width: 100%; }
+.bucket-item .bi-top b, .bucket-item .bi-notes { overflow-wrap: anywhere; }
