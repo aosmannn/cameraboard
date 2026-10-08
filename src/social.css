@@ -34,4 +34,4 @@
 .np-body { grid-area: b; font-style: normal; color: var(--mute); font-size: 13.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .np-btn small { grid-area: s; color: var(--mute); font-size: 12px; }
 .np-empty { padding: 22px 14px; color: var(--mute); text-align: center; font-size: 14.5px; }
-@media (max-width: 800px) { .notice-panel { top: 112px; right: 12px; left: 12px; width: auto; } }
+@media (max-width: 800px) { .notice-panel { top: 64px; right: 12px; left: 12px; width: auto; } }
