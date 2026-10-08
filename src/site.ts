@@ -60,6 +60,7 @@ export function mountShell(active: Section) {
   end.append(signIn, who, go, menu);
   nav.append(logo, links, end);
   document.body.prepend(nav);
+  glideNav(links);
   const onScroll = () => nav.classList.toggle('scrolled', scrollY > 8);
   addEventListener('scroll', onScroll, { passive: true }); onScroll();
 
@@ -108,6 +109,37 @@ export function routeOf(places: string[]) {
 }
 export const shortPlace = (p: string) => (p || '').split(',').slice(0, 2).join(',').trim();
 export const pathPart = (n: number) => decodeURIComponent(location.pathname.split('/').filter(Boolean)[n] ?? '');
+/**
+ * The header's highlight is one pill that glides to the link you choose (Explore, Cameras, Map) instead of jumping.
+ * Clicking waits a moment so the glide is seen, then goes to the page. Not used in the narrow drop-down menu.
+ */
+function glideNav(links: HTMLElement) {
+  const anchors = [...links.querySelectorAll('a')];
+  const pill = el('span', 'nav-pill'); pill.setAttribute('aria-hidden', 'true');
+  links.prepend(pill); links.classList.add('has-pill');
+  const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const active = anchors.find(a => a.getAttribute('aria-current') === 'page');
+  const put = (a: HTMLElement) => {
+    pill.style.left = a.offsetLeft + 'px'; pill.style.top = a.offsetTop + 'px';
+    pill.style.width = a.offsetWidth + 'px'; pill.style.height = a.offsetHeight + 'px';
+  };
+  const place = () => { if (active && active.offsetWidth) { put(active); pill.classList.add('on'); } else pill.classList.remove('on'); };
+  place();
+  requestAnimationFrame(() => requestAnimationFrame(() => pill.classList.add('glide')));   // later moves glide; the first placement does not
+  new ResizeObserver(() => { pill.classList.remove('glide'); place(); requestAnimationFrame(() => pill.classList.add('glide')); }).observe(links);
+  void document.fonts?.ready.then(place);
+  addEventListener('pageshow', e => { if (e.persisted) { pill.classList.remove('glide'); place(); requestAnimationFrame(() => pill.classList.add('glide')); } });
+  let leaving = false;
+  for (const a of anchors) a.addEventListener('click', e => {
+    if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || reduce || a === active || leaving) return;
+    if (getComputedStyle(pill).display === 'none') return;   // the narrow drop-down menu has no pill
+    e.preventDefault(); leaving = true;
+    if (!active) { pill.classList.remove('glide'); put(a); void pill.offsetWidth; pill.classList.add('glide'); }
+    put(a); pill.classList.add('on');
+    setTimeout(() => { location.href = a.href; }, 150);
+  });
+}
+
 /** Makes a pill-style tab bar slide its highlight from one tab to the next. Call it again whenever the selected tab changes. */
 export function slideTabs(tabs: HTMLElement) {
   tabs.classList.add('slide');

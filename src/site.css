@@ -52,10 +52,16 @@ img { max-width: 100%; }
 .logo.small { font-size: 24px; margin: 0 0 6px; }
 .logo-mark { display: block; flex: none; transition: transform .25s; }
 .logo:hover .logo-mark { transform: rotate(-6deg) scale(1.06); }
-.nav nav { display: flex; gap: 6px; }
+.nav nav { display: flex; gap: 6px; position: relative; }
 .nav nav a { text-decoration: none; color: var(--mute); font-size: 15px; padding: 6px 12px; border-radius: 999px; }
 .nav nav a:hover { color: var(--ink); background: var(--panel-2); }
 .nav nav a[aria-current="page"] { color: var(--ink); background: var(--panel-2); font-weight: 500; }
+/* with the gliding pill (see glideNav in site.ts) the pill is the highlight, not the link itself */
+.nav-pill { position: absolute; left: 0; top: 0; width: 0; height: 0; border-radius: 999px; background: var(--panel-2); opacity: 0; pointer-events: none; }
+.nav-pill.on { opacity: 1; }
+.nav-pill.glide { transition: left .3s cubic-bezier(.3, .8, .3, 1), top .3s cubic-bezier(.3, .8, .3, 1), width .3s cubic-bezier(.3, .8, .3, 1), height .3s cubic-bezier(.3, .8, .3, 1), opacity .2s; }
+.nav nav.has-pill a { position: relative; z-index: 1; transition: color .2s; }
+.nav nav.has-pill a[aria-current="page"] { background: none; }
 .nav-end { display: flex; align-items: center; gap: 10px; }
 .nav .who { width: 40px; height: 40px; padding: 0; border-radius: 50%; display: grid; place-items: center; font-weight: 700; text-decoration: none; background: var(--paper); color: #231f19; border: 1px solid var(--line); box-shadow: var(--shadow-sm); }
 .menu-btn { display: none; width: 40px; height: 40px; border: 1px solid var(--line); border-radius: 12px; background: var(--panel); }
@@ -204,6 +210,8 @@ img { max-width: 100%; }
   .nav nav { display: none; position: absolute; left: 0; right: 0; top: 100%; flex-direction: column; padding: 8px 20px 16px; background: var(--bg); border-bottom: 1px solid var(--line); }
   .nav.open nav { display: flex; }
   .nav nav a { padding: 12px; font-size: 17px; }
+  .nav-pill { display: none; }
+  .nav nav.has-pill a[aria-current="page"] { background: var(--panel-2); }
   .nav .go { display: none; }
   .page { padding-top: 24px; }
 }
@@ -271,12 +279,10 @@ img { max-width: 100%; }
 .swap-in { animation: swapIn .3s ease-out both; }
 @keyframes swapIn { from { opacity: 0; translate: 0 10px; } }
 
-/* Going from one page to the next (Explore, Cameras, Map): the page fades and the header's highlight glides to the new tab.
+/* Going from one page to the next (Explore, Cameras, Map): the header's highlight glides to the chosen tab, then the page fades.
    Browsers without cross-page transitions just get the page gently fading in. */
 @view-transition { navigation: auto; }
-.nav nav a[aria-current="page"] { view-transition-name: nav-pill; }
 ::view-transition-old(root), ::view-transition-new(root) { animation-duration: .22s; }
-::view-transition-group(nav-pill) { animation-duration: .3s; animation-timing-function: cubic-bezier(.3, .8, .3, 1); }
 @supports not (view-transition-name: none) { body > main { animation: pageIn .3s ease-out both; } }
 @keyframes pageIn { from { opacity: 0; translate: 0 8px; } }
 @media (prefers-reduced-motion: reduce) {
@@ -284,3 +290,4 @@ img { max-width: 100%; }
   ::view-transition-group(*), ::view-transition-old(*), ::view-transition-new(*) { animation: none !important; }
   .tabs.slide.ready::before { transition: none; }
 }
+@media (prefers-reduced-motion: reduce) { .nav-pill.glide, .nav nav.has-pill a { transition: none; } }
