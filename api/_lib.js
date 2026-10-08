@@ -56,6 +56,10 @@ function withPreview(html, p) {
   return html.replace(/<title>[\s\S]*?<\/title>/i, '').replace(/<meta name="description"[^>]*>/i, '').replace(/<\/head>/i, tags + '\n</head>');
 }
 /** Place names in order without repeats: "Rome → Florence → Venice". */
-const routeOf = places => { const out = []; for (const p of places) { const n = String(p || '').split(',')[0].trim(); if (n && n !== out[out.length - 1]) out.push(n); } return out.join(' → '); };
+const routeOf = places => {
+  const out = [];
+  for (const p of places) { const n = String(p || '').split(',')[0].trim(); if (n && !out.includes(n)) out.push(n); }   // each place once, even if the trip went back and forth
+  return out.slice(0, 5).join(' → ') + (out.length > 5 ? ' …' : '');
+};
 
 module.exports = { publicPhotos, profile, signedImage, withPreview, routeOf, origin, first, esc };

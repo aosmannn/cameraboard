@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Wayframe">
+  <defs>
+    <clipPath id="globe"><circle cx="31" cy="35" r="21.500"/></clipPath>
+    <radialGradient id="sea" cx="36%" cy="30%" r="85%">
+      <stop offset="0" stop-color="#d6ecef"/><stop offset=".5" stop-color="#8fb9c3"/><stop offset="1" stop-color="#4a7886"/>
+    </radialGradient>
+  </defs>
+  <ellipse cx="31" cy="60.500" rx="17" ry="2.400" fill="#231f19" opacity=".14"/>
+  <!-- globe -->
+  <circle cx="31" cy="35" r="24" fill="#231f19"/>
+  <circle cx="31" cy="35" r="21.500" fill="url(#sea)"/>
+  <g clip-path="url(#globe)">
+    <path d="M9 27c4-7 12-9 17-5.500 3 2.200 2 5.500-1 7.500-3.500 2.300-3.500 5.800-8 6.800-4.500 1-7.500-1.500-8-8.800z" fill="#eadfc4"/>
+    <path d="M33 45c5-3.500 13-3 17.500 1.500 2.500 2.500 2.500 6 0 9H36c-4.500-2-6.500-7.500-3-10.500z" fill="#d2dab8"/>
+    <path d="M36 23c4-2.500 10-1.500 14 2-2.500 3.500-7 4.500-11 3.500-3.500-1-4.500-3.800-3-5.500z" fill="#eadfc4"/>
+    <ellipse cx="31" cy="35" rx="9" ry="21.500" fill="none" stroke="#fff" stroke-opacity=".4" stroke-width="1.100"/>
+    <path d="M9.500 35h43M11 25q20 5.500 40 0M11 45q20-5.500 40 0" fill="none" stroke="#fff" stroke-opacity=".4" stroke-width="1.100"/>
+  </g>
+  <!-- the way: a red string route from a start dot to a pin -->
+  <path d="M16 47C22 41.500 27 46.500 32 39.500S41 31 44 20" fill="none" stroke="#b3242c" stroke-width="2.800" stroke-linecap="round"/>
+  <circle cx="16" cy="47" r="2.400" fill="#fffdf8" stroke="#b3242c" stroke-width="1.800"/>
+  <path d="M44 3.500c-4.600 0-7.600 3.300-7.600 7.200 0 4.800 5 7.800 7.600 12.300 2.600-4.500 7.600-7.500 7.600-12.300 0-3.900-3-7.200-7.600-7.200z" fill="#b3242c" stroke="#231f19" stroke-width="2.200" stroke-linejoin="round"/>
+  <circle cx="44" cy="10.700" r="2.700" fill="#fffdf8"/>
+  <!-- glint on the glass -->
+  <path d="M15 28.500a17 17 0 0 1 9-9" fill="none" stroke="#fff" stroke-width="2.400" stroke-linecap="round" opacity=".85"/>
+</svg>
