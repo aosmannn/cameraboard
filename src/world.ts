@@ -199,6 +199,11 @@ export function paintWorld(ctx: CanvasRenderingContext2D, W: number, H: number,
   return { px, py };
 }
 
+/** Every country name on the map (Natural Earth spelling, which is abbreviated: "S. Sudan"), for search. */
+export function listCountries(): string[] {
+  return fc.features.map((f: any) => f.properties.name as string).filter((n: string) => n && n !== 'Antarctica');
+}
+
 /** The part of a country to zoom to: its biggest piece, so far-away islands don't stretch the view. */
 export function countryBounds(name: string): L.LatLngBounds | null {
   const f = fc.features.find((x: any) => x.properties.name === name);
