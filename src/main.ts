@@ -17,6 +17,7 @@ import { initTravel } from './travel-ui';
 import { initComments, initNotices } from './social-ui';
 import { drawSummary, drawHighlights, loadExtras, type Shot } from './profile-extras';
 import { drawWorld, countryAt, countryBounds, listCountries, THEMES, type ThemeName } from './world';
+import { LandmarkLayer, defaultLandmarkFog } from './landmarks/LandmarkLayer';
 import { loadCities, searchPlaces, nameAt, type Place } from './atlas';
 import { initViewer, openViewer, closeViewer, viewerIsOpen } from './viewer';
 import { renderPoster, renderStoryGif } from './poster';
@@ -162,6 +163,8 @@ const map = L.map('map', { zoomControl: false, minZoom: 2, maxZoom: 16, preferCa
   maxBounds: [[-70, -220], [85, 220]], maxBoundsViscosity: 0.8 }).setView([30, 10], 2);
 L.control.zoom({ position: 'bottomright' }).addTo(map);
 const world = drawWorld(map, themeName);
+const landmarkLayer = new LandmarkLayer(map);
+landmarkLayer.attach();
 map.attributionControl.setPrefix('').addAttribution('Wayframe');
 
 map.createPane('stringPane').style.zIndex = '620';
@@ -743,7 +746,13 @@ document.addEventListener('mousedown', e => { if (!qPeople.hidden && !qPeople.co
 const themeSel = $<HTMLSelectElement>('themeSel');
 for (const [k, t] of Object.entries(THEMES)) themeSel.append(new Option(t.name, k));
 themeSel.value = themeName;
-themeSel.onchange = () => { world.setTheme(themeSel.value as ThemeName); lsSet('wf-theme', themeSel.value); };
+themeSel.onchange = () => {
+  const t = themeSel.value as ThemeName;
+  world.setTheme(t);
+  landmarkLayer.setFogColor(parseInt(THEMES[t].ocean.slice(1), 16));
+  lsSet('wf-theme', t);
+};
+landmarkLayer.setFogColor(parseInt(THEMES[themeName].ocean.slice(1), 16) || defaultLandmarkFog);
 document.addEventListener('click', e => {
   const m = document.querySelector<HTMLDetailsElement>('.menu');
   if (m?.open && !m.contains(e.target as Node)) m.open = false;
