@@ -26,6 +26,18 @@ button { cursor: pointer; }
 
 /* ---------- the map ---------- */
 #map { position: fixed; inset: 0; z-index: 0; }
+.landmark-layer { position: absolute; left: 0; top: 0; z-index: 450; pointer-events: none; overflow: hidden; }
+.landmark-layer canvas { display: block; pointer-events: none; }
+.landmark-badges { position: absolute; inset: 0; pointer-events: none; }
+.landmark-badge {
+  position: absolute; left: 0; top: 0; display: flex; flex-direction: column; align-items: center; gap: 2px;
+  max-width: 160px; padding: 6px 12px 8px; border-radius: 14px;
+  background: color-mix(in srgb, var(--panel) 88%, transparent); border: 1px solid color-mix(in srgb, var(--accent) 35%, var(--line));
+  box-shadow: 0 4px 18px #0003, 0 0 0 1px #fff6 inset; backdrop-filter: blur(6px);
+  text-align: center; transition: opacity .15s;
+}
+.landmark-badge-kicker { font: 600 9px/1 var(--ui); letter-spacing: .12em; text-transform: uppercase; color: var(--accent); }
+.landmark-badge-name { font: 600 12px/1.2 var(--ui); color: var(--ink); }
 .leaflet-container { font-family: var(--ui); background: #bcd3d6; }
 .map-grain {
   position: fixed; inset: 0; z-index: 1; pointer-events: none; mix-blend-mode: multiply; opacity: .55;
