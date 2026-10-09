@@ -2,6 +2,7 @@ import type { LandmarkBuilder, LandmarkDef } from './types';
 import { buildDome } from './archetypes/dome';
 import { buildPyramid } from './archetypes/pyramid';
 import { buildEiffel } from './custom/eiffel';
+import { wrapShowcase } from './showcase';
 
 const archetypes: Record<string, LandmarkBuilder> = {
   dome: buildDome,
@@ -25,7 +26,7 @@ export function buildLandmark(def: LandmarkDef) {
   if (hit) return hit.clone(true);
   const fn = def.archetype === 'custom' && def.customId ? customs[def.customId] : archetypes[def.archetype];
   if (!fn) throw new Error(`Unknown landmark builder: ${def.archetype}/${def.customId}`);
-  const root = fn(def.params, def.scale);
+  const root = wrapShowcase(fn(def.params, 1));
   cache.set(key, root);
   return root.clone(true);
 }

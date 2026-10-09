@@ -8,15 +8,17 @@ import type { LandmarkDef, ProjectPoint } from './types';
 interface Active {
   def: LandmarkDef;
   root: THREE.Group;
+  badge: HTMLDivElement;
 }
 
 /**
  * WebGL overlay synced to Leaflet 2D pan/zoom (no pitch/bearing).
- * Canvas covers the map container; lat/lng → container pixels via project().
+ * HTML badges + pedestal showcase so landmarks read like featured map icons.
  */
 export class LandmarkLayer {
   private map: L.Map;
   private host: HTMLDivElement;
+  private badges: HTMLDivElement;
   private renderer: THREE.WebGLRenderer;
   private scene = new THREE.Scene();
   private camera: THREE.OrthographicCamera;
@@ -29,10 +31,12 @@ export class LandmarkLayer {
     this.map = map;
     this.host = document.createElement('div');
     this.host.className = 'landmark-layer';
+    this.badges = document.createElement('div');
+    this.badges.className = 'landmark-badges';
     this.renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true, powerPreference: 'high-performance' });
     this.renderer.setPixelRatio(Math.min(2, window.devicePixelRatio || 1));
     this.renderer.setClearColor(0x000000, 0);
-    this.host.appendChild(this.renderer.domElement);
+    this.host.append(this.renderer.domElement, this.badges);
     this.camera = new THREE.OrthographicCamera(0, 1, 0, 1, -800, 800);
     addLights(this.scene);
     setFog(this.scene, this.mats.fogColor);
@@ -61,10 +65,16 @@ export class LandmarkLayer {
     this.mats = makeMaterials(hex);
   }
 
-  /** Leaflet container projection; null when far off-screen. */
+  /** Fly the map to a showcased landmark (for search / chips). */
+  flyTo(id: string) {
+    const def = LANDMARKS.find(l => l.id === id);
+    if (!def) return;
+    this.map.flyTo([def.lat, def.lon], Math.max(this.map.getZoom(), def.minZoom + 2), { duration: 1.2 });
+  }
+
   private project(lat: number, lon: number): { x: number; y: number } | null {
     const size = this.map.getSize();
-    const pad = 120;
+    const pad = 160;
     const pt = this.map.latLngToContainerPoint([lat, lon]);
     if (pt.x < -pad || pt.y < -pad || pt.x > size.x + pad || pt.y > size.y + pad) return null;
     return { x: pt.x, y: pt.y };
@@ -89,9 +99,9 @@ export class LandmarkLayer {
 
     const keep = new Set<string>();
     for (const def of LANDMARKS) {
-      if (zoom < def.minZoom) continue;
-      const pt = project(def.lat, def.lon);
-      if (!pt) {
+      const visible = zoom >= def.minZoom;
+      const pt = visible ? project(def.lat, def.lon) : null;
+      if (!visible || !pt) {
         this.drop(def.id);
         continue;
       }
@@ -100,16 +110,22 @@ export class LandmarkLayer {
       if (!entry) {
         const root = buildLandmark(def);
         this.scene.add(root);
-        entry = { def, root };
+        const badge = document.createElement('div');
+        badge.className = 'landmark-badge';
+        badge.innerHTML = `<span class="landmark-badge-kicker">Landmark</span><span class="landmark-badge-name">${def.name}</span>`;
+        this.badges.appendChild(badge);
+        entry = { def, root, badge };
         this.active.set(def.id, entry);
       }
       const zScale = Math.pow(2, zoom - def.minZoom);
-      const s = def.scale * 0.022 * zScale;
-      entry.root.position.set(pt.x, pt.y, 0);
+      const s = def.scale * 0.028 * zScale;
+      const lift = s * 14;
+      entry.root.position.set(pt.x, pt.y - lift, 0);
       entry.root.scale.setScalar(s);
-      // slight isometric tilt toward the “camera” (Apple-ish showcase)
-      entry.root.rotation.x = -0.42;
-      entry.root.rotation.y = 0.35;
+      entry.root.rotation.x = -0.48;
+      entry.root.rotation.y = 0.38;
+      entry.badge.style.transform = `translate(${pt.x}px, ${pt.y - lift - 8}px) translate(-50%, -100%)`;
+      entry.badge.style.opacity = zoom >= def.minZoom + 1 ? '1' : '0.85';
     }
     for (const id of [...this.active.keys()]) if (!keep.has(id)) this.drop(id);
     this.renderer.render(this.scene, this.camera);
@@ -119,6 +135,7 @@ export class LandmarkLayer {
     const a = this.active.get(id);
     if (!a) return;
     this.scene.remove(a.root);
+    a.badge.remove();
     this.active.delete(id);
   }
 
@@ -127,5 +144,4 @@ export class LandmarkLayer {
   }
 }
 
-/** Default fog tint when Terrain ocean is active. */
 export const defaultLandmarkFog = palette.fog;

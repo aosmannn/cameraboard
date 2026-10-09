@@ -18,6 +18,7 @@ import { initComments, initNotices } from './social-ui';
 import { drawSummary, drawHighlights, loadExtras, type Shot } from './profile-extras';
 import { drawWorld, countryAt, countryBounds, listCountries, THEMES, type ThemeName } from './world';
 import { LandmarkLayer, defaultLandmarkFog } from './landmarks/LandmarkLayer';
+import { LANDMARKS } from './landmarks/registry';
 import { loadCities, searchPlaces, nameAt, type Place } from './atlas';
 import { initViewer, openViewer, closeViewer, viewerIsOpen } from './viewer';
 import { renderPoster, renderStoryGif } from './poster';
@@ -686,8 +687,11 @@ async function searchLocalBar() {
   if (my !== qLocalToken) return;
   const countries = findCountries(raw);
   const places = searchPlaces(raw, 5).filter(p => !countries.some(c => fold(c) === fold(p.short)));
+  const f = fold(raw);
+  const landmarks = LANDMARKS.filter(l => fold(l.name).includes(f) || fold(l.id).includes(f)).slice(0, 4);
   const photos = [...cards, ...others()].filter(c => c.img && matchesText(c, raw)).sort(byDate).slice(0, 5);
   const section = (title: string, rows: HTMLElement[]) => { if (rows.length) qLocal.append(el('p', 'q-head', title), ...rows); };
+  section('Landmarks', landmarks.map(l => resultRow(l.name, 'Featured on the map', () => landmarkLayer.flyTo(l.id))));
   section('Countries', countries.map(name => resultRow(name, 'Country', () => zoomToCountry(name))));
   section('Places', places.map(p => resultRow(p.short, p.label !== p.short ? p.label : '', () => {
     map.flyTo([p.lat, p.lng], 10, { duration: 1.2 });
