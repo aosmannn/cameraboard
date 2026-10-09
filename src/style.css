@@ -27,7 +27,7 @@ button { cursor: pointer; }
 /* ---------- the map ---------- */
 #map { position: fixed; inset: 0; z-index: 0; }
 .landmark-layer { position: absolute; left: 0; top: 0; z-index: 450; pointer-events: none; overflow: hidden; }
-.landmark-layer canvas { display: block; pointer-events: none; }
+.landmark-layer canvas { display: block; pointer-events: none; width: 100%; height: 100%; }
 .landmark-badges { position: absolute; inset: 0; pointer-events: none; }
 .landmark-badge {
   position: absolute; left: 0; top: 0; display: flex; flex-direction: column; align-items: center; gap: 1px;
