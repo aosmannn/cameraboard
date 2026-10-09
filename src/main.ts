@@ -18,6 +18,7 @@ import { initComments, initNotices } from './social-ui';
 import { drawSummary, drawHighlights, loadExtras, type Shot } from './profile-extras';
 import { drawWorld, countryAt, countryBounds, listCountries, THEMES, type ThemeName } from './world';
 import { loadCities, searchPlaces, nameAt, type Place } from './atlas';
+import { heightAt } from './relief';
 import { initViewer, openViewer, closeViewer, viewerIsOpen } from './viewer';
 import { renderPoster, renderStoryGif } from './poster';
 import * as cloud from './cloud';
@@ -172,6 +173,8 @@ const strings = L.layerGroup().addTo(map);
 map.on('zoom', () => { const r = stringRenderer as any; if ((map as any)._flyToFrame && r._map) r._reset(); });
 const photos = L.layerGroup().addTo(map);
 const markers = new Map<string, L.Marker>();
+/** Photo ids whose lat/lng came straight from the file's own GPS (exact spot, not a city search). */
+const fromGps = new Set<string>();
 
 /** Polaroids shrink when zoomed out so the board doesn't turn into a pile. */
 function sizeClass() {
@@ -194,6 +197,12 @@ $('countryFit').onclick = () => {
   const b = pickedCountry && countryBounds(pickedCountry);
   if (b) map.flyToBounds(b, { ...mapPadding(), maxZoom: 8, duration: 1 });
 };
+$('terrainClear').onclick = hideTerrainDetail;
+$('terrainZoom').onclick = () => {
+  const chip = $('terrainChip');
+  const lat = Number(chip.dataset.lat), lng = Number(chip.dataset.lng);
+  if (Number.isFinite(lat) && Number.isFinite(lng)) map.flyTo([lat, lng], Math.max(map.getZoom(), 12), { duration: 1 });
+};
 
 /** Outlines a country and flies to it. Used by clicking the map and by the search bar. */
 function zoomToCountry(name: string) {
@@ -207,16 +216,30 @@ map.on('click', async e => {
     if (connecting || pl.on) return;
     const hit = countryAt(e.latlng.lat, e.latlng.lng, true);
     selectCountry(hit && hit !== pickedCountry ? hit : null);
+    void showTerrainDetail(e.latlng.lat, e.latlng.lng);
     return;
   }
   const targets = pinTargets;
-  for (const c of targets) { c.lat = e.latlng.lat; c.lng = e.latlng.lng; }
+  for (const c of targets) { c.lat = e.latlng.lat; c.lng = e.latlng.lng; fromGps.delete(c.id); }
   stopPinning(); render(); locNote();
   const name = await reverse(e.latlng.lat, e.latlng.lng) || 'Dropped pin';
   for (const c of targets) c.place = name;
   if (cur && targets.includes(cur)) { fPlace.value = name; drawMeta(cur); }
   save(); renderStories();
 });
+
+/** Click the map to read elevation from our bundled height picture (no outside service). */
+async function showTerrainDetail(lat: number, lng: number) {
+  const chip = $('terrainChip'), txt = $('terrainText');
+  if (!chip || !txt) return;
+  const m = await heightAt(lat, lng);
+  const elev = m == null ? '' : m >= 0 ? `${m.toLocaleString()} m` : `${Math.abs(m).toLocaleString()} m deep`;
+  const place = (await reverse(lat, lng)) || countryAt(lat, lng) || '';
+  txt.textContent = [place, elev, `${lat.toFixed(4)}, ${lng.toFixed(4)}`].filter(Boolean).join(' · ');
+  chip.hidden = false;
+  chip.dataset.lat = String(lat); chip.dataset.lng = String(lng);
+}
+function hideTerrainDetail() { const chip = $('terrainChip'); if (chip) chip.hidden = true; }
 
 /** A polaroid hanging from a push pin. The pin's point is the photo's exact location. */
 function polaroid(rep: Card, n: number): HTMLElement {
@@ -772,7 +795,10 @@ async function addFiles(files: File[], target: Card | null) {
     try {
       if (c.img) await cloud.dropImage(c);
       await fillCard(c, f);
-      if (placed(c) && (!c.place || c.place === 'From photo GPS')) { await loadCities(); c.place = nameAt(c.lat!, c.lng!) ?? c.place; }
+      if (placed(c) && (!c.place || c.place === 'From photo GPS')) {
+        fromGps.add(c.id);   // exact lat/lng from the file; only the label comes from our city list
+        await loadCities(); c.place = nameAt(c.lat!, c.lng!) ?? c.place;
+      }
       made.push(c);
     } catch {
       failed.push(f.name);
@@ -1114,8 +1140,14 @@ $('deleteBtn').onclick = () => { if (cur) removeCard(cur); };
 // ---------- location ----------
 function locNote() {
   if (!cur) return;
-  $('locNote').textContent = placed(cur) ? `Pinned at ${cur.lat!.toFixed(4)}, ${cur.lng!.toFixed(4)}`
-    : 'This photo has no GPS. Search a city, or pin it on the map yourself.';
+  if (!placed(cur)) {
+    $('locNote').textContent = 'This photo has no GPS. Search a city for a rough place, then Pin on map for the exact spot.';
+    return;
+  }
+  const at = `${cur.lat!.toFixed(5)}, ${cur.lng!.toFixed(5)}`;
+  $('locNote').textContent = fromGps.has(cur.id)
+    ? `Exact GPS from the photo · ${at}`
+    : `Pinned at ${at}. Use Pin on map if you need a more exact spot than a city center.`;
 }
 /** Names a point from the map's own city list, so nothing is sent to an outside service. */
 async function reverse(lat: number, lng: number): Promise<string> {
@@ -1136,14 +1168,28 @@ function drawPlaceResults() {
 async function findPlace() {
   const text = fPlace.value.trim(); if (!text || !cur) return;
   const c = cur;
+  // city search is for naming / a rough start — never overwrite a photo's own GPS coords
+  if (fromGps.has(c.id) && placed(c)) {
+    await loadCities();
+    const hits = placeHits.length ? placeHits : searchPlaces(text, 8);
+    const h = hits[placeSel] ?? hits[0];
+    if (!h) { $('locNote').textContent = 'No place named “' + text + '” in our list. The photo keeps its exact GPS.'; return; }
+    c.place = h.short; fPlace.value = h.short;
+    placeHits = []; drawPlaceResults();
+    save(); locNote(); drawStoryNav(c); drawMeta(c);
+    flyTo(c, 15);
+    return;
+  }
   await loadCities();
   const hits = placeHits.length ? placeHits : searchPlaces(text, 8);
   const h = hits[placeSel] ?? hits[0];
   if (!h) { $('locNote').textContent = 'No place named “' + text + '” in our list. Use Pin on map to choose the spot yourself.'; return; }
   c.lat = h.lat; c.lng = h.lng; c.place = h.short; fPlace.value = h.short;
+  fromGps.delete(c.id);
   placeHits = []; drawPlaceResults();
   save(); render(); locNote(); drawStoryNav(c); drawMeta(c); markSelected();
-  flyTo(c);
+  flyTo(c, 10);
+  $('locNote').textContent = `City center of ${h.short}. Pin on map to set the exact spot.`;
 }
 $('placeBtn').onclick = findPlace;
 fPlace.onkeydown = e => {
@@ -1173,9 +1219,10 @@ function stopPinning() {
 }
 $('pinBtn').onclick = () => { if (cur) startPinning([cur]); };
 $('pinCancel').onclick = stopPinning;
-$('exactBtn').onclick = () => { if (cur && placed(cur)) flyTo(cur, 13); };
+$('exactBtn').onclick = () => { if (cur && placed(cur)) flyTo(cur, 15); };
 $('clearLoc').onclick = () => {
   if (!cur) return;
+  fromGps.delete(cur.id);
   cur.lat = cur.lng = null; cur.place = ''; fPlace.value = '';
   render(); locNote(); drawStoryNav(cur); drawMeta(cur); save();
 };

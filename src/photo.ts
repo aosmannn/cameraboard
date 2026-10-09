@@ -71,6 +71,7 @@ export async function fillCard(c: Card, f: File): Promise<void> {
     aperture: num(ex.FNumber) ? 'f/' + round(num(ex.FNumber)) : '', iso: ex.ISO || '', focal: num(ex.FocalLength) ? round(num(ex.FocalLength)) + ' mm' : '',
     size: `${img.w} × ${img.h}`, file: f.name };
   c.date = toLocalInput(new Date(ex.DateTimeOriginal || f.lastModified));
+  // keep the photo's own GPS as-is (exact lat/lng). The place name is filled in later from our city list.
   if (ex.latitude != null) { c.lat = ex.latitude; c.lng = ex.longitude; c.place = c.place || 'From photo GPS'; }
   if (!c.title) c.title = f.name.replace(/\.[^.]+$/, '');
 }
@@ -87,8 +88,8 @@ export function stampText(c: Card): string {
   return `'${String(d.getFullYear()).slice(2)} ${p(d.getMonth() + 1)} ${p(d.getDate())}`;
 }
 
-/** Two cards are "at the same place" when they fall in the same ~1 km grid cell. */
-export const placeKey = (c: Card) => `${c.lat!.toFixed(2)},${c.lng!.toFixed(2)}`;
+/** Two cards are "at the same place" when they fall in the same ~100 m grid cell (exact GPS stays separate from a nearby city pin). */
+export const placeKey = (c: Card) => `${c.lat!.toFixed(3)},${c.lng!.toFixed(3)}`;
 
 /** A square, centered crop of a picture, shrunk to `size` pixels: what we keep as someone's profile picture. */
 export function squareAvatar(file: File, size = 360): Promise<Blob> {
