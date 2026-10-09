@@ -55,10 +55,14 @@ export class LandmarkLayer {
     }
     const zoom = this.map.getZoom();
     const keep = new Set<string>();
+    const placed: { x: number; y: number }[] = [];
     for (const def of LANDMARKS) {
       if (zoom < def.minZoom - 0.01) continue;
       const pt = this.map.latLngToContainerPoint([def.lat, def.lon]);
       if (pt.x < -120 || pt.y < -200 || pt.x > s.x + 120 || pt.y > s.y + 120) continue;
+      // earlier landmarks win; a neighbor waits until there is room for both
+      if (placed.some(o => Math.abs(o.x - pt.x) < 130 && Math.abs(o.y - pt.y) < 90)) continue;
+      placed.push({ x: pt.x, y: pt.y });
       keep.add(def.id);
       let a = this.active.get(def.id);
       if (!a) {
@@ -86,7 +90,7 @@ export class LandmarkLayer {
         this.active.set(def.id, a);
       }
       // grows a little as you zoom in, but never takes over the map
-      const px = 76 * Math.min(2.2, Math.pow(1.35, zoom - def.minZoom));
+      const px = 96 * Math.min(2.2, Math.pow(1.35, zoom - def.minZoom));
       a.root.position.set(pt.x, s.y - pt.y, 0);
       a.root.scale.setScalar(px);
       a.root.rotation.set(-0.42, -0.5, 0);
