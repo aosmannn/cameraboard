@@ -116,7 +116,7 @@ How privacy works:
 
 ## Map data
 
-All in `public/data`, loaded as the map needs it. All public domain.
+All in `public/data`, loaded as the map needs it. Natural Earth and US Census data are public domain; the relief pictures come from open elevation data and are credited on the Credits page.
 
 | File | What | Source |
 | --- | --- | --- |
@@ -124,8 +124,11 @@ All in `public/data`, loaded as the map needs it. All public domain.
 | `admin1.json` | 4,596 states, provinces and regions worldwide | Natural Earth 1:10m admin-1, simplified with [mapshaper](https://github.com/mbloch/mapshaper) (`-simplify 6% keep-shapes`) |
 | `cities.json` | 7,342 cities with state, country and population | Natural Earth populated places |
 | `us-counties.json` | 3,231 US counties | `us-atlas` package |
+| `nature.json` | Lakes, rivers, deserts, mountain ranges, peaks | Natural Earth (`scripts/build-nature.mjs`) |
+| `biomes.png` | Climate zones for the Terrain colors | Natural Earth II land cover, by Steven (@vcanp) |
+| `relief-shade.webp`, `relief-height.webp` | Hillshade and heights for the shaded relief and sea depth | [AWS Terrain Tiles](https://registry.opendata.aws/terrain-tiles/) (SRTM, GMTED2010, ETOPO1 and others, see their [data sources](https://github.com/tilezen/joerd/blob/master/docs/data-sources.md)), baked by `scripts/build-relief.mjs` |
 
-Not included: streets and buildings. That level of detail needs OpenStreetMap-sized data.
+Not included: streets and buildings. That level of detail needs OpenStreetMap-sized data, which is too big to ship with the app.
 
 ## Roadmap
 
@@ -145,23 +148,19 @@ Map data © [Natural Earth](https://www.naturalearthdata.com) (public domain). U
 
 ## Map styles and the Terrain theme
 
-The Terrain theme draws live layers under the country borders, each a Leaflet grid layer:
+The map runs only on data that ships with the app; no outside map service is called while you use it.
 
-- `src/relief.ts`: pixel-art terrain. For every map tile it combines
-  - heights from Terrarium elevation tiles (`elevation-tiles-prod` on S3),
-  - climate zones from `public/data/biomes.png` (desert, steppe, savanna, forests, tundra, ice...), baked from Natural Earth II land cover by `scripts/build-biomes.mjs`,
-  - from zoom 7, OpenStreetMap land cover and land use (forest, fields, marsh, sand, rock, ice, towns),
+- **Land colors** (Terrain): `public/data/biomes.png` is a world grid of climate zones (desert, steppe, savanna, forests, tundra, ice...) made from Natural Earth II land cover. `ZoneLayer` in `src/world.ts` colors the land by zone and clips it to the country shapes.
+- **Mountains, rivers, lakes, deserts** (all styles): `public/data/nature.json`, drawn by `src/nature.ts`.
+- **Shaded relief** (`src/relief.ts`): two small pictures cover the whole world in Web Mercator, so a map tile is just a rectangle of them.
+  - `relief-shade.webp` (4096 px, grey): hillshade, light from the north-west.
+  - `relief-height.webp` (2048 px, grey): height in metres as a signed square root (0 = deepest sea, 255 = highest peak; `metres()` decodes it).
+  - In Terrain, `ZoneLayer` lights each 2 px pixel-art cell with the shade picture in a few dithered steps, turns the highest ground to bare rock and snow (the snow line sinks towards the poles), and fades the effect out as you zoom past what the pictures can show (about zoom 6).
+  - In every style, `SeaLayer` shades the sea by depth (light shelves, dark deep ocean; in Terrain as pixel-art bands). In Paper, Atlas and Night, `ShadeLayer` lays a faint sun and shadow over the land.
+  - If the pictures are missing the map still works, just without relief.
+- Rebuild the pictures with `node scripts/build-relief.mjs` (needs `cwebp` from `brew install webp`; it downloads AWS Terrain Tiles once, at zoom 4, and bakes them). Only run it when you want to change the data; the result is checked in. The two images total about 0.7 MB and are loaded after the map is up.
 
-  then applies altitude (tree line, bare rock, snow line), steep-cliff rock, hillshade and dithering.
-- `src/streets.ts`: roads, rail, rivers, lakes and buildings from OpenFreeMap vector tiles (OpenStreetMap data). Roads start at zoom 8.5, one zoom after county lines.
-- `src/tiles.ts`: the shared vector tile download and cache.
-- Heights (`loadElevation` in `src/relief.ts`): land comes from Mapterhorn (`tiles.mapterhorn.com`, free, no key, Terrarium encoding, 512 px; global 30 m Copernicus data plus open national surveys). Mapterhorn has no seabed (the sea is flat zero), so the sea depth comes from the AWS Terrarium tiles, repaired as described next. If Mapterhorn is down, the AWS tiles are used for everything.
-- AWS Terrarium repair (`loadAws` in `src/relief.ts`): those tiles have known flaws, so every tile is checked against its coarser parent tile. Tiles in the last strip before the date line (east of 178.6 degrees) hold wrong land at zoom 8 and 9 (Fiji, East Cape of New Zealand), so their land is rebuilt from the zoom 10 tiles (the sea keeps the tile's own depth, and false land becomes sea). Tiles that clearly disagree with their parent about land and sea take the parent's data, and ocean with no depth data (flat zero) takes its depth from the zoom 7 tile. Within about 3.6 degrees of the date line the deep sea also blends smoothly toward the zoom 7 depth, because depth differs between tiles and between the two sides of the line. Known limit: some zoom 10 land tiles east of 178.6 degrees are simply smoother than their neighbours; that is the source data.
-- `src/shade.ts`: for the flat styles (Paper, Atlas, Night), hillshade over the land and depth in the sea, from the same elevation tiles. Each style's `detail` in `src/world.ts` also gives `streets.ts` its own colors for lakes, rivers, roads and buildings.
-
-Posters use `reliefWorld()` in `src/relief.ts`, which draws the whole world once (heights and climate zones only).
-
-The two tile sources are free and need no key, but they are third-party services: if one is down, that layer stays blank and the rest of the map still works. Credit is on the Credits page.
+Posters use the climate-zone colors only (see `src/poster.ts`).
 
 ## Panning around the globe
 
