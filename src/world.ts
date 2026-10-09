@@ -6,6 +6,7 @@ import topo from 'world-atlas/countries-50m.json';
 import { loadAdmin1, loadCounties, loadCities } from './atlas';
 import { Labels, type Item } from './labels';
 import { addNature } from './nature';
+import { reliefReady, reliefTile, shadeLand, bayer, seaStyleFor, SeaLayer, ShadeLayer } from './relief';
 
 export type ThemeName = 'terrain' | 'paper' | 'atlas' | 'night';
 export interface Theme {
@@ -252,19 +253,26 @@ function zoneAt(lat: number, lng: number, out: number[]) {
   const a = at(x0, y0), b = at(x0 + 1, y0), c = at(x0, y0 + 1), d = at(x0 + 1, y0 + 1);
   for (let k = 0; k < 3; k++) out[k] = (a[k] * (1 - fx) + b[k] * fx) * (1 - fy) + (c[k] * (1 - fx) + d[k] * fx) * fy;
 }
-const ZONE_CELLS = 64;   // each map tile is sampled 64 x 64 and stretched smoothly to the tile size
+const ZONE_CELLS = 64;     // without the relief pictures, each map tile is sampled 64 x 64 and stretched smoothly to the tile size
+const PIXEL_CELLS = 128;   // with them, 128 x 128: every cell is a 2 px square of pixel art, lit by the sun and dithered
 const ZoneLayer = L.GridLayer.extend({
   createTile(coords: L.Coords, done: (e: Error | null, t: HTMLElement) => void) {
     const size = 256, tile = document.createElement('canvas'); tile.width = tile.height = size;
-    zonesReady.then(() => {
+    Promise.all([zonesReady, reliefReady()]).then(([, pics]) => {
       if (!zones) { done(null, tile); return; }
-      const n = 2 ** coords.z, small = document.createElement('canvas'); small.width = small.height = ZONE_CELLS;
-      const sctx = small.getContext('2d')!, img = sctx.createImageData(ZONE_CELLS, ZONE_CELLS), rgb = [0, 0, 0];
-      for (let j = 0; j < ZONE_CELLS; j++) {
-        const lat = Math.atan(Math.sinh(Math.PI * (1 - 2 * (coords.y + (j + 0.5) / ZONE_CELLS) / n))) * 180 / Math.PI;
-        for (let i = 0; i < ZONE_CELLS; i++) {
-          zoneAt(lat, (coords.x + (i + 0.5) / ZONE_CELLS) / n * 360 - 180, rgb);
-          const o = (j * ZONE_CELLS + i) * 4; img.data[o] = rgb[0]; img.data[o + 1] = rgb[1]; img.data[o + 2] = rgb[2]; img.data[o + 3] = 255;
+      const relief = pics && reliefTile(pics, coords.z, coords.x, coords.y, PIXEL_CELLS);
+      const cells = relief ? PIXEL_CELLS : ZONE_CELLS;
+      const n = 2 ** coords.z, small = document.createElement('canvas'); small.width = small.height = cells;
+      // the sun and snow fade out as you zoom in past what the pictures can show (about zoom 6)
+      const k = Math.max(0.35, Math.min(1, 1 - (coords.z - 6) * 0.13));
+      const sctx = small.getContext('2d')!, img = sctx.createImageData(cells, cells), rgb = [0, 0, 0];
+      for (let j = 0; j < cells; j++) {
+        const lat = Math.atan(Math.sinh(Math.PI * (1 - 2 * (coords.y + (j + 0.5) / cells) / n))) * 180 / Math.PI;
+        for (let i = 0; i < cells; i++) {
+          zoneAt(lat, (coords.x + (i + 0.5) / cells) / n * 360 - 180, rgb);
+          const o = (j * cells + i) * 4;
+          if (relief) shadeLand(rgb, relief.shade[j * cells + i], relief.height[j * cells + i], lat, k, bayer(i, j));
+          img.data[o] = rgb[0]; img.data[o + 1] = rgb[1]; img.data[o + 2] = rgb[2]; img.data[o + 3] = 255;
         }
       }
       sctx.putImageData(img, 0, 0);
@@ -287,7 +295,7 @@ const ZoneLayer = L.GridLayer.extend({
           }
         }
       }
-      ctx.save(); ctx.clip('evenodd'); ctx.imageSmoothingEnabled = true; ctx.drawImage(small, 0, 0, size, size); ctx.restore();
+      ctx.save(); ctx.clip('evenodd'); ctx.imageSmoothingEnabled = !relief; ctx.drawImage(small, 0, 0, size, size); ctx.restore();
       done(null, tile);
     });
     return tile;
@@ -305,8 +313,9 @@ export function drawWorld(map: L.Map, initial: ThemeName): World {
     labels.setColors({ text: T.label, halo: T.halo, sea: T.sea });
   };
   applyChrome();
-  for (const [name, z] of [['worldPane', 150], ['statePane', 160], ['zonePane', 164], ['countyPane', 170], ['hlPane', 180]] as [string, number][])
+  for (const [name, z] of [['seaPane', 148], ['worldPane', 150], ['statePane', 160], ['shadePane', 162], ['zonePane', 164], ['countyPane', 170], ['hlPane', 180]] as [string, number][])
     map.createPane(name).style.zIndex = String(z);
+  map.getPane('shadePane')!.style.pointerEvents = 'none'; map.getPane('seaPane')!.style.pointerEvents = 'none';
   map.getPane('hlPane')!.style.pointerEvents = 'none';
   map.getPane('zonePane')!.style.pointerEvents = 'none';
   // the Terrain style: land colored by what grows on it, plus deserts, mountains, rivers and lakes (all bundled data)
@@ -316,6 +325,16 @@ export function drawWorld(map: L.Map, initial: ThemeName): World {
   map.on('zoomend', zoneFade);
   const nature = addNature(map, T);
   syncZones();
+  // sea depth in every style (shelves light, deep ocean dark), and sun and shadow on the land of the flat styles; both from the bundled relief pictures
+  const seaLayer = new SeaLayer(seaStyleFor(T.ocean, !!T.terrain), { pane: 'seaPane', minZoom: 2, maxZoom: 16 }).addTo(map);
+  const SHADE: Partial<Record<ThemeName, number>> = { paper: 0.6, atlas: 0.45, night: 0.7 };
+  const shadeLayer = new ShadeLayer(0.6, { pane: 'shadePane', minZoom: 2, maxZoom: 16 });
+  const syncRelief = () => {
+    seaLayer.setStyle(seaStyleFor(T.ocean, !!T.terrain));
+    const k = SHADE[(Object.keys(THEMES) as ThemeName[]).find(n => THEMES[n] === T)!];
+    if (k) { shadeLayer.setStrength(k); if (!map.hasLayer(shadeLayer)) shadeLayer.addTo(map); } else if (map.hasLayer(shadeLayer)) map.removeLayer(shadeLayer);
+  };
+  syncRelief();
 
   // ---- countries ----
   const countryRenderer = L.canvas({ pane: 'worldPane' });
@@ -419,7 +438,7 @@ export function drawWorld(map: L.Map, initial: ThemeName): World {
     states?.setStyle(stateStyle); counties?.setStyle({ color: T.border });
   };
   return {
-    setTheme(t) { T = THEMES[t]; applyChrome(); restyle(); drawHighlight(); syncZones(); nature.setTheme(T); },
+    setTheme(t) { T = THEMES[t]; applyChrome(); restyle(); drawHighlight(); syncZones(); syncRelief(); nature.setTheme(T); },
     highlight(name) { hlName = name; drawHighlight(); },
     setVisited(names) { visited = names; restyle(); }
   };

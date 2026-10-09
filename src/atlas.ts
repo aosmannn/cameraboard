@@ -62,18 +62,22 @@ export function searchPlaces(query: string, max = 6): Place[] {
   return hits.sort((a, b) => b.s - a.s).slice(0, max).map(h => toPlace(h.r));
 }
 
-/** Closest city to a point, as a readable name. Null when nothing is within ~300 km. */
+/** Closest city to a point, as a readable name. Null when nothing is within ~300 km.
+ *  Uses smaller towns when you're close, so a GPS pin outside a big city can still name the nearby place. */
 export function nameAt(lat: number, lng: number): string | null {
   const k = Math.cos(lat * Math.PI / 180);
   let best: CityRow | null = null, bd = Infinity;
   for (const r of cities) {
-    if (r[5] < 20000) continue;
     const d = ((r[4] - lng) * k) ** 2 + (r[3] - lat) ** 2;
+    const km = Math.sqrt(d) * 111;
+    // far away: only big cities; nearby: allow small towns so the label matches the exact spot
+    if (km > 40 && r[5] < 20000) continue;
+    if (km > 12 && r[5] < 5000) continue;
     if (d < bd) { bd = d; best = r; }
   }
   if (!best) return null;
   const km = Math.sqrt(bd) * 111;
   if (km > 300) return null;
   const p = toPlace(best);
-  return km < 25 ? p.short : `Near ${p.short}`;
+  return km < 3 ? p.short : `Near ${p.short}`;
 }

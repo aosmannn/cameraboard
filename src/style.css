@@ -374,6 +374,7 @@ h3.first { margin-top: 12px !important; }
 
 .country-chip { top: 76px; z-index: 22; }
 .country-chip span { font-weight: 500; }
+.terrain-chip { top: 128px; z-index: 21; }
 .leaflet-container.has-pick { cursor: pointer; }
 
 .st-vis { max-width: 100%; padding: 5px 8px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); font-size: 13px; }
@@ -525,6 +526,7 @@ h3.first { margin-top: 12px !important; }
   /* the country chip is just a name and a close button, so it stays a small pill instead of a full-width card */
   body .country-chip { left: 50%; right: auto; transform: translateX(-50%); width: max-content; max-width: calc(100% - 24px);
     flex-wrap: nowrap; border-radius: 999px; padding: 6px 6px 6px 16px; row-gap: 0; }
+  body .terrain-chip { top: 160px; }
   body .country-chip > span { flex: 0 1 auto; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .banner > span, .invite-banner > span { flex: 1 1 100%; min-width: 0; overflow-wrap: anywhere; line-height: 1.35; }
   .banner .btn { flex: none; }
