@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import type L from 'leaflet';
 import { LANDMARKS, type Landmark } from './registry';
-import { buildModel } from './models';
+import { loadModel } from './glb';
 
 interface Active { def: Landmark; root: THREE.Group; badge: HTMLButtonElement }
 
@@ -63,15 +63,11 @@ export class LandmarkLayer {
       let a = this.active.get(def.id);
       if (!a) {
         const root = new THREE.Group();
-        const model = buildModel(def.id);
-        const h = model.userData.height as number;
-        model.position.y = 0;
-        root.add(model);
+        void loadModel(def.id).then(model => { root.add(model); this.schedule(); });
         const shade = new THREE.Mesh(new THREE.CircleGeometry(0.5, 24), new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.2, depthWrite: false }));
         shade.rotation.x = -Math.PI / 2;
         shade.position.y = 0.002;
         root.add(shade);
-        root.userData.h = h;
         this.scene.add(root);
         const badge = document.createElement('button');
         badge.type = 'button';

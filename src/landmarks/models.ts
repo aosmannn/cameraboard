@@ -90,6 +90,7 @@ class Kit {
     wrap.add(g);
     wrap.scale.setScalar(fit);
     wrap.userData.height = size.y * fit;
+    wrap.userData.width = Math.max(size.x, size.z) * fit;
     return wrap;
   }
 }

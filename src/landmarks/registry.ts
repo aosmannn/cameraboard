@@ -60,3 +60,27 @@ export const INFO: Record<string, LandmarkInfo> = {
   goldengate: { blurb: 'Its color is called International Orange. When it opened it was the longest suspension bridge main span in the world. The towers rise out of the water and the bridge is often wrapped in fog.', facts: [['Opened', 'May 27, 1937'], ['Main span', '1,280 m (4,200 ft)'], ['Tower height', '227 m (746 ft)'], ['Engineer', 'Joseph Strauss, Charles Ellis, Leon Moisseiff']] },
   needle: { blurb: 'Built for the 1962 World\'s Fair, the Century 21 Exposition, in just 400 days. The saucer-shaped top holds an observation deck and a restaurant, and it is designed to stand through earthquakes and strong winds.', facts: [['Built', '1962'], ['Height', '184 m (605 ft)'], ['Built in', '400 days'], ['Built for', 'Seattle World\'s Fair']] },
 };
+
+/** 3D model credits (author, license). All models are CC BY or CC0 from Sketchfab. */
+export const CREDITS: Record<string, [string, string, string]> = {
+  eiffel: ['Johnson Martin', 'CC BY', 'https://sketchfab.com/3d-models/eiffel-tower-6830e60d2c1048f2a33e92679664f652'],
+  giza: ['ianicolo', 'CC BY', 'https://sketchfab.com/3d-models/4a251113722f4d969b6cf2ca5f35c502'],
+  taj: ['Dinendra Neyo', 'CC BY', 'https://sketchfab.com/3d-models/1eb09052f6cd421caeaa6cb3204cb15d'],
+  liberty: ['Gravity Jack', 'CC BY', 'https://sketchfab.com/3d-models/84094e8d5e724b5c882cf576ca12e44e'],
+  opera: ['Nick Reinhardt', 'CC BY', 'https://sketchfab.com/3d-models/317b2d540f0a4f7e8d87dd3b0372712d'],
+  christ: ['JuanG3D', 'CC BY', 'https://sketchfab.com/3d-models/d143e5357efd42529777438d0f72c79c'],
+  burj: ['SDC PERFORMANCE', 'CC BY', 'https://sketchfab.com/3d-models/c1d6f5884c9c4a56b8d8f9c5555f1902'],
+  bigben: ['jettrickdesign', 'CC BY', 'https://sketchfab.com/3d-models/58064c3815f34b759a5bbb75fb8d8eb2'],
+  colosseum: ['Carlos.Maciel', 'CC BY', 'https://sketchfab.com/3d-models/e749705838044be78ced42205f9f9dda'],
+  stpeters: ['Ignazio Pillitteri', 'CC BY', 'https://sketchfab.com/3d-models/1d936fe09cc64376802b196157a73d16'],
+  pisa: ['LinkinPipe', 'CC BY', 'https://sketchfab.com/3d-models/1ff02ed0588e4e4f9dcf621a8af07336'],
+  sagrada: ['wareFLO', 'CC BY', 'https://sketchfab.com/3d-models/1e6a870501584df28a328d1278b96b97'],
+  basil: ['Polskaball', 'CC BY', 'https://sketchfab.com/3d-models/a0b09745ecfe4cfea590eefcaac1e457'],
+  parthenon: ['edgaro', 'CC BY', 'https://sketchfab.com/3d-models/abb233a40ca9452a8b9313d376ade2ab'],
+  stonehenge: ['Graphic solutions', 'CC BY', 'https://sketchfab.com/3d-models/7e7febabef2045a68755cc39c8c7c91f'],
+  petronas: ['NanoRay', 'CC BY', 'https://sketchfab.com/3d-models/4111f3de53f24ab0a9547205723665b1'],
+  angkor: ['333DDD', 'CC BY', 'https://sketchfab.com/3d-models/be70b89f9c264fc19d63dca2ae78b224'],
+  chichen: ['transmitthis', 'CC BY', 'https://sketchfab.com/3d-models/cfc417947a3041b086ad1b2ff5ef8ba0'],
+  goldengate: ['JuanG3D', 'CC BY', 'https://sketchfab.com/3d-models/a0ee5a9c285849c0819af5f366be3835'],
+  needle: ['EDXtawny', 'CC BY', 'https://sketchfab.com/3d-models/a0cbf7ba6d6342f4983b86ea20144ace'],
+};

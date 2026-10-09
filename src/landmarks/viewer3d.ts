@@ -1,6 +1,6 @@
 import * as THREE from 'three';
-import { LANDMARKS, INFO, byId } from './registry';
-import { buildModel } from './models';
+import { LANDMARKS, INFO, CREDITS, byId } from './registry';
+import { loadModel } from './glb';
 
 /** Full-screen 3D view of one landmark: drag to turn, wheel to zoom, arrows for the next one. */
 let root: HTMLDivElement | null = null;
@@ -8,6 +8,7 @@ let renderer: THREE.WebGLRenderer;
 let scene: THREE.Scene;
 let camera: THREE.PerspectiveCamera;
 let pivot: THREE.Group;
+let ground: THREE.Object3D[] = [];
 let current = 0;
 let spin = true;
 let yaw = 0.6, pitch = 0.42, dist = 2.6;
@@ -27,6 +28,7 @@ function build() {
       <button class="lm-close btn icon ghost" type="button" aria-label="Close">✕</button>
       <div class="lm-stage">
         <canvas class="lm-canvas"></canvas>
+        <p class="lm-loading">Loading model…</p>
         <div class="lm-ctl">
           <button class="btn small lm-prev" type="button" aria-label="Previous landmark">‹</button>
           <button class="btn small lm-play" type="button" aria-label="Spin"></button>
@@ -40,6 +42,7 @@ function build() {
         <p class="lm-sub"></p>
         <p class="lm-blurb"></p>
         <dl class="lm-facts"></dl>
+        <p class="lm-credit"></p>
         <button class="btn primary lm-map" type="button">Show on map</button>
       </div>
     </div>`;
@@ -50,16 +53,18 @@ function build() {
   scene = new THREE.Scene();
   camera = new THREE.PerspectiveCamera(32, 1, 0.1, 50);
   scene.add(new THREE.HemisphereLight(0xffffff, 0xb8aa90, 1.5));
-  const sun = new THREE.DirectionalLight(0xfff1d6, 1.25);
+  const sun = new THREE.DirectionalLight(0xfff1d6, 1.6);
   sun.position.set(-2, 3, 2.5);
   scene.add(sun);
   const disc = new THREE.Mesh(new THREE.CircleGeometry(1.5, 48), new THREE.MeshBasicMaterial({ color: 0xe6dcc6, transparent: true, opacity: 0.9 }));
   disc.rotation.x = -Math.PI / 2;
   disc.position.y = -0.002;
   scene.add(disc);
+  ground.push(disc);
   const ring = new THREE.Mesh(new THREE.RingGeometry(1.0, 1.04, 64), new THREE.MeshBasicMaterial({ color: 0x9b8f77, transparent: true, opacity: 0.45, side: THREE.DoubleSide }));
   ring.rotation.x = -Math.PI / 2;
   scene.add(ring);
+  ground.push(ring);
   pivot = new THREE.Group();
   scene.add(pivot);
 
@@ -98,6 +103,7 @@ function build() {
   q('.lm-map').onclick = () => { const id = LANDMARKS[current].id; close(); onShow?.(id); };
   root.addEventListener('pointerdown', e => { if (e.target === root) close(); });
   new ResizeObserver(fit).observe(q('.lm-stage'));
+  new ResizeObserver(fit).observe(q('.lm-stage'));
   document.addEventListener('keydown', e => {
     if (!root || root.hidden) return;
     if (e.key === 'Escape') close();
@@ -119,19 +125,32 @@ function fit() {
   camera.updateProjectionMatrix();
 }
 
+let showToken = 0;
 function show(i: number) {
   current = (i + LANDMARKS.length) % LANDMARKS.length;
   const def = LANDMARKS[current];
+  const mine = ++showToken;
   pivot.clear();
-  const m = buildModel(def.id);
-  const h = m.userData.height as number;
-  m.scale.multiplyScalar(1.15);
-  pivot.add(m);
-  pivot.userData.h = h * 1.15;
+  pivot.userData.h = 1;
+  root!.classList.add('loading');
+  void loadModel(def.id).then(m => {
+    if (mine !== showToken) return;
+    const h = m.userData.height as number;
+    m.scale.multiplyScalar(1.15);
+    pivot.clear();
+    pivot.add(m);
+    pivot.userData.h = h * 1.15;
+    pivot.userData.w = (m.userData.width as number) * 1.15;
+    const gs = Math.max(0.7, Math.min(1.6, (pivot.userData.w as number) * 0.8));
+    ground.forEach(o => o.scale.setScalar(gs));
+    root!.classList.remove('loading');
+  });
   q('.lm-name').textContent = def.name;
   q('.lm-sub').textContent = `${def.kind} · ${def.place}`;
   const info = INFO[def.id];
   q('.lm-kind').textContent = def.kind;
+  const cr = CREDITS[def.id];
+  q('.lm-credit').textContent = cr ? `3D model by ${cr[0]} (${cr[1]})` : '';
   q('.lm-blurb').textContent = info?.blurb ?? '';
   const dl = q('.lm-facts');
   dl.replaceChildren();
@@ -149,7 +168,8 @@ function loop() {
   raf = requestAnimationFrame(loop);
   if (spin) yaw += 0.006;
   const hh = (pivot.userData.h as number) || 1;
-  const r = dist * Math.max(1.3, hh * 1.25);
+  const ww = (pivot.userData.w as number) || 1;
+  const r = dist * Math.max(1.3, hh * 1.25, ww * 1.5);
   camera.position.set(Math.sin(yaw) * Math.cos(pitch) * r, Math.sin(pitch) * r + hh * 0.35, Math.cos(yaw) * Math.cos(pitch) * r);
   camera.lookAt(0, hh * 0.4, 0);
   renderer.render(scene, camera);
@@ -168,6 +188,7 @@ export function openViewer(id: string, showOnMap: (id: string) => void) {
   cancelAnimationFrame(raf);
   loop();
   q<HTMLButtonElement>('.lm-close').focus();
+  requestAnimationFrame(fit);
   requestAnimationFrame(fit);
 }
 
