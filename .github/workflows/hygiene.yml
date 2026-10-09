@@ -1,0 +1,20 @@
+# Keeps tool names out of branch names and commit credits on pull requests.
+name: Hygiene
+on:
+  pull_request:
+jobs:
+  names:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - name: Branch name and commit trailers
+        env:
+          HEAD_REF: ${{ github.head_ref }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          case "$HEAD_REF" in cursor/*|claude/*|codex/*) echo "::error::Rename the branch to adam/<topic> or steven/<topic>"; exit 1;; esac
+          if git log --format=%B "$BASE_SHA..$HEAD_SHA" | grep -iE '^(co-authored-by:.*(cursor|claude|anthropic|copilot|codex)|generated (with|by) )'; then
+            echo "::error::Remove tool co-author or attribution lines from the commit messages"; exit 1
+          fi

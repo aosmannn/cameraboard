@@ -1,0 +1,6 @@
+---
+description: Wayframe repo rules
+alwaysApply: true
+---
+Follow AGENTS.md at the repo root. In short: branches are `adam/<topic>` or `steven/<topic>` (never `cursor/...`),
+commits have no Co-authored-by or tool attribution, no third-party map or 3D services, American spelling.
