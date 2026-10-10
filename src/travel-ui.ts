@@ -170,7 +170,7 @@ export function initTravel(ctx: TravelCtx) {
     for (const it of bucket) {
       const li = el('li', 'tv-item ' + it.status), top = el('div', 'tv-row');
       const name = el('button', 'tv-name', it.title); name.type = 'button';
-      name.onclick = () => { if (it.lat != null && it.lng != null) ctx.map.flyTo([it.lat, it.lng], 8, { duration: 1 }); else if (it.country) ctx.flyToCountry(it.country); };
+      name.onclick = () => { if (it.lat != null && it.lng != null) ctx.map.flyTo([it.lat, it.lng + 360 * Math.round((ctx.map.getCenter().lng - it.lng) / 360)], 8, { duration: 1 }); else if (it.country) ctx.flyToCountry(it.country); };
       const st = el('select', 'tv-status'); st.setAttribute('aria-label', 'Status of ' + it.title);
       for (const k of Object.keys(STATUS) as cloud.BucketStatus[]) { const o = el('option', '', STATUS[k]); o.value = k; st.append(o); }
       st.value = it.status; st.onchange = () => { void patchItem(it, { status: st.value as cloud.BucketStatus }); };
@@ -219,7 +219,7 @@ export function initTravel(ctx: TravelCtx) {
     for (const it of bucket) {
       if (it.status === 'done' || it.lat == null || it.lng == null) continue;
       const icon = L.divIcon({ className: 'tv-star', html: '<span>★</span>', iconSize: [26, 26], iconAnchor: [13, 13] });
-      L.marker([it.lat, it.lng], { icon, title: it.title, keyboard: false }).bindTooltip(it.title, { direction: 'top', offset: [0, -10] }).addTo(stars);
+      for (const off of [-360, 0, 360]) L.marker([it.lat, it.lng + off], { icon, title: it.title, keyboard: false }).bindTooltip(it.title, { direction: 'top', offset: [0, -10] }).addTo(stars);
     }
   }
 

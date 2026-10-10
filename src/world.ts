@@ -317,6 +317,10 @@ export function drawWorld(map: L.Map, initial: ThemeName): World {
   const nature = addNature(map, T);
   syncZones();
 
+  // The map wraps around the globe: every vector layer is drawn three times, one world to the left and right.
+  const OFFSETS = [-360, 0, 360];
+  const shifted = (off: number) => (c: number[]) => L.latLng(c[1], c[0] + off);
+
   // ---- countries ----
   const countryRenderer = L.canvas({ pane: 'worldPane' });
   const style = (f?: any): L.PathOptions => {
@@ -325,20 +329,23 @@ export function drawWorld(map: L.Map, initial: ThemeName): World {
       color: lit && visited?.size ? '#e4572e' : T.border, weight: lit && visited?.size ? 1.6 : 0.8 };
   };
   const countryLabels: Item[] = [];
-  const world: L.GeoJSON = L.geoJSON(fc, {
-    pane: 'worldPane', renderer: countryRenderer,
-    filter: f => f.properties?.name !== 'Antarctica',
-    style,
-    onEachFeature: (f, layer) => {
-      layer.on('mouseover', () => (layer as L.Path).setStyle({ weight: 2.2, color: '#fff' }));
-      layer.on('mouseout', () => world.resetStyle(layer as L.Path));
-      layer.bindTooltip(f.properties.name, { sticky: true, direction: 'top', className: 'ctip' });
-      layer.on('mouseover', () => { if (map.getZoom() >= 4.5) layer.closeTooltip(); });
-      const { area, lc } = f.properties;
-      if (lc) countryLabels.push({ text: f.properties.name, lat: lc[0], lng: lc[1], min: areaZoom(area, [600, 80, 14, 3]) === 3 ? 2 : areaZoom(area, [600, 80, 14, 3]) - 1, max: 6 });
-    }
-  } as L.GeoJSONOptions).addTo(map);
-  world.bringToBack();
+  const worlds: L.GeoJSON[] = OFFSETS.map(off => {
+    const g: L.GeoJSON = L.geoJSON(fc, {
+      pane: 'worldPane', renderer: countryRenderer,
+      filter: f => f.properties?.name !== 'Antarctica',
+      style, coordsToLatLng: shifted(off),
+      onEachFeature: (f, layer) => {
+        layer.on('mouseover', () => (layer as L.Path).setStyle({ weight: 2.2, color: '#fff' }));
+        layer.on('mouseout', () => g.resetStyle(layer as L.Path));
+        layer.bindTooltip(f.properties.name, { sticky: true, direction: 'top', className: 'ctip' });
+        layer.on('mouseover', () => { if (map.getZoom() >= 4.5) layer.closeTooltip(); });
+        const { area, lc } = f.properties;
+        if (lc && off === 0) countryLabels.push({ text: f.properties.name, lat: lc[0], lng: lc[1], min: areaZoom(area, [600, 80, 14, 3]) === 3 ? 2 : areaZoom(area, [600, 80, 14, 3]) - 1, max: 6 });
+      }
+    } as L.GeoJSONOptions).addTo(map);
+    g.bringToBack();
+    return g;
+  });
   labels.set('country', countryLabels);
   labels.set('sea', SEAS.map(([text, lat, lng, min, max]) => ({ text, lat, lng, min, max: Math.min(max, SEA_ZOOM_MAX) })));
 
@@ -352,11 +359,12 @@ export function drawWorld(map: L.Map, initial: ThemeName): World {
     const lit = !visited || !visited.size || visited.has(f.properties.admin);
     return { fillColor: stateFill(f), fillOpacity: lit ? 1 : 0.5, color: T.border, weight: 0.7 };
   };
-  let states: L.GeoJSON | null = null, counties: L.GeoJSON | null = null;
+  let states: L.FeatureGroup | null = null, counties: L.FeatureGroup | null = null;
+  const stateRenderer = L.canvas({ pane: 'statePane' }), countyRenderer = L.canvas({ pane: 'countyPane' });
   const STATES_FROM = 4.5, COUNTIES_FROM = 7.5;
   loadAdmin1().then(fc1 => {
     prepareFeatures(fc1.features, false);
-    states = L.geoJSON(fc1, { pane: 'statePane', renderer: L.canvas({ pane: 'statePane' }), interactive: false, style: stateStyle } as L.GeoJSONOptions);
+    states = L.featureGroup(OFFSETS.map(off => L.geoJSON(fc1, { pane: 'statePane', renderer: stateRenderer, interactive: false, style: stateStyle, coordsToLatLng: shifted(off) } as L.GeoJSONOptions)));
     labels.set('state', fc1.features.filter((f: any) => f.properties.lc && f.properties.name).map((f: any) => ({
       text: f.properties.name, lat: f.properties.lc[0], lng: f.properties.lc[1],
       min: areaZoom(f.properties.area, [60, 12, 3, 0.6]) + 1, max: 12 })));
@@ -364,8 +372,8 @@ export function drawWorld(map: L.Map, initial: ThemeName): World {
   });
   // ---- US counties, from zoom 7.5 ----
   loadCounties().then(fc2 => {
-    counties = L.geoJSON(fc2, { pane: 'countyPane', renderer: L.canvas({ pane: 'countyPane' }), interactive: false,
-      style: () => ({ fill: false, color: T.border, weight: 0.5, opacity: 0.6 }) } as L.GeoJSONOptions);
+    counties = L.featureGroup(OFFSETS.map(off => L.geoJSON(fc2, { pane: 'countyPane', renderer: countyRenderer, interactive: false,
+      style: () => ({ fill: false, color: T.border, weight: 0.5, opacity: 0.6 }), coordsToLatLng: shifted(off) } as L.GeoJSONOptions)));
     labels.set('county', fc2.features.map((f: any) => {
       const g = f.geometry, polys = g.type === 'Polygon' ? [g.coordinates] : g.coordinates;
       let big: Ring | null = null, ba = 0;
@@ -385,7 +393,7 @@ export function drawWorld(map: L.Map, initial: ThemeName): World {
   /** Shows each detail layer only when it is useful, so the canvas stays fast. */
   function sync() {
     const z = map.getZoom();
-    const want = (layer: L.GeoJSON | null, on: boolean) => {
+    const want = (layer: L.FeatureGroup | null, on: boolean) => {
       if (!layer) return;
       if (on && !map.hasLayer(layer)) map.addLayer(layer); else if (!on && map.hasLayer(layer)) map.removeLayer(layer);
     };
@@ -411,12 +419,14 @@ export function drawWorld(map: L.Map, initial: ThemeName): World {
     if (!f) return;
     const accent = T === THEMES.night ? '#ff8a66' : '#d6402b';
     const common = { pane: 'hlPane', renderer: hlRenderer, interactive: false } as any;
-    L.geoJSON(f, { ...common, style: { color: accent, weight: 9, opacity: 0.22, fillColor: accent, fillOpacity: 0.1, lineJoin: 'round' } } as L.GeoJSONOptions).addTo(hlGroup);
-    L.geoJSON(f, { ...common, style: { color: accent, weight: 3, opacity: 1, fill: false, lineJoin: 'round' } } as L.GeoJSONOptions).addTo(hlGroup);
+    for (const off of OFFSETS) {
+      L.geoJSON(f, { ...common, coordsToLatLng: shifted(off), style: { color: accent, weight: 9, opacity: 0.22, fillColor: accent, fillOpacity: 0.1, lineJoin: 'round' } } as L.GeoJSONOptions).addTo(hlGroup);
+      L.geoJSON(f, { ...common, coordsToLatLng: shifted(off), style: { color: accent, weight: 3, opacity: 1, fill: false, lineJoin: 'round' } } as L.GeoJSONOptions).addTo(hlGroup);
+    }
   };
   const restyle = () => {
-    world.options.style = style; world.setStyle(style);
-    states?.setStyle(stateStyle); counties?.setStyle({ color: T.border });
+    for (const w of worlds) { w.options.style = style; w.setStyle(style); }
+    states?.eachLayer(l => (l as L.GeoJSON).setStyle(stateStyle)); counties?.setStyle({ color: T.border });
   };
   return {
     setTheme(t) { T = THEMES[t]; applyChrome(); restyle(); drawHighlight(); syncZones(); nature.setTheme(T); },
